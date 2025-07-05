@@ -11,6 +11,7 @@ import Dashboard from "./pages/Dashboard";
 import Chat from "./pages/Chat";
 import Settings from "./pages/Settings";
 import Login from "./pages/Login";
+import SignIn from "./pages/SignIn";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +29,7 @@ const App = () => (
             <Route path="/chat" element={<Chat />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/sign-in" element={<SignIn />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
