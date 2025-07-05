@@ -1,0 +1,52 @@
+{
+	"extends": "./.svelte-kit/tsconfig.json",
+	"compilerOptions": {
+		"types": ["vite/client", "node", "@types/chrome"],
+		"allowJs": true,
+		"checkJs": true,
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"resolveJsonModule": true,
+		"skipLibCheck": true,
+		"sourceMap": true,
+		"strict": true,
+		"baseUrl": ".",
+		"removeComments": true,
+		"noImplicitAny": false,
+		"paths": {
+			//			don't forget to add to vite
+			"@/*": ["./*"],
+			"@static/*": ["./static/*"],
+			"@src/*": ["./src/*"],
+			"@routes/*": ["./src/routes/*"],
+			"$routes/*": ["./src/routes/*"],
+			"$lib": ["./src/lib"],
+			"$lib/*": ["./src/lib/*"],
+			"$stores": ["./src/stores"],
+			"$stores/*": ["./src/stores/*"],
+			"@stores": ["./src/store"],
+			"@stores/*": ["./src/store/*"],
+			"@utils": ["./utils"],
+			"@utils/*": ["./utils/*"],
+			"$utils/*": ["./utils/*"],
+			"@logos/*": ["./static/logos/*"],
+			"@config/*": ["./config/*"],
+			"@components/*": ["./src/lib/components/*"],
+			"$components/*": ["./src/lib/components/*"]
+		}
+	},
+	"include": [
+		"./config",
+		"./utils",
+		"./config/logos/*.svg",
+		".svelte-kit/ambient.d.ts",
+		"./static/manifest.json",
+		"./src/**/*.png",
+		"./src/**/*.svg"
+	],
+	"exclude": ["**/_archived/**"]
+	// Path aliases are handled by https://kit.svelte.dev/docs/configuration#alias
+	//
+	// If you want to overwrite includes/excludes, make sure to copy over the relevant includes/excludes
+	// from the referenced tsconfig.json - TypeScript does not merge them in
+}
