@@ -1,0 +1,14 @@
+{
+	"name": "ZAuth",
+	"description": "ZAuth serves as an alternative to OAuth2, allowing websites to authenticate users' identities and activities through zkproofs powered by Reclaim Protocol",
+	"launch_path": "/index.html",
+	"icons": {
+		"32": "favicons/favicon-32x32.png",
+		"16": "favicons/favicon-16x16.png"
+	},
+	"developer": {
+		"name": "Hiro",
+		"url": "https://zauth.netlify.app"
+	},
+	"default_locale": "en"
+}

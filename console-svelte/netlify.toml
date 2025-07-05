@@ -1,0 +1,21 @@
+[build]
+command = "cp .env.example .env && npm run setup:min && bun run build"
+publish = "build/"
+# functions = "functions/"
+
+[dev]
+# publish = "./dist"
+targetPort = 5173
+port = 8080
+
+functions = "functions"
+functionsPort = 8081
+
+[functions]
+directory = "functions"
+
+# [[_redirects]] #not supported per  say
+# from = "/api/*"                                 # simplify all calls to serverless functions
+# to = "/.netlify/functions/"                     # all function calls will go to this path
+# status = 200                                    # ok code
+# headers = { Access-Control-Allow-Origin = "*" }

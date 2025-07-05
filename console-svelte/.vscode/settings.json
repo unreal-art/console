@@ -1,0 +1,9 @@
+{
+	"typescript.tsdk": "node_modules/typescript/lib",
+	"svelte.enable-ts-plugin": true,
+	"svelte-intellisense.trace.server": "messages",
+	"importCost.svelteExtensions": ["\\.svelte$"],
+	"css.customData": [".vscode/tailwind.json"],
+	"scss.lint.unknownAtRules": "ignore",
+	"css.lint.unknownAtRules": "ignore"
+}

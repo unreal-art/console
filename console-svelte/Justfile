@@ -1,0 +1,57 @@
+set shell := ["sh", "-c"]
+set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
+#set allow-duplicate-recipe
+#set positional-arguments
+#set dotenv-load
+set dotenv-filename := ".env"
+set export
+
+default: b
+
+
+build:
+  bun run build
+
+b:
+  bun rimraf build
+  
+  bun vite build && node removeInlineScript.cjs && node delete-header.cjs 
+  bun rimraf build/_*
+  # cat build/index.html
+  just check-build
+
+check-build:
+  #!/bin/sh
+  if ! [ -f build/index.html ]; then
+    echo "Index.html does not exist."
+    exit 2
+  fi
+
+check:
+  just b
+  find ./build -name 'index.html' -depth 1
+
+d:
+  bun dev
+
+deploy:
+  bun run deploy
+
+fc:
+  bun run dev:functions
+
+prod:
+  bun netlify deploy --prod
+
+sync:
+  cp static/manifest.json build/
+
+release:
+  tag=$(bash ./scripts/tag.bash)
+  TAG=${tag}
+  echo $TAG
+
+
+ghcr-pull tag="sha-59e6036":
+  docker pull --platform linux/x86_64 ghcr.io/z-auth/zauth:{{tag}}
+  docker run -it -p 8080:80 ghcr.io/z-auth/zauth:{{tag}}

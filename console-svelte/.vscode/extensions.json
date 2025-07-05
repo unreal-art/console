@@ -1,0 +1,15 @@
+{
+	"recommendations": [
+		"esbenp.prettier-vscode",
+		"svelte.svelte-vscode",
+		"ardenivanov.svelte-intellisense",
+		"pivaszbs.svelte-autoimport",
+		"melihaltintas.svelte-format",
+		"selemondev.vscode-shadcn-svelte",
+		"bradlc.vscode-tailwindcss",
+		"austenc.tailwind-docs",
+		"bourhaouta.tailwindshades",
+		"stivo.tailwind-fold",
+		"lightyen.tailwindcss-intellisense-twin"
+	]
+}

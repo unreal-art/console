@@ -1,0 +1,165 @@
+version: 2.1
+
+orbs:
+  node: circleci/node@4.0.0
+  # bun-orb: cmgriffing/bun-orb@0.0.28
+
+jobs:
+  build-node:
+    executor:
+      name: node/default
+
+    steps:
+      - checkout
+
+      - restore_cache:
+          keys:
+            - v1-dependencies-{{ checksum "package.json" }}
+
+      - run:
+          name: Install
+          command: npm install
+
+      - save_cache:
+          paths:
+            - node_modules
+          key: v1-dependencies-{{ checksum "package.json" }}
+
+      -  run: |
+          cp .env.example .env
+      
+      - run:
+            name: Build the project
+            command: npm run build
+
+  build-bun:
+    docker:
+      - image: node:22
+    steps:
+      - checkout
+      # - bun-orb/setup
+      - run: |
+          npm install -g bun
+      - restore_cache:
+          keys:
+            - v1-bun-deps-{{ checksum "bun.lockb" }}
+            - v1-bun-deps-
+      - run: |
+          bun install 
+          cp .env.example .env
+
+      - save_cache:
+          key: v1-bun-deps-{{ checksum "bun.lockb" }}
+          paths:
+            - ~/.bun/install/cache
+            - node_modules
+
+      - run: | 
+          bun run build
+          
+  test:
+    docker:
+      - image: node:22
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - v1-bun-deps-{{ checksum "bun.lockb" }}
+            - v1-bun-deps-
+      - run: |
+          cp .env.example .env
+          npm run setup
+
+      - save_cache:
+          key: v1-bun-deps-{{ checksum "bun.lockb" }}
+          paths:
+            - ~/.bun/install/cache
+            - node_modules
+            - ~/.cache
+
+      - run:
+          name: Build
+          command: |
+            bun run build
+
+      - run:
+          name: Test 
+          command: | 
+            # WEB_CMD="python3 -m http.server -d build/ 8080" PORT=8080 bun run test 
+            # bun start:py & sleep 2
+            WEB_CMD="bun start" PORT=8080 bun run test 
+            # vite dev fails for some builds for some builds but preview works
+            
+            # WEB_CMD="bun gulp start" PORT=8080 bun run test 
+
+      - store_artifacts:
+          path: tests/.data         
+      
+      # - run:
+      #     name: "Retest" 
+      #     command: | 
+      #       bun run test 
+      #     when: on_fail
+
+  test-dev:
+      docker:
+        - image: mcr.microsoft.com/playwright:v1.44.1-jammy
+      steps:
+        - checkout
+        - restore_cache:
+            keys:
+              - v1-bun-deps-{{ checksum "bun.lockb" }}
+              - v1-bun-deps-
+        - run: |
+            cp .env.example .env
+            npm run setup
+
+        - save_cache:
+            key: v1-bun-deps-{{ checksum "bun.lockb" }}
+            paths:
+              - ~/.bun/install/cache
+              - node_modules
+              - ~/.cache
+
+        - run:
+            name: Test
+            command: | 
+              unset CI #FIXME:
+              # bun dev &
+              # sleep 3
+              # WEB_CMD="" PORT=5143 bun run test
+              export NOP=true
+              PLAYWRIGHT_HTML_OPEN=never bun run test      
+        
+        - store_artifacts:
+            path: tests/.data
+
+        - store_artifacts: 
+            path: playwright-report
+
+        - store_test_results: 
+            path: test-results
+      
+
+        # - run:
+        #     name: "Retest" 
+        #     command: | 
+        #       bun run test 
+        #     when: on_fail
+          
+
+
+
+workflows:
+  build:
+    jobs:
+      - build-bun
+      # - build-node
+
+  test:
+    jobs:
+      - test
+
+  test-dev: 
+    jobs:
+      - test-dev

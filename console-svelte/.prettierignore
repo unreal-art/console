@@ -1,0 +1,16 @@
+bun.lockb
+package-lock.json
+
+.env*
+.env
+
+.netlify/
+
+.idea/
+.data/
+.run/
+.svelte-kit/
+.data/
+.vscode/
+node_modules/
+build/

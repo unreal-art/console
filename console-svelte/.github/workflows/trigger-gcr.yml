@@ -1,0 +1,123 @@
+name: Trigger GHCR CI
+on:
+  push:
+    branches:
+      - main
+      - ci/*
+      - deploy/*
+      - docker/*
+      - bugfix/*
+      - hotfix/*
+      - "*"
+      - "**"
+
+    tags:
+      - "v*"
+      - "*"
+      - "**"
+
+    # paths:
+    #   - ./Dockerfile
+
+  pull_request:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+# concurrency:
+#   group: ${{ github.workflow }}-${{ github.ref }}-${{github.event.inputs.runs-on }}
+#   cancel-in-progress: false
+
+env:
+  # zauth: $HOME/zauth
+  zauth: zauth
+  zpay: ./zpay
+  REGISTRY: ghcr.io
+  IMAGE: ghcr.io/${{github.repository_owner}}
+  IMAGE_NAME: zauth
+  PUSH_TAG: zauth:latest
+  REPO: zauth
+
+jobs:
+  trigger-ci:
+    runs-on: "ubuntu-latest"
+
+    steps:
+      - name: Ref
+        run: |
+          echo Ref is ${{github.ref}}
+
+      - name: Checkout z-auth
+        uses: actions/checkout@v4
+        with:
+          token: ${{ github.token }}
+          # path: ${{env.zauth}}
+
+      - name: Set branch name
+        run: echo "BRANCH_NAME=$(echo ${GITHUB_REF#refs/heads/})" >> $GITHUB_ENV
+
+      - name: Get commit message
+        # working-directory: ${{env.zauth}}
+        id: get_commit_message
+        run: |
+          echo "COMMIT_MESSAGE=$(git log -1 --pretty=%B)" >> $GITHUB_ENV
+          echo COMMIT_MESSAGE=$COMMIT_MESSAGE
+
+      - name: Checkout z-auth/ci
+        uses: actions/checkout@v4
+        with:
+          repository: z-auth/ci
+          token: ${{ secrets.TOKEN_GITHUB }}
+          path: ${{env.zpay}}
+          persist-credentials: true
+
+      - name: Config
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "Nasfame"
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          # base for tags
+          images: |
+            ${{env.IMAGE}}/zauth
+            ${{env.IMAGE}}/zauth.app
+
+          tags: |
+
+            # set latest tag for main branch
+            # type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
+
+            type=raw,value=latest,enable={{is_default_branch}}
+
+            type=ref,event=branch
+            type=ref,event=tag
+            type=ref,event=pr
+
+            type=schedule
+            type=sha,format=short
+
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Evaluate all tags
+        run: |
+          echo meta tags
+          echo "${{ steps.meta.outputs.tags }}"
+
+      - name: Create branch
+        # working-directory: ${{env.zpay}}
+        run: |
+          cd ${{ env.zpay }}
+          git fetch origin
+          git checkout -b ${BRANCH_NAME} || git checkout ${BRANCH_NAME}
+          git checkout main . #update github workflows
+          echo "${{ steps.meta.outputs.tags }}" > tags.txt
+          echo "${{ steps.meta.outputs.labels }}" > labels.txt
+          git add .
+          git commit --allow-empty -m "${{github.sha}}: $COMMIT_MESSAGE"
+          git push origin ${BRANCH_NAME} -f
+          # TODO: short sha

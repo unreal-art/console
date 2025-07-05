@@ -1,0 +1,54 @@
+{
+	"/": [
+		"src/routes/+layout.ts",
+		"src/routes/+layout.ts"
+	],
+	"/auth": [
+		"src/routes/auth/+layout.ts",
+		"src/routes/+layout.ts",
+		"src/routes/auth/+layout.ts",
+		"src/routes/+layout.ts"
+	],
+	"/dashboard": [
+		"src/routes/dashboard/+layout.ts",
+		"src/routes/+layout.ts",
+		"src/routes/dashboard/+layout.ts",
+		"src/routes/+layout.ts"
+	],
+	"/legal/privacy": [
+		"src/routes/+layout.ts"
+	],
+	"/onboarding": [
+		"src/routes/onboarding/+layout.ts",
+		"src/routes/+layout.ts",
+		"src/routes/onboarding/+layout.ts",
+		"src/routes/+layout.ts"
+	],
+	"/proof/mint/[proofId]": [
+		"src/routes/proof/mint/[proofId]/+page.ts",
+		"src/routes/+layout.ts"
+	],
+	"/proof/verify/[proofId]": [
+		"src/routes/proof/verify/[proofId]/+page.ts",
+		"src/routes/proof/verify/[proofId]/+layout.ts",
+		"src/routes/+layout.ts",
+		"src/routes/proof/verify/[proofId]/+layout.ts",
+		"src/routes/+layout.ts"
+	],
+	"/proof/view/[id]": [
+		"src/routes/proof/view/[id]/+page.ts",
+		"src/routes/+layout.ts"
+	],
+	"/qr/[providerId]": [
+		"src/routes/qr/[providerId]/+page.ts",
+		"src/routes/qr/[providerId]/+page.server.ts",
+		"src/routes/+layout.ts",
+		"src/routes/qr/[providerId]/+server.ts"
+	],
+	"/settings": [
+		"src/routes/settings/+layout.ts",
+		"src/routes/+layout.ts",
+		"src/routes/settings/+layout.ts",
+		"src/routes/+layout.ts"
+	]
+}

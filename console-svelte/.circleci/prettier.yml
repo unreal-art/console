@@ -1,0 +1,25 @@
+version: 2.1
+orbs:
+  node: circleci/node@4.0.0
+  prettier: circleci/prettier@1.0.0
+
+jobs:
+  prettier:
+    executor:
+      name: node/default
+    steps:
+      - checkout
+      - node/install-packages
+      - node/run-script:
+          name: Format code with Prettier
+          command: npx prettier --write.
+      - prettier/format:
+          files: '**/*.{js,jsx,ts,tsx,css,scss,html,vue,json,md}'
+          #          options: '--ignore-path.prettierignore.ci'
+          fail-fast: true
+
+workflows:
+  version: 2
+  build-and-format:
+    jobs:
+      - prettier
