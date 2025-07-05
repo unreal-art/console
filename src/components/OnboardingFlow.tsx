@@ -1,14 +1,68 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useApi } from '@/lib/ApiContext';
 import { motion } from 'framer-motion';
-import { Check, Wallet, FileText, Key, ArrowRight } from 'lucide-react';
+import { Check, Wallet, FileText, Key, ArrowRight, Copy, AlertCircle } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
-const OnboardingFlow = () => {
+interface OnboardingFlowProps {
+  onComplete?: () => void;
+}
+
+const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
+  const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  // Use API context
+  const {
+    isAuthenticated,
+    isLoading: apiLoading,
+    walletAddress,
+    token,
+    verifyData,
+    apiKey,
+    apiKeyHash,
+    error: apiError,
+    connectWallet,
+    registerWithWallet,
+    verifyToken,
+    createApiKey,
+    clearApiKey,
+  } = useApi();
+
+  // Update loading state when API context loading changes
+  useEffect(() => {
+    if (apiLoading !== isLoading) {
+      setIsLoading(apiLoading);
+    }
+  }, [apiLoading, isLoading]);
+
+  // Update error state when API context error changes
+  useEffect(() => {
+    if (apiError && !error) {
+      setError(apiError);
+    }
+  }, [apiError, error]);
+
+  // Update current step based on authentication state
+  useEffect(() => {
+    if (isAuthenticated && walletAddress && currentStep === 0) {
+      setCurrentStep(1);
+    }
+
+    if (isAuthenticated && token && verifyData && currentStep === 1) {
+      setCurrentStep(2);
+    }
+  }, [isAuthenticated, walletAddress, token, verifyData, currentStep]);
+
+  const [callsAmount, setCallsAmount] = useState(100);
 
   const steps = [
     {
@@ -33,6 +87,81 @@ const OnboardingFlow = () => {
       detail: "Copy to clipboard and store securely"
     }
   ];
+
+  // Handle wallet connection
+  const handleConnectWallet = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      await connectWallet();
+      setCurrentStep(1); // Move to next step after successful connection
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to connect wallet. Please try again.';
+      console.error('Error connecting wallet:', error);
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle business registration
+  const handleRegister = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      await registerWithWallet(callsAmount);
+      handleStepComplete(1);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to register business. Please try again.';
+      console.error('Error registering business:', error);
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle API key generation
+  const handleGenerateApiKey = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      // Generate API key with a name based on the current date
+      const keyName = `api-key-${new Date().toISOString().split('T')[0]}`;
+      const response = await createApiKey(keyName);
+
+      // Show the API key dialog
+      setShowApiKeyDialog(true);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to generate API key. Please try again.';
+      console.error('Error generating API key:', error);
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Copy API key to clipboard
+  const handleCopyApiKey = () => {
+    if (apiKey) {
+      navigator.clipboard.writeText(apiKey);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  // Close API key dialog
+  const handleCloseApiKeyDialog = () => {
+    setShowApiKeyDialog(false);
+    clearApiKey(); // Clear API key from context for security
+    // Mark the last step as completed
+    if (!completedSteps.includes(2)) {
+      setCompletedSteps([...completedSteps, 2]);
+    }
+    // Call onComplete callback if provided
+    if (onComplete) {
+      onComplete();
+    }
+  };
 
   const handleStepComplete = (stepId: number) => {
     if (!completedSteps.includes(stepId)) {
@@ -98,7 +227,7 @@ const OnboardingFlow = () => {
             const Icon = step.icon;
             const isActive = index === currentStep;
             const isCompleted = completedSteps.includes(step.id);
-            
+
             return (
               <motion.div
                 key={step.id}
@@ -150,13 +279,27 @@ const OnboardingFlow = () => {
 
                     {isActive && !isCompleted && (
                       <Button
-                        onClick={() => handleStepComplete(step.id)}
+                        onClick={() => {
+                          if (step.id === 0) handleConnectWallet();
+                          else if (step.id === 1) handleRegister();
+                          else if (step.id === 2) handleGenerateApiKey();
+                        }}
                         className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                        disabled={isLoading}
                       >
-                        {step.id === 0 && "Connect Wallet"}
-                        {step.id === 1 && "Sign & Register"}
-                        {step.id === 2 && "Generate Key"}
-                        <ArrowRight className="ml-2 w-4 h-4" />
+                        {isLoading ? (
+                          <span className="flex items-center">
+                            <span className="animate-spin mr-2 h-4 w-4 border-t-2 border-b-2 border-white rounded-full"></span>
+                            Loading...
+                          </span>
+                        ) : (
+                          <>
+                            {step.id === 0 && (walletAddress ? `Connected: ${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : "Connect Wallet")}
+                            {step.id === 1 && "Sign & Register"}
+                            {step.id === 2 && "Generate Key"}
+                            <ArrowRight className="ml-2 w-4 h-4" />
+                          </>
+                        )}
                       </Button>
                     )}
 
@@ -197,6 +340,69 @@ const OnboardingFlow = () => {
           </Card>
         </motion.div>
       </div>
+      
+      {/* API Key Dialog */}
+      <Dialog open={showApiKeyDialog} onOpenChange={setShowApiKeyDialog}>
+        <DialogContent className="bg-slate-900 border-slate-700 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+              Your API Key
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="py-4">
+            <Alert className="mb-4 border-amber-500 bg-amber-500/20">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                This API key will only be shown once. Please copy it and store it securely.
+              </AlertDescription>
+            </Alert>
+            
+            <div className="py-4">
+              <p className="text-xl font-semibold mb-2">Your API Key</p>
+              <div className="flex items-center">
+                <code className="bg-gray-100 dark:bg-gray-800 p-2 rounded flex-1 overflow-x-auto">
+                  {apiKey}
+                </code>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="ml-2"
+                  onClick={handleCopyApiKey}
+                >
+                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+              {apiKeyHash && (
+                <div className="mt-4">
+                  <p className="text-sm font-medium mb-1">API Key Hash (for verification):</p>
+                  <code className="bg-gray-100 dark:bg-gray-800 p-2 rounded block text-xs overflow-x-auto">
+                    {apiKeyHash}
+                  </code>
+                </div>
+              )}
+            </div>
+            
+            <p className="text-slate-400 text-sm mb-4">
+              Use this key with the OpenAI API format to access Unreal AI services.
+              Remember to include it in the Authorization header as:
+            </p>
+            
+            <div className="bg-slate-800 p-3 rounded-md mb-4">
+              <code className="text-blue-400">Authorization: Bearer {apiKey || 'your-api-key'}</code>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button 
+              onClick={handleCloseApiKeyDialog}
+              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+            >
+              I've Saved My API Key
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 };

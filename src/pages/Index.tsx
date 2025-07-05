@@ -12,7 +12,9 @@ import FeatureCards from "@/components/FeatureCards";
 import TestimonialCarousel from "@/components/TestimonialCarousel";
 import FAQ from "@/components/FAQ";
 import OnboardingFlow from "@/components/OnboardingFlow";
+import ChatCompletion from "@/components/ChatCompletion";
 import { useOpenWidget } from "@/hooks/useOpenWidget";
+import { useApi } from "@/lib/ApiContext";
 
 const Index = () => {
   const [copied, setCopied] = useState(false);
@@ -30,6 +32,27 @@ const Index = () => {
   
   // Initialize Open Widget
   const { toggleWidget } = useOpenWidget();
+  
+  // Get API context
+  const {
+    isAuthenticated,
+    isLoading,
+    walletAddress,
+    token,
+    verifyData,
+    apiKey,
+    error,
+    connectWallet,
+    verifyToken,
+    logout
+  } = useApi();
+  
+  // Verify token on load if authenticated
+  useEffect(() => {
+    if (isAuthenticated && token && !verifyData) {
+      verifyToken().catch(console.error);
+    }
+  }, [isAuthenticated, token, verifyData, verifyToken]);
 
   useEffect(() => {
     const targetDate = new Date('August 2, 2025 00:00:00').getTime();
@@ -103,10 +126,16 @@ console.log(response.choices[0].message.content);`
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleWalletConnect = () => {
-    // Placeholder for wallet connection logic
-    console.log('Connecting wallet...');
-    // This would integrate with Blocknative Onboard SDK
+  const handleWalletConnect = async () => {
+    try {
+      if (isAuthenticated) {
+        logout();
+      } else {
+        await connectWallet();
+      }
+    } catch (error) {
+      console.error('Wallet connection error:', error);
+    }
   };
 
   const handleViewDocs = () => {
@@ -137,9 +166,24 @@ console.log(response.choices[0].message.content);`
           <Button 
             className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
             onClick={handleWalletConnect}
+            disabled={isLoading}
           >
-            Connect Wallet & Get API Key
-            <ArrowRight className="ml-2 w-4 h-4" />
+            {isLoading ? (
+              <span className="flex items-center">
+                <span className="animate-spin mr-2 h-4 w-4 border-t-2 border-b-2 border-white rounded-full"></span>
+                Loading...
+              </span>
+            ) : isAuthenticated ? (
+              <>
+                Disconnect Wallet
+                {verifyData && <span className="ml-2 text-xs">({verifyData.remaining} calls)</span>}
+              </>
+            ) : (
+              <>
+                Connect Wallet & Get API Key
+                <ArrowRight className="ml-2 w-4 h-4" />
+              </>
+            )}
           </Button>
         </div>
       </motion.div>
@@ -246,7 +290,22 @@ console.log(response.choices[0].message.content);`
       </motion.section>
 
       {/* Onboarding Flow */}
-      <OnboardingFlow />
+      <section className="py-16 px-4 md:px-8 max-w-6xl mx-auto">
+        <OnboardingFlow />
+      </section>
+
+      {/* Chat Completion Demo */}
+      {isAuthenticated && apiKey && (
+        <section className="py-16 px-4 md:px-8 max-w-6xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold mb-4">Test Your API Key</h2>
+            <p className="text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+              Try out your new API key with our chat completion endpoint. This demo shows how to use the API in a real application.
+            </p>
+          </div>
+          <ChatCompletion />
+        </section>
+      )}
 
       {/* Code Examples Section */}
       <section className="py-20 relative">

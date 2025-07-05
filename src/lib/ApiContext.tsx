@@ -1,0 +1,309 @@
+import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
+import { apiClient, walletService, VerifyResponse, ApiKeyResponse } from './api';
+// No need to import ethers.js anymore - using viem through the walletService
+
+interface ApiContextType {
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  walletAddress: string | null;
+  openaiAddress: string | null;
+  token: string | null;
+  verifyData: VerifyResponse | null;
+  apiKey: string | null;
+  apiKeyHash: string | null;
+  error: string | null;
+  connectWallet: () => Promise<string>;
+  registerWithWallet: (calls: number) => Promise<string>;
+  verifyToken: () => Promise<VerifyResponse>;
+  createApiKey: (name: string) => Promise<ApiKeyResponse>;
+  logout: () => void;
+  clearApiKey: () => void;
+  clearError: () => void;
+}
+
+const ApiContext = createContext<ApiContextType | undefined>(undefined);
+
+export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  const [openaiAddress, setOpenaiAddress] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [verifyData, setVerifyData] = useState<VerifyResponse | null>(null);
+  const [apiKey, setApiKey] = useState<string | null>(null);
+  const [apiKeyHash, setApiKeyHash] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // Initialize state from localStorage and handle auto-registration
+  useEffect(() => {
+    const storedToken = localStorage.getItem('unreal_token');
+    const storedWalletAddress = localStorage.getItem('unreal_wallet_address');
+    const storedOpenaiAddress = localStorage.getItem('unreal_openai_address');
+    
+    if (storedToken) {
+      setToken(storedToken);
+      apiClient.setToken(storedToken);
+      setIsAuthenticated(true);
+    }
+    
+    if (storedWalletAddress) {
+      setWalletAddress(storedWalletAddress);
+    }
+    
+    if (storedOpenaiAddress) {
+      setOpenaiAddress(storedOpenaiAddress);
+    }
+    
+    // Check if wallet is already connected and handle auto-registration
+    const checkWalletConnection = async () => {
+      try {
+        const isConnected = await walletService.isConnected();
+        if (isConnected) {
+          const address = await walletService.getAddress();
+          if (address) {
+            setWalletAddress(address);
+            localStorage.setItem('unreal_wallet_address', address);
+            
+            // If we have a wallet address but no token, try to get the OpenAI address
+            if (!storedToken && !storedOpenaiAddress) {
+              try {
+                const authAddressResponse = await apiClient.getAuthAddress();
+                setOpenaiAddress(authAddressResponse.address);
+                localStorage.setItem('unreal_openai_address', authAddressResponse.address);
+                
+                // Get the $UNREAL token balance for the wallet
+                // For now using a default value of 10 calls
+                // In a production app, this would query the actual token balance
+                const calls = 10;
+                
+                // Auto-register with the wallet
+                await autoRegisterWithWallet(address, authAddressResponse.address, calls);
+              } catch (innerError) {
+                console.error('Error in auto-registration process:', innerError);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error checking wallet connection:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    checkWalletConnection();
+  }, []);
+  
+  // Helper function for auto-registration
+  const autoRegisterWithWallet = async (walletAddr: string, openaiAddr: string, calls: number): Promise<string | null> => {
+    try {
+      // Constants
+      const PAYMENT_TOKEN = '0xA409B5E5D34928a0F1165c7a73c8aC572D1aBCDB';
+      const EXPIRY_SECONDS = 3600; // 1 hour
+      
+      // Prepare payload with current timestamps
+      const currentTime = Math.floor(Date.now() / 1000);
+      const payload = {
+        iss: walletAddr,
+        iat: currentTime,
+        sub: openaiAddr,
+        exp: currentTime + EXPIRY_SECONDS,
+        calls: calls,
+        paymentToken: PAYMENT_TOKEN
+      };
+      
+      // Sign the payload
+      const message = JSON.stringify(payload);
+      const signature = await walletService.signMessage(message);
+      
+      // Register with API
+      const registerResponse = await apiClient.register({
+        payload,
+        signature,
+        address: walletAddr
+      });
+      
+      // Set token
+      setToken(registerResponse.token);
+      localStorage.setItem('unreal_token', registerResponse.token);
+      apiClient.setToken(registerResponse.token);
+      setIsAuthenticated(true);
+      
+      return registerResponse.token;
+    } catch (error) {
+      console.error('Auto-registration failed:', error);
+      return null;
+    }
+  };
+
+  // Connect wallet
+  const connectWallet = async (): Promise<string> => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const address = await walletService.connect();
+      setWalletAddress(address);
+      localStorage.setItem('unreal_wallet_address', address);
+      
+      // Get OpenAI address
+      const authAddressResponse = await apiClient.getAuthAddress();
+      setOpenaiAddress(authAddressResponse.address);
+      localStorage.setItem('unreal_openai_address', authAddressResponse.address);
+      
+      return address;
+    } catch (error: any) {
+      setError(error.message || 'Failed to connect wallet');
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Register with wallet
+  const registerWithWallet = async (calls: number): Promise<string> => {
+    setIsLoading(true);
+    setError(null);
+    
+    if (!walletAddress || !openaiAddress) {
+      setError('Wallet not connected');
+      setIsLoading(false);
+      throw new Error('Wallet not connected');
+    }
+    
+    try {
+      // Constants
+      const PAYMENT_TOKEN = '0xA409B5E5D34928a0F1165c7a73c8aC572D1aBCDB';
+      const EXPIRY_SECONDS = 3600; // 1 hour
+      
+      // Prepare payload with current timestamps
+      const currentTime = Math.floor(Date.now() / 1000);
+      const payload = {
+        iss: walletAddress,
+        iat: currentTime,
+        sub: openaiAddress,
+        exp: currentTime + EXPIRY_SECONDS,
+        calls: calls,
+        paymentToken: PAYMENT_TOKEN
+      };
+      
+      // Sign the payload
+      const message = JSON.stringify(payload);
+      const signature = await walletService.signMessage(message);
+      
+      // Register with API
+      const registerResponse = await apiClient.register({
+        payload,
+        signature,
+        address: walletAddress
+      });
+      
+      // Set token
+      setToken(registerResponse.token);
+      apiClient.setToken(registerResponse.token);
+      setIsAuthenticated(true);
+      
+      return registerResponse.token;
+    } catch (error: any) {
+      setError(error.message || 'Failed to register');
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Verify token
+  const verifyToken = async (): Promise<VerifyResponse> => {
+    setIsLoading(true);
+    setError(null);
+    
+    if (!token) {
+      setError('No token available');
+      setIsLoading(false);
+      throw new Error('No token available');
+    }
+    
+    try {
+      const response = await apiClient.verifyToken(token);
+      setVerifyData(response);
+      return response;
+    } catch (error: any) {
+      setError(error.message || 'Failed to verify token');
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Create API key
+  const createApiKey = async (name: string): Promise<ApiKeyResponse> => {
+    setIsLoading(true);
+    setError(null);
+    
+    if (!isAuthenticated) {
+      setError('Not authenticated');
+      setIsLoading(false);
+      throw new Error('Not authenticated');
+    }
+    
+    try {
+      const response = await apiClient.createApiKey(name);
+      setApiKey(response.key);
+      setApiKeyHash(response.hash);
+      return response;
+    } catch (error: any) {
+      setError(error.message || 'Failed to create API key');
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Logout
+  const logout = () => {
+    setIsAuthenticated(false);
+    setToken(null);
+    setVerifyData(null);
+    apiClient.clearToken();
+    localStorage.removeItem('unreal_token');
+  };
+
+  // Clear API key (after it's been copied)
+  const clearApiKey = () => {
+    setApiKey(null);
+  };
+
+  // Clear error
+  const clearError = () => {
+    setError(null);
+  };
+
+  const value = {
+    isAuthenticated,
+    isLoading,
+    walletAddress,
+    openaiAddress,
+    token,
+    verifyData,
+    apiKey,
+    apiKeyHash,
+    error,
+    connectWallet,
+    registerWithWallet,
+    verifyToken,
+    createApiKey,
+    logout,
+    clearApiKey,
+    clearError
+  };
+
+  return <ApiContext.Provider value={value}>{children}</ApiContext.Provider>;
+};
+
+export const useApi = (): ApiContextType => {
+  const context = useContext(ApiContext);
+  if (context === undefined) {
+    throw new Error('useApi must be used within an ApiProvider');
+  }
+  return context;
+};
