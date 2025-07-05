@@ -128,7 +128,7 @@ console.log(response.choices[0].message.content);`
         <div className="container mx-auto px-6 py-3 flex justify-between items-center">
           <div className="flex items-center space-x-2">
             <img 
-              src="/lovable-uploads/d73b71fb-317f-43eb-8c03-51afa0a19822.png" 
+              src="logo.png" 
               alt="Unreal AI Logo" 
               className="w-8 h-8"
             />
@@ -369,7 +369,7 @@ console.log(response.choices[0].message.content);`
             <div>
               <div className="flex items-center space-x-2 mb-4">
                 <img 
-                  src="/lovable-uploads/d73b71fb-317f-43eb-8c03-51afa0a19822.png" 
+                  src="logo.png" 
                   alt="Unreal AI Logo" 
                   className="w-8 h-8"
                 />
