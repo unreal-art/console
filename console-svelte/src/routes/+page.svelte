@@ -7,13 +7,13 @@
 	import { Tabs, TabsContent, TabsList, TabsTrigger } from "$lib/components/ui/tabs";
 	import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "$lib/components/ui/dialog";
 	
-	// We'll create these components later
-	// import AnimatedBackground from "$lib/components/custom/AnimatedBackground.svelte";
-	// import CodePlayground from "$lib/components/custom/CodePlayground.svelte";
-	// import FeatureCards from "$lib/components/custom/FeatureCards.svelte";
-	// import TestimonialCarousel from "$lib/components/custom/TestimonialCarousel.svelte";
-	// import FAQ from "$lib/components/custom/FAQ.svelte";
-	// import OnboardingFlow from "$lib/components/custom/OnboardingFlow.svelte";
+	// Import custom components
+	import AnimatedBackground from "$lib/components/custom/AnimatedBackground.svelte";
+	import CodePlayground from "$lib/components/custom/CodePlayground.svelte";
+	import FeatureCards from "$lib/components/custom/FeatureCards.svelte";
+	import TestimonialCarousel from "$lib/components/custom/TestimonialCarousel.svelte";
+	import FAQ from "$lib/components/custom/FAQ.svelte";
+	import OnboardingFlow from "$lib/components/custom/OnboardingFlow.svelte";
 	
 	// State variables
 	let copied = false;
@@ -124,8 +124,8 @@ console.log(response.choices[0].message.content);`
 </script>
 
 <div class="relative min-h-screen bg-slate-950 text-white overflow-hidden">
-  <!-- Placeholder for AnimatedBackground -->
-  <!-- <AnimatedBackground /> -->
+  <!-- AnimatedBackground Component -->
+  <AnimatedBackground />
   
   <!-- Sticky CTA Bar -->
   <div 
@@ -249,8 +249,8 @@ console.log(response.choices[0].message.content);`
     </div>
   </section>
 
-  <!-- Placeholder for OnboardingFlow -->
-  <!-- <OnboardingFlow /> -->
+  <!-- OnboardingFlow Component -->
+  <OnboardingFlow />
 
   <!-- Code Examples Section -->
   <section class="py-20 relative">
@@ -366,14 +366,14 @@ console.log(response.choices[0].message.content);`
     </div>
   </section>
 
-  <!-- Placeholder for CodePlayground -->
-  <!-- <CodePlayground /> -->
+  <!-- CodePlayground Component -->
+  <CodePlayground />
 
-  <!-- Placeholder for FeatureCards -->
-  <!-- <FeatureCards /> -->
+  <!-- FeatureCards Component -->
+  <FeatureCards />
 
-  <!-- Placeholder for TestimonialCarousel -->
-  <!-- <TestimonialCarousel /> -->
+  <!-- TestimonialCarousel Component -->
+  <TestimonialCarousel />
 
   <!-- App Availability Section -->
   <section class="py-20">
