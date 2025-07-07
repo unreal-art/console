@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { apiClient, walletService, VerifyResponse, ApiKeyResponse, ApiKey, ApiKeyListResponse } from './api';
-// No need to import ethers.js anymore - using viem through the walletService
+import { getUnrealBalance } from '@/utils/web3/unreal';
+import { formatEther, parseEther, type Address } from 'viem';
 
 interface ApiContextType {
   isAuthenticated: boolean;
@@ -77,13 +78,43 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 setOpenaiAddress(authAddressResponse.address);
                 localStorage.setItem('unreal_openai_address', authAddressResponse.address);
                 
-                // Get the $UNREAL token balance for the wallet
-                // For now using a default value of 10 calls
-                // In a production app, this would query the actual token balance
-                const calls = 10
-                
-                // Auto-register with the wallet
-                await autoRegisterWithWallet(address, authAddressResponse.address, calls);
+                try {
+                  // Get system info to get the token address
+                  const systemInfo = await apiClient.getSystemInfo();
+                  const paymentToken = systemInfo?.paymentToken as Address;
+                  
+                  if (!paymentToken) {
+                    console.error('Payment token not available from system info');
+                    // Fallback to zero calls if token address not available
+                    await autoRegisterWithWallet(address, authAddressResponse.address, 0);
+                    return;
+                  }
+                  
+                  // Get actual token balance
+                  let calls = 0;
+                  try {
+                    // Convert address to correct type for viem
+                    const walletAddress = address as `0x${string}`;
+                    const balance = await getUnrealBalance(paymentToken, walletAddress);
+                    const balanceInEther = formatEther(balance);
+                    calls = parseInt(balanceInEther);
+                    console.log(`Token balance: ${balanceInEther} (${calls} calls)`);
+                  } catch (balanceError) {
+                    console.error('Unable to get balance:', balanceError);
+                    // Continue with zero calls if balance check fails
+                  }
+                  
+                  // Store the calls value in localStorage
+                  localStorage.setItem('unreal_calls_value', calls.toString());
+                  localStorage.setItem('unreal_payment_token', paymentToken);
+                  
+                  // Auto-register with the wallet
+                  await autoRegisterWithWallet(address, authAddressResponse.address, calls);
+                } catch (systemError) {
+                  console.error('Error fetching system info:', systemError);
+                  // Fallback to zero calls if system info fetch fails
+                  await autoRegisterWithWallet(address, authAddressResponse.address, 0);
+                }
               } catch (innerError) {
                 console.error('Error in auto-registration process:', innerError);
               }
@@ -182,6 +213,9 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const PAYMENT_TOKEN = '0xA409B5E5D34928a0F1165c7a73c8aC572D1aBCDB';
       const EXPIRY_SECONDS = 3600; // 1 hour
       
+      // Store the calls value in localStorage
+      localStorage.setItem('unreal_calls_value', calls.toString());
+      
       // Prepare payload with current timestamps
       const currentTime = Math.floor(Date.now() / 1000);
       const payload = {
@@ -206,6 +240,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       
       // Set token
       setToken(registerResponse.token);
+      localStorage.setItem('unreal_token', registerResponse.token);
       apiClient.setToken(registerResponse.token);
       setIsAuthenticated(true);
       
