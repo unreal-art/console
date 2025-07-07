@@ -1,6 +1,6 @@
 import type { Account, Address, WalletClient } from "viem"
 
-import { UNREAL_AMOUNT } from "../../config/unracaaceal"
+import { UNREAL_AMOUNT } from "../../config/unreal"
 import { unrealTokenAbi } from "../../abis/unrealToken"
 import { publicClient } from "../../config/wallet"
 
