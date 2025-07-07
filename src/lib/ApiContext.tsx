@@ -80,7 +80,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 // Get the $UNREAL token balance for the wallet
                 // For now using a default value of 10 calls
                 // In a production app, this would query the actual token balance
-                const calls = 10;
+                const calls = 10
                 
                 // Auto-register with the wallet
                 await autoRegisterWithWallet(address, authAddressResponse.address, calls);
