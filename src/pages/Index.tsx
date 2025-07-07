@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { ArrowRight, Code, Shield, Zap, Globe, Copy, Check, Play, ChevronDown, Clock } from 'lucide-react';
 import { Button } from "@/components/ui/button";
@@ -126,6 +126,12 @@ console.log(response.choices[0].message.content);`
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const onboardingRef = useRef<HTMLDivElement | null>(null);
+
+  const scrollToOnboarding = () => {
+    onboardingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   const handleWalletConnect = async () => {
     try {
       if (isAuthenticated) {
@@ -133,6 +139,7 @@ console.log(response.choices[0].message.content);`
       } else {
         await connectWallet();
       }
+      scrollToOnboarding();
     } catch (error) {
       console.error('Wallet connection error:', error);
     }
@@ -291,7 +298,9 @@ console.log(response.choices[0].message.content);`
 
       {/* Onboarding Flow */}
       <section className="py-16 px-4 md:px-8 max-w-6xl mx-auto">
-        <OnboardingFlow />
+        <div ref={onboardingRef}>
+          <OnboardingFlow />
+        </div>
       </section>
 
       {/* Chat Completion Demo */}
