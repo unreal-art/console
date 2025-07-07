@@ -8,9 +8,10 @@ import {
   hashMessage,
 } from "viem"
 import { mainnet } from "viem/chains"
+import { OPENAI_URL } from "@config/unreal"
 
 // API base URL
-const API_BASE_URL = "https://openai.unreal.art"
+const API_BASE_URL = OPENAI_URL
 
 // Types
 export interface AuthAddressResponse {
