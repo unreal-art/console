@@ -9,6 +9,7 @@ import {
 } from "viem"
 import { mainnet } from "viem/chains"
 import { OPENAI_URL } from "@config/unreal"
+import { publicClient } from "@/config/wallet"
 
 // API base URL
 const API_BASE_URL = OPENAI_URL
@@ -310,7 +311,7 @@ export class WalletService {
   async createPermitSignature(
     tokenAddress: string,
     spender: string,
-    amount: string,
+    amount: bigint,
     deadline: number
   ): Promise<{ permit: PermitMessage; signature: string }> {
     if (!this.walletClient || !this.account) {
@@ -322,7 +323,7 @@ export class WalletService {
       if (!ownerAddress) throw new Error("No wallet address available")
 
       // Create a public client for read operations
-      const publicClient = createWalletClient({
+      const walletClient = createWalletClient({
         chain: mainnet,
         transport: custom(window.ethereum),
       })
@@ -346,11 +347,19 @@ export class WalletService {
       ] as const
 
       // Get token name and nonce using direct calls
-      const tokenName = "Token" // Placeholder - in real implementation, would call contract
-      const nonce = "0" // Placeholder - in real implementation, would call contract
+      const tokenName = await publicClient.readContract({
+        abi: erc20Abi,
+        address: tokenAddress as `0x${string}`,
+        functionName: "name",
+      })
+      const nonce = await publicClient.readContract({
+        abi: erc20Abi,
+        address: tokenAddress as `0x${string}`,
+        functionName: "nonces",
+        args: [ownerAddress],
+      })
 
-      // Get chain ID
-      const chainId = await this.walletClient.getChainId()
+      const chainId = await publicClient.getChainId()
 
       // Create the domain separator for EIP-712
       const domain = {
@@ -375,7 +384,7 @@ export class WalletService {
       const permit = {
         owner: ownerAddress as `0x${string}`,
         spender: spender as `0x${string}`,
-        value: BigInt(amount),
+        value: amount,
         nonce: BigInt(nonce),
         deadline: BigInt(deadline),
       }
@@ -389,7 +398,16 @@ export class WalletService {
         message: permit,
       })
 
-      return { permit, signature }
+      const permitMsg = {
+        ...permit,
+        value: amount.toString(),
+        nonce: nonce.toString(),
+        deadline: deadline.toString(),
+      }
+
+      console.log("pemrit", permitMsg)
+
+      return { permit: permitMsg, signature }
     } catch (error) {
       console.error("Error creating permit signature:", error)
       throw new Error("Failed to create permit signature")
