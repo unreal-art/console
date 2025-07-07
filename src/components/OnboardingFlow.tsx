@@ -361,7 +361,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
             <div className="py-4">
               <p className="text-xl font-semibold mb-2">Your API Key</p>
               <div className="flex items-center">
-                <code className="bg-gray-100 dark:bg-gray-800 p-2 rounded flex-1 overflow-x-auto">
+                <code className="bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 p-2 rounded block text-xs overflow-x-auto">
                   {apiKey}
                 </code>
                 <Button
@@ -376,7 +376,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
               {apiKeyHash && (
                 <div className="mt-4">
                   <p className="text-sm font-medium mb-1">API Key Hash (for verification):</p>
-                  <code className="bg-gray-100 dark:bg-gray-800 p-2 rounded block text-xs overflow-x-auto">
+                  <code className="bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 p-2 rounded block text-xs overflow-x-auto">
                     {apiKeyHash}
                   </code>
                 </div>
