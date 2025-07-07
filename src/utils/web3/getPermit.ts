@@ -1,5 +1,5 @@
 import { getAddress, type Address, type WalletClient } from "viem"
-import { publicClient } from "../../config/wallet"
+import { publicClient } from "@/config/wallet"
 
 export interface PermitData {
   owner: Address

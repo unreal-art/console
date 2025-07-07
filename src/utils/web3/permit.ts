@@ -1,4 +1,4 @@
-import { publicClient } from "../../config/wallet"
+import { publicClient } from "@/config/wallet"
 import { type Address, type WalletClient, parseSignature } from "viem"
 import { waitForTransactionReceipt } from "./torus"
 

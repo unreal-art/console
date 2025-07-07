@@ -7,7 +7,7 @@ import { AlertCircle, Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import Layout from '@/components/Layout';
 import { useApi } from '@/lib/ApiContext';
-import { publicClient } from '@/config/viem';
+import { publicClient } from '@/config/wallet';
 import { getAddress } from 'viem';
 
 // Define the minimal ABI for the UNREAL token to fetch balance
