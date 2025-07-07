@@ -17,7 +17,7 @@ const CodePlayground = () => {
     'Content-Type': 'application/json'
   },
   body: JSON.stringify({
-    model: 'unreal::mixtral-8x22b-instruct',
+    model: 'unreal::r1-1776',
     messages: [{
       role: 'user', 
       content: 'Explain quantum computing in simple terms'
