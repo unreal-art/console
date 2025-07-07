@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
-import { apiClient, walletService, VerifyResponse, ApiKeyResponse } from './api';
+import { apiClient, walletService, VerifyResponse, ApiKeyResponse, ApiKey, ApiKeyListResponse } from './api';
 // No need to import ethers.js anymore - using viem through the walletService
 
 interface ApiContextType {
@@ -11,11 +11,15 @@ interface ApiContextType {
   verifyData: VerifyResponse | null;
   apiKey: string | null;
   apiKeyHash: string | null;
+  apiKeys: ApiKey[];
+  isLoadingApiKeys: boolean;
   error: string | null;
   connectWallet: () => Promise<string>;
   registerWithWallet: (calls: number) => Promise<string>;
   verifyToken: () => Promise<VerifyResponse>;
   createApiKey: (name: string) => Promise<ApiKeyResponse>;
+  listApiKeys: () => Promise<ApiKey[]>;
+  deleteApiKey: (hash: string) => Promise<boolean>;
   logout: () => void;
   clearApiKey: () => void;
   clearError: () => void;
@@ -32,6 +36,8 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [verifyData, setVerifyData] = useState<VerifyResponse | null>(null);
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [apiKeyHash, setApiKeyHash] = useState<string | null>(null);
+  const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
+  const [isLoadingApiKeys, setIsLoadingApiKeys] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Initialize state from localStorage and handle auto-registration
@@ -250,12 +256,57 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const response = await apiClient.createApiKey(name);
       setApiKey(response.key);
       setApiKeyHash(response.hash);
+      
+      // Refresh the API keys list after creating a new key
+      await listApiKeys();
+      
       return response;
     } catch (error: any) {
       setError(error.message || 'Failed to create API key');
       throw error;
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // List all API keys
+  const listApiKeys = async (): Promise<ApiKey[]> => {
+    setIsLoadingApiKeys(true);
+    setError(null);
+    try {
+      const response = await apiClient.listApiKeys();
+      setApiKeys(response.keys);
+      return response.keys;
+    } catch (error: any) {
+      setError(error.message || 'Failed to list API keys');
+      return [];
+    } finally {
+      setIsLoadingApiKeys(false);
+    }
+  };
+
+  // Delete API key by hash
+  const deleteApiKey = async (hash: string): Promise<boolean> => {
+    setIsLoadingApiKeys(true);
+    setError(null);
+    try {
+      await apiClient.deleteApiKey(hash);
+      
+      // Refresh the API keys list after deletion
+      await listApiKeys();
+      
+      // If the deleted key was the current key, clear it
+      if (hash === apiKeyHash) {
+        setApiKey(null);
+        setApiKeyHash(null);
+      }
+      
+      return true;
+    } catch (error: any) {
+      setError(error.message || `Failed to delete API key ${hash}`);
+      return false;
+    } finally {
+      setIsLoadingApiKeys(false);
     }
   };
 
@@ -268,7 +319,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     localStorage.removeItem('unreal_token');
   };
 
-  // Clear API key (after it's been copied)
+  // Clear current API key (after copy)
   const clearApiKey = () => {
     setApiKey(null);
   };
@@ -287,11 +338,15 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     verifyData,
     apiKey,
     apiKeyHash,
+    apiKeys,
+    isLoadingApiKeys,
     error,
     connectWallet,
     registerWithWallet,
     verifyToken,
     createApiKey,
+    listApiKeys,
+    deleteApiKey,
     logout,
     clearApiKey,
     clearError

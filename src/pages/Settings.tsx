@@ -17,8 +17,12 @@ const Settings = () => {
     isLoading, 
     apiKey, 
     apiKeyHash, 
+    apiKeys,
+    isLoadingApiKeys,
     error, 
     createApiKey, 
+    listApiKeys,
+    deleteApiKey,
     clearApiKey, 
     clearError 
   } = useApi();
@@ -27,26 +31,57 @@ const Settings = () => {
   const [showNewApiKey, setShowNewApiKey] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [operationError, setOperationError] = useState<string | null>(null);
 
-  // Redirect to login if not authenticated
+  // Redirect to login if not authenticated and fetch API keys when authenticated
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      navigate('/login');
+    if (!isLoading) {
+      if (!isAuthenticated) {
+        navigate('/login');
+      } else {
+        // Fetch API keys when authenticated
+        listApiKeys().catch(err => {
+          console.error('Error fetching API keys:', err);
+        });
+      }
     }
-  }, [isAuthenticated, isLoading, navigate]);
+  }, [isAuthenticated, isLoading, navigate, listApiKeys]);
 
   // Handle API key creation
   const handleCreateApiKey = async () => {
-    if (!apiKeyName.trim()) return;
-    
     setIsCreating(true);
+    setOperationError(null);
     try {
       const response = await createApiKey(apiKeyName);
+      setApiKeyName('');
       setShowNewApiKey(true);
-    } catch (err) {
-      console.error('Error creating API key:', err);
+    } catch (error: Error | unknown) {
+      const errorMessage = error.message || 'Failed to create API key';
+      console.error('Error creating API key:', errorMessage);
+      setOperationError(`Failed to create API key: ${errorMessage}`);
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  // Handle API key deletion
+  const handleDeleteApiKey = async (hash: string, name: string) => {
+    if (window.confirm(`Are you sure you want to delete API key "${name}"?`)) {
+      setIsDeleting(hash);
+      setOperationError(null);
+      try {
+        const success = await deleteApiKey(hash);
+        if (!success) {
+          setOperationError(`Failed to delete API key "${name}"`); 
+        }
+      } catch (error: any) {
+        const errorMessage = error.message || 'Unknown error';
+        console.error(`Error deleting API key ${hash}:`, errorMessage);
+        setOperationError(`Failed to delete API key "${name}": ${errorMessage}`);
+      } finally {
+        setIsDeleting(null);
+      }
     }
   };
 
@@ -82,16 +117,31 @@ const Settings = () => {
     <Layout>
       <div className="container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-6">Settings</h1>
-        
+        {/* Show global API errors */}
         {error && (
           <Alert variant="destructive" className="mb-6">
-            <AlertCircle className="h-4 w-4" />
             <AlertTitle>Error</AlertTitle>
             <AlertDescription>
               {error}
               <button 
                 className="ml-2 underline text-sm"
                 onClick={clearError}
+              >
+                Dismiss
+              </button>
+            </AlertDescription>
+          </Alert>
+        )}
+        
+        {/* Show operation-specific errors */}
+        {operationError && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertTitle>Operation Error</AlertTitle>
+            <AlertDescription>
+              {operationError}
+              <button 
+                className="ml-2 underline text-sm"
+                onClick={() => setOperationError(null)}
               >
                 Dismiss
               </button>
@@ -107,50 +157,89 @@ const Settings = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {apiKeyHash ? (
-              <div>
-                <p className="text-sm text-muted-foreground mb-2">Current API Key Hash:</p>
-                <p className="font-mono text-xs bg-muted p-2 rounded mb-4 break-all">
-                  {apiKeyHash}
+            {/* API Key Creation Form */}
+            <div className="mb-6">
+              <h3 className="text-lg font-medium mb-2">Create New API Key</h3>
+              <div className="grid gap-4 mb-4">
+                <div className="space-y-2">
+                  <Label htmlFor="apiKeyName">API Key Name</Label>
+                  <Input
+                    id="apiKeyName"
+                    placeholder="My API Key"
+                    value={apiKeyName}
+                    onChange={(e) => setApiKeyName(e.target.value)}
+                  />
+                </div>
+              </div>
+              <Button 
+                onClick={handleCreateApiKey}
+                disabled={!apiKeyName.trim() || isCreating}
+              >
+                {isCreating ? (
+                  <>
+                    <span className="animate-spin mr-2">⏳</span>
+                    Creating...
+                  </>
+                ) : (
+                  'Create API Key'
+                )}
+              </Button>
+            </div>
+            
+            {/* API Keys List */}
+            <div>
+              <h3 className="text-lg font-medium mb-4">Your API Keys</h3>
+              
+              {isLoadingApiKeys ? (
+                <div className="flex justify-center py-4">
+                  <span className="animate-spin mr-2">⏳</span>
+                  Loading...
+                </div>
+              ) : apiKeys.length > 0 ? (
+                <div className="space-y-4">
+                  {apiKeys.map((key) => (
+                    <div 
+                      key={key.hash} 
+                      className="flex items-center justify-between p-3 border rounded bg-muted/30"
+                    >
+                      <div>
+                        <p className="font-medium">{key.name}</p>
+                        <div className="flex items-center">
+                          <span className="text-xs text-muted-foreground mr-2">
+                            Hash:
+                          </span>
+                          <code className="text-xs bg-muted p-1 rounded">
+                            {key.hash.substring(0, 12)}...{key.hash.substring(key.hash.length - 4)}
+                          </code>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Created: {new Date(key.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <Button 
+                        variant="destructive" 
+                        size="sm"
+                        onClick={() => handleDeleteApiKey(key.hash, key.name)}
+                        disabled={isDeleting === key.hash}
+                      >
+                        {isDeleting === key.hash ? (
+                          <>
+                            <span className="animate-spin mr-2">⏳</span>
+                            Deleting...
+                          </>
+                        ) : (
+                          'Delete'
+                        )}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-muted-foreground text-center py-4">
+                  You don't have any API keys yet. Create one above.
                 </p>
-                <div className="flex space-x-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => setApiKeyName('')}
-                  >
-                    Create New Key
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div>
-                <div className="grid gap-4 mb-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="apiKeyName">API Key Name</Label>
-                    <Input
-                      id="apiKeyName"
-                      placeholder="My API Key"
-                      value={apiKeyName}
-                      onChange={(e) => setApiKeyName(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <Button 
-                  onClick={handleCreateApiKey}
-                  disabled={!apiKeyName.trim() || isCreating}
-                >
-                  {isCreating ? (
-                    <>
-                      <span className="animate-spin mr-2">⏳</span>
-                      Creating...
-                    </>
-                  ) : (
-                    'Create API Key'
-                  )}
-                </Button>
-              </div>
-            )}
+              )}
+            </div>
           </CardContent>
         </Card>
 

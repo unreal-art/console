@@ -16,6 +16,7 @@ export default defineConfig(({ mode }) => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
       "@config": path.resolve(__dirname, "./src/config"),
+      "@abis": path.resolve(__dirname, "./src/abis"),
     },
   },
 }))
