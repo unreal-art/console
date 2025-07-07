@@ -460,9 +460,9 @@ console.log(response.choices[0].message.content);`
             <div>
               <h4 className="font-semibold mb-4">Community</h4>
               <ul className="space-y-2 text-slate-400">
-                <li><a href="https://discord.gg/VzPQBKJ5EK" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Discord</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Twitter</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">GitHub</a></li>
+                <li><a href="https://discord.com/invite/VzPQBKJ5EK" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Discord</a></li>
+                <li><a href="https://x.com/ideomind" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Twitter</a></li>
+                <li><a href="https://github.com/unreal-art" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">GitHub</a></li>
               </ul>
             </div>
 
