@@ -194,25 +194,25 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
       const isZeroBalance = storedCallsValue === "0"
       setIsZeroBalanceRegistration(isZeroBalance)
 
-      if ((!verifyData || verifyData.remaining <= 0) && !isZeroBalance) {
-        // Only try to refresh verification data if not a zero-balance registration
-        try {
-          await verifyToken()
-          // After refresh, check if we have calls now
-          if (!verifyData || verifyData.remaining <= 0) {
-            throw new Error(
-              "Insufficient UNREAL token balance. Please ensure you have UNREAL tokens in your wallet."
-            )
-          }
-        } catch (verifyError) {
-          // If zero balance is explicitly set, we'll allow generation despite low balance
-          if (!isZeroBalance) {
-            throw new Error(
-              "Insufficient UNREAL token balance. Please ensure you have UNREAL tokens in your wallet."
-            )
-          }
-        }
-      }
+      // if ((!verifyData || verifyData.remaining <= 0) && !isZeroBalance) {
+      //   // Only try to refresh verification data if not a zero-balance registration
+      //   try {
+      //     await verifyToken()
+      //     // After refresh, check if we have calls now
+      //     if (!verifyData || verifyData.remaining <= 0) {
+      //       throw new Error(
+      //         "Insufficient UNREAL token balance. Please ensure you have UNREAL tokens in your wallet."
+      //       )
+      //     }
+      //   } catch (verifyError) {
+      //     // If zero balance is explicitly set, we'll allow generation despite low balance
+      //     if (!isZeroBalance) {
+      //       throw new Error(
+      //         "Insufficient UNREAL token balance. Please ensure you have UNREAL tokens in your wallet."
+      //       )
+      //     }
+      //   }
+      // }
 
       // Generate API key with a name based on the current date
       const keyName = `api-key-${new Date().toISOString().split("T")[0]}`
