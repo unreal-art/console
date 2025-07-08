@@ -78,6 +78,13 @@ export interface ApiKeyListResponse {
   keys: ApiKey[]
 }
 
+export interface AirdropResponse {
+  txHash: string
+  alreadyClaimed: boolean
+  confirmed: boolean
+  message: string
+}
+
 // API Client
 export class UnrealApiClient {
   private baseUrl: string
@@ -86,7 +93,6 @@ export class UnrealApiClient {
   constructor(baseUrl: string = API_BASE_URL) {
     this.baseUrl = baseUrl
   }
-
   // Set token for authenticated requests
   setToken(token: string) {
     this.token = token
@@ -136,6 +142,11 @@ export class UnrealApiClient {
   // List all API keys
   async listApiKeys(): Promise<ApiKeyListResponse> {
     return this.get("/keys")
+  }
+
+  // Request airdrop of UNREAL tokens
+  async airdrop(): Promise<AirdropResponse> {
+    return this.get("/web3/airdrop")
   }
 
   // Delete API key by hash

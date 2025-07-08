@@ -3,6 +3,8 @@ import { apiClient } from "@/lib/api"
 import { getUnrealBalance } from "@/utils/web3/unreal"
 import { formatEther, type Address } from "viem"
 import { useApi } from "@/lib/ApiContext"
+import { toast, useToast } from "@/components/ui/use-toast"
+import { publicClient } from "@/config/wallet"
 import { motion } from "framer-motion"
 import {
   Check,
@@ -58,6 +60,9 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
   const [callsAmount, setCallsAmount] = useState<number>(0)
   const [airdropRequested, setAirdropRequested] = useState<boolean>(false)
   const [airdropSuccess, setAirdropSuccess] = useState<boolean>(false)
+  const [airdropTxHash, setAirdropTxHash] = useState<string>("") 
+  const [isConfirming, setIsConfirming] = useState<boolean>(false)
+  const [isConfirmed, setIsConfirmed] = useState<boolean>(false)
 
   const fetchCallsAmount = useCallback(async () => {
     console.log("fetchCallsAmount")
@@ -88,24 +93,96 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
       console.error("Unable to fetch calls amount:", err)
     }
   }, [walletAddress])
-  
+
   // Handle airdrop request
   const handleRequestAirdrop = async () => {
     setIsLoading(true)
     setError(null)
     try {
-      // Simulate API call for airdrop
-      // In a real implementation, you would call an API endpoint to request tokens
-      await new Promise(resolve => setTimeout(resolve, 2000)) // Simulate network delay
-      
-      setAirdropRequested(true)
-      setAirdropSuccess(true)
-      
-      // Refresh balance after airdrop
-      await fetchCallsAmount()
-      
-      // Move to next step
-      handleStepComplete(2)
+      // Call the typed airdrop method
+      const response = await apiClient.airdrop()
+
+      if (response && response.txHash) {
+        setAirdropRequested(true)
+        setAirdropTxHash(response.txHash)
+        
+        // Show appropriate message based on response
+        if (response.alreadyClaimed) {
+          setAirdropSuccess(true)
+          setIsConfirmed(response.confirmed)
+          
+          toast({
+            title: "Airdrop Already Claimed",
+            description: response.message || "You have already claimed your airdrop.",
+          })
+          
+          // Refresh balance after airdrop
+          await fetchCallsAmount()
+          
+          // Move to next step
+          handleStepComplete(2)
+        } else {
+          // If not already confirmed, start waiting for confirmation
+          if (!response.confirmed) {
+            setIsConfirming(true)
+            
+            toast({
+              title: "Airdrop Requested",
+              description: "Your airdrop request is being processed. Waiting for blockchain confirmation...",
+            })
+            
+            try {
+              // Wait for 1 confirmation using publicClient
+              const receipt = await publicClient.waitForTransactionReceipt({
+                hash: response.txHash as `0x${string}`,
+                confirmations: 1,
+              })
+              
+              if (receipt) {
+                setIsConfirmed(true)
+                setAirdropSuccess(true)
+                setIsConfirming(false)
+                
+                toast({
+                  title: "Airdrop Confirmed",
+                  description: "Your airdrop has been confirmed on the blockchain!",
+                })
+                
+                // Refresh balance after confirmed airdrop
+                await fetchCallsAmount()
+                
+                // Move to next step
+                handleStepComplete(2)
+              }
+            } catch (confirmError) {
+              console.error("Error confirming transaction:", confirmError)
+              toast({
+                title: "Confirmation Error",
+                description: "Could not confirm transaction. You may check the status later.",
+                variant: "destructive",
+              })
+              setIsConfirming(false)
+            }
+          } else {
+            // Already confirmed
+            setIsConfirmed(true)
+            setAirdropSuccess(true)
+            
+            toast({
+              title: "Airdrop Confirmed",
+              description: "Your airdrop has been confirmed on the blockchain!",
+            })
+            
+            // Refresh balance after airdrop
+            await fetchCallsAmount()
+            
+            // Move to next step
+            handleStepComplete(2)
+          }
+        }
+      } else {
+        throw new Error("Invalid response from airdrop endpoint")
+      }
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error
@@ -114,6 +191,13 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
       console.error("Error requesting airdrop:", error)
       setError(errorMessage)
       setAirdropSuccess(false)
+      setIsConfirming(false)
+      
+      toast({
+        title: "Airdrop Failed",
+        description: errorMessage,
+        variant: "destructive",
+      })
     } finally {
       setIsLoading(false)
     }
@@ -127,7 +211,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
   // State to track if this is a zero-balance registration
   const [isZeroBalanceRegistration, setIsZeroBalanceRegistration] =
     useState<boolean>(false)
-  
+
   // State to control whether to show the airdrop step
   const [showAirdropStep, setShowAirdropStep] = useState<boolean>(false)
 
@@ -172,9 +256,9 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
         description: "Auto-fill wallet address, sign payload",
         icon: FileText,
         detail: "EIP-712 signature for secure registration",
-      }
+      },
     ]
-    
+
     if (showAirdropStep) {
       baseSteps.push({
         id: 2,
@@ -184,7 +268,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
         detail: "Free tokens for testing the API",
       })
     }
-    
+
     baseSteps.push({
       id: showAirdropStep ? 3 : 2,
       title: "Generate API Key",
@@ -192,10 +276,10 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
       icon: Key,
       detail: "Copy to clipboard and store securely",
     })
-    
+
     return baseSteps
   }
-  
+
   const steps = getSteps()
 
   // Handle wallet connection
@@ -223,19 +307,13 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
     setError(null)
     try {
       await registerWithWallet(callsAmount)
-      
+
       // After successful registration, check if user has UNREAL tokens
       await fetchCallsAmount()
-      
-      // If balance is zero, show the airdrop step
-      if (callsAmount === 0) {
-        setShowAirdropStep(true)
-        handleStepComplete(1)
-      } else {
-        // Skip airdrop step if user has tokens
-        setShowAirdropStep(false)
-        handleStepComplete(1)
-      }
+
+      // Always show the airdrop step regardless of balance
+      setShowAirdropStep(true)
+      handleStepComplete(1)
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error
@@ -305,7 +383,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
       setTimeout(() => setCopied(false), 2000)
     }
   }
-
+  
   // Close API key dialog
   const handleCloseApiKeyDialog = () => {
     setShowApiKeyDialog(false)
@@ -440,21 +518,55 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
                     <p className="text-slate-400 mb-4">{step.description}</p>
                     <p className="text-sm text-slate-500 mb-6">{step.detail}</p>
 
+                    {/* Transaction status indicator for airdrop step */}
+                    {step.id === 2 && showAirdropStep && airdropRequested && (
+                      <div className="mb-4">
+                        <div className="flex items-center mb-2">
+                          {isConfirming ? (
+                            <span className="flex items-center text-amber-400">
+                              <span className="animate-spin mr-2 h-4 w-4 border-t-2 border-b-2 border-amber-400 rounded-full"></span>
+                              Confirming transaction...
+                            </span>
+                          ) : isConfirmed ? (
+                            <span className="flex items-center text-green-400">
+                              <Check className="mr-2 h-4 w-4" />
+                              Transaction confirmed
+                            </span>
+                          ) : (
+                            <span className="flex items-center text-blue-400">
+                              <ArrowRight className="mr-2 h-4 w-4" />
+                              Transaction submitted
+                            </span>
+                          )}
+                        </div>
+                        {airdropTxHash && (
+                          <div className="text-xs text-slate-400 break-all">
+                            <span className="font-semibold">Transaction:</span> {airdropTxHash}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
                     {isActive && !isCompleted && (
                       <Button
                         onClick={() => {
                           if (step.id === 0) handleConnectWallet()
                           else if (step.id === 1) handleRegister()
-                          else if (step.id === 2 && showAirdropStep) handleRequestAirdrop()
-                          else if ((step.id === 2 && !showAirdropStep) || step.id === 3) handleGenerateApiKey()
+                          else if (step.id === 2 && showAirdropStep)
+                            handleRequestAirdrop()
+                          else if (
+                            (step.id === 2 && !showAirdropStep) ||
+                            step.id === 3
+                          )
+                            handleGenerateApiKey()
                         }}
                         className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-                        disabled={isLoading}
+                        disabled={isLoading || (step.id === 2 && showAirdropStep && isConfirming)}
                       >
-                        {isLoading ? (
+                        {isLoading || (step.id === 2 && showAirdropStep && isConfirming) ? (
                           <span className="flex items-center">
                             <span className="animate-spin mr-2 h-4 w-4 border-t-2 border-b-2 border-white rounded-full"></span>
-                            Loading...
+                            {step.id === 2 && showAirdropStep && isConfirming ? "Confirming..." : "Loading..."}
                           </span>
                         ) : (
                           <>
@@ -466,8 +578,15 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
                                   )}...${walletAddress.slice(-4)}`
                                 : "Connect Wallet")}
                             {step.id === 1 && "Sign & Register"}
-                            {step.id === 2 && showAirdropStep && "Request Air Drop"}
-                            {(step.id === 2 && !showAirdropStep) || step.id === 3 ? "Generate Key" : ""}
+                            {step.id === 2 &&
+                              showAirdropStep &&
+                              (airdropRequested && airdropSuccess 
+                                ? "Airdrop Claimed" 
+                                : "Request Air Drop")}
+                            {(step.id === 2 && !showAirdropStep) ||
+                            step.id === 3
+                              ? "Generate Key"
+                              : ""}
                             <ArrowRight className="ml-2 w-4 h-4" />
                           </>
                         )}
