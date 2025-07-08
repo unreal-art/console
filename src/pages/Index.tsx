@@ -1,38 +1,55 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { motion, useScroll, useTransform } from 'framer-motion';
-import { ArrowRight, Code, Shield, Zap, Globe, Copy, Check, Play, ChevronDown, Clock } from 'lucide-react';
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import AnimatedBackground from "@/components/AnimatedBackground";
-import CodePlayground from "@/components/CodePlayground";
-import FeatureCards from "@/components/FeatureCards";
-import TestimonialCarousel from "@/components/TestimonialCarousel";
-import FAQ from "@/components/FAQ";
-import OnboardingFlow from "@/components/OnboardingFlow";
-import ChatCompletion from "@/components/ChatCompletion";
-import { useOpenWidget } from "@/hooks/useOpenWidget";
-import { useApi } from "@/lib/ApiContext";
+import React, { useState, useEffect, useRef } from "react"
+import { motion, useScroll, useTransform } from "framer-motion"
+import {
+  ArrowRight,
+  Code,
+  Shield,
+  Zap,
+  Globe,
+  Copy,
+  Check,
+  Play,
+  ChevronDown,
+  Clock,
+} from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import AnimatedBackground from "@/components/AnimatedBackground"
+import CodePlayground from "@/components/CodePlayground"
+import FeatureCards from "@/components/FeatureCards"
+import TestimonialCarousel from "@/components/TestimonialCarousel"
+import FAQ from "@/components/FAQ"
+import OnboardingFlow from "@/components/OnboardingFlow"
+import ChatCompletion from "@/components/ChatCompletion"
+import { useOpenWidget } from "@/hooks/useOpenWidget"
+import { useApi } from "@/lib/ApiContext"
 
 const Index = () => {
-  const [copied, setCopied] = useState(false);
-  const [currentStep, setCurrentStep] = useState(0);
+  const [copied, setCopied] = useState(false)
+  const [currentStep, setCurrentStep] = useState(0)
   const [timeLeft, setTimeLeft] = useState({
     days: 0,
     hours: 0,
     minutes: 0,
-    seconds: 0
-  });
-  
-  const { scrollY } = useScroll();
-  const heroY = useTransform(scrollY, [0, 300], [0, -50]);
-  const opacity = useTransform(scrollY, [0, 300], [1, 0.8]);
-  
+    seconds: 0,
+  })
+
+  const { scrollY } = useScroll()
+  const heroY = useTransform(scrollY, [0, 300], [0, -50])
+  const opacity = useTransform(scrollY, [0, 300], [1, 0.8])
+
   // Initialize Open Widget
-  const { toggleWidget } = useOpenWidget();
-  
+  const { toggleWidget } = useOpenWidget()
+
   // Get API context
   const {
     isAuthenticated,
@@ -44,45 +61,47 @@ const Index = () => {
     error,
     connectWallet,
     verifyToken,
-    logout
-  } = useApi();
-  
+    logout,
+  } = useApi()
+
   // Verify token on load if authenticated
   useEffect(() => {
     if (isAuthenticated && token && !verifyData) {
-      verifyToken().catch(console.error);
+      verifyToken().catch(console.error)
     }
-  }, [isAuthenticated, token, verifyData, verifyToken]);
+  }, [isAuthenticated, token, verifyData, verifyToken])
 
   useEffect(() => {
-    const targetDate = new Date('August 2, 2025 00:00:00').getTime();
-    
+    const targetDate = new Date("August 2, 2025 00:00:00").getTime()
+
     const timer = setInterval(() => {
-      const now = new Date().getTime();
-      const distance = targetDate - now;
-      
-      const days = Math.floor(distance / (1000 * 60 * 60 * 24));
-      const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-      const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-      const seconds = Math.floor((distance % (1000 * 60)) / 1000);
-      
-      setTimeLeft({ days, hours, minutes, seconds });
-      
+      const now = new Date().getTime()
+      const distance = targetDate - now
+
+      const days = Math.floor(distance / (1000 * 60 * 60 * 24))
+      const hours = Math.floor(
+        (distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)
+      )
+      const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60))
+      const seconds = Math.floor((distance % (1000 * 60)) / 1000)
+
+      setTimeLeft({ days, hours, minutes, seconds })
+
       if (distance < 0) {
-        clearInterval(timer);
-        setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+        clearInterval(timer)
+        setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 })
       }
-    }, 1000);
-    
-    return () => clearInterval(timer);
-  }, []);
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [])
 
   const trustBadges = [
     "Secured by Blockchain",
-    "OpenAI-Compatible", 
+    "OpenAI-Compatible",
     "Backed by DecenterAI",
-    "3,500+ Businesses Onboarded"
-  ];
+    "3,500+ Businesses Onboarded",
+  ]
 
   const codeExamples = {
     curl: `curl -X POST "https://openai.unreal.art/v1/chat/completions" \\
@@ -117,45 +136,48 @@ const response = await client.chat.completions.create({
   messages: [{ role: 'user', content: 'Hello world!' }]
 });
 
-console.log(response.choices[0].message.content);`
-  };
+console.log(response.choices[0].message.content);`,
+  }
 
   const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+    navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
 
-  const onboardingRef = useRef<HTMLDivElement | null>(null);
+  const onboardingRef = useRef<HTMLDivElement | null>(null)
 
   const scrollToOnboarding = () => {
-    onboardingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
+    onboardingRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    })
+  }
 
   const handleWalletConnect = async () => {
     try {
       if (isAuthenticated) {
-        logout();
+        logout()
       } else {
-        await connectWallet();
+        await connectWallet()
       }
-      scrollToOnboarding();
+      scrollToOnboarding()
     } catch (error) {
-      console.error('Wallet connection error:', error);
+      console.error("Wallet connection error:", error)
     }
-  };
+  }
 
   const handleViewDocs = () => {
     // For now, just show the coming soon modal
     // Later this would redirect to docs.openai.unreal.art
-  };
+  }
 
   return (
     <div className="relative min-h-screen bg-slate-950 text-white overflow-hidden">
       <AnimatedBackground />
-      
+
       {/* Sticky CTA Bar */}
-      <motion.div 
+      <motion.div
         className="fixed top-0 left-0 right-0 z-50 bg-slate-950/95 backdrop-blur-sm border-b border-slate-800"
         initial={{ y: -100 }}
         animate={{ y: 0 }}
@@ -163,14 +185,10 @@ console.log(response.choices[0].message.content);`
       >
         <div className="container mx-auto px-6 py-3 flex justify-between items-center">
           <div className="flex items-center space-x-2">
-            <img 
-              src="logo.png" 
-              alt="Unreal AI Logo" 
-              className="w-8 h-8"
-            />
+            <img src="logo.webp" alt="Unreal AI Logo" className="w-8 h-8" />
             <span className="font-bold text-lg">Unreal AI</span>
           </div>
-          <Button 
+          <Button
             className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
             onClick={handleWalletConnect}
             disabled={isLoading}
@@ -183,7 +201,11 @@ console.log(response.choices[0].message.content);`
             ) : isAuthenticated ? (
               <>
                 Disconnect Wallet
-                {verifyData && <span className="ml-2 text-xs">({verifyData.remaining} calls)</span>}
+                {verifyData && (
+                  <span className="ml-2 text-xs">
+                    ({verifyData.remaining} calls)
+                  </span>
+                )}
               </>
             ) : (
               <>
@@ -196,7 +218,7 @@ console.log(response.choices[0].message.content);`
       </motion.div>
 
       {/* Hero Section */}
-      <motion.section 
+      <motion.section
         className="relative min-h-screen flex items-center justify-center pt-20"
         style={{ y: heroY, opacity }}
       >
@@ -211,15 +233,16 @@ console.log(response.choices[0].message.content);`
               <br />
               AI API for Builders
             </h1>
-            
+
             <p className="text-xl md:text-2xl text-slate-300 mb-8 max-w-4xl mx-auto leading-relaxed">
-              Connect your wallet. Register your business. Instantly generate secure API keys 
-              for OpenAI-compatible inference—settled transparently on-chain.
+              Connect your wallet. Register your business. Instantly generate
+              secure API keys for OpenAI-compatible inference—settled
+              transparently on-chain.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-              <Button 
-                size="lg" 
+              <Button
+                size="lg"
                 className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-lg px-8 py-4"
                 onClick={handleWalletConnect}
               >
@@ -228,9 +251,9 @@ console.log(response.choices[0].message.content);`
               </Button>
               <Dialog>
                 <DialogTrigger asChild>
-                  <Button 
-                    size="lg" 
-                    variant="outline" 
+                  <Button
+                    size="lg"
+                    variant="outline"
                     className="border-slate-600 hover:bg-slate-800 text-lg px-8 py-4"
                   >
                     View API Docs
@@ -253,19 +276,27 @@ console.log(response.choices[0].message.content);`
                     </div>
                     <div className="grid grid-cols-4 gap-4 mb-6">
                       <div className="text-center">
-                        <div className="text-2xl font-bold text-white">{timeLeft.days}</div>
+                        <div className="text-2xl font-bold text-white">
+                          {timeLeft.days}
+                        </div>
                         <div className="text-sm text-slate-400">Days</div>
                       </div>
                       <div className="text-center">
-                        <div className="text-2xl font-bold text-white">{timeLeft.hours}</div>
+                        <div className="text-2xl font-bold text-white">
+                          {timeLeft.hours}
+                        </div>
                         <div className="text-sm text-slate-400">Hours</div>
                       </div>
                       <div className="text-center">
-                        <div className="text-2xl font-bold text-white">{timeLeft.minutes}</div>
+                        <div className="text-2xl font-bold text-white">
+                          {timeLeft.minutes}
+                        </div>
                         <div className="text-sm text-slate-400">Minutes</div>
                       </div>
                       <div className="text-center">
-                        <div className="text-2xl font-bold text-white">{timeLeft.seconds}</div>
+                        <div className="text-2xl font-bold text-white">
+                          {timeLeft.seconds}
+                        </div>
                         <div className="text-sm text-slate-400">Seconds</div>
                       </div>
                     </div>
@@ -286,7 +317,10 @@ console.log(response.choices[0].message.content);`
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: 0.3 + index * 0.1 }}
                 >
-                  <Badge variant="secondary" className="bg-slate-800/50 text-slate-300 px-4 py-2">
+                  <Badge
+                    variant="secondary"
+                    className="bg-slate-800/50 text-slate-300 px-4 py-2"
+                  >
                     {badge}
                   </Badge>
                 </motion.div>
@@ -309,7 +343,8 @@ console.log(response.choices[0].message.content);`
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold mb-4">Test Your API Key</h2>
             <p className="text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-              Try out your new API key with our chat completion endpoint. This demo shows how to use the API in a real application.
+              Try out your new API key with our chat completion endpoint. This
+              demo shows how to use the API in a real application.
             </p>
           </div>
           <ChatCompletion />
@@ -325,7 +360,9 @@ console.log(response.choices[0].message.content);`
             transition={{ duration: 0.8 }}
             className="text-center mb-12"
           >
-            <h2 className="text-4xl font-bold mb-6">Works with Your Favorite SDKs</h2>
+            <h2 className="text-4xl font-bold mb-6">
+              Works with Your Favorite SDKs
+            </h2>
             <p className="text-xl text-slate-300 mb-8">
               Drop-in replacement for OpenAI API. Zero code changes required.
             </p>
@@ -339,7 +376,7 @@ console.log(response.choices[0].message.content);`
                   <TabsTrigger value="python">Python</TabsTrigger>
                   <TabsTrigger value="javascript">JavaScript</TabsTrigger>
                 </TabsList>
-                
+
                 {Object.entries(codeExamples).map(([key, code]) => (
                   <TabsContent key={key} value={key} className="relative">
                     <div className="bg-slate-950 p-6 rounded-b-lg">
@@ -353,8 +390,12 @@ console.log(response.choices[0].message.content);`
                           onClick={() => copyToClipboard(code)}
                           className="text-slate-400 hover:text-white"
                         >
-                          {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                          {copied ? 'Copied!' : 'Copy'}
+                          {copied ? (
+                            <Check className="w-4 h-4" />
+                          ) : (
+                            <Copy className="w-4 h-4" />
+                          )}
+                          {copied ? "Copied!" : "Copy"}
                         </Button>
                       </div>
                       <pre className="text-sm text-green-400 overflow-x-auto">
@@ -407,8 +448,12 @@ console.log(response.choices[0].message.content);`
                     📱
                   </div>
                   <h3 className="text-xl font-semibold mb-2">iOS App</h3>
-                  <p className="text-slate-400 mb-4">Native mobile experience</p>
-                  <Button variant="outline" size="sm">Notify Me</Button>
+                  <p className="text-slate-400 mb-4">
+                    Native mobile experience
+                  </p>
+                  <Button variant="outline" size="sm">
+                    Notify Me
+                  </Button>
                 </CardContent>
               </Card>
 
@@ -419,7 +464,9 @@ console.log(response.choices[0].message.content);`
                   </div>
                   <h3 className="text-xl font-semibold mb-2">Android App</h3>
                   <p className="text-slate-400 mb-4">Cross-platform support</p>
-                  <Button variant="outline" size="sm">Notify Me</Button>
+                  <Button variant="outline" size="sm">
+                    Notify Me
+                  </Button>
                 </CardContent>
               </Card>
             </div>
@@ -436,11 +483,7 @@ console.log(response.choices[0].message.content);`
           <div className="grid md:grid-cols-4 gap-8">
             <div>
               <div className="flex items-center space-x-2 mb-4">
-                <img 
-                  src="logo.png" 
-                  alt="Unreal AI Logo" 
-                  className="w-8 h-8"
-                />
+                <img src="logo.webp" alt="Unreal AI Logo" className="w-8 h-8" />
                 <span className="font-bold text-lg">Unreal AI</span>
               </div>
               <p className="text-slate-400">
@@ -451,27 +494,78 @@ console.log(response.choices[0].message.content);`
             <div>
               <h4 className="font-semibold mb-4">Developers</h4>
               <ul className="space-y-2 text-slate-400">
-                <li><a href="#" className="hover:text-white transition-colors">API Docs</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Status</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Changelog</a></li>
+                <li>
+                  <a href="#" className="hover:text-white transition-colors">
+                    API Docs
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-white transition-colors">
+                    Status
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-white transition-colors">
+                    Changelog
+                  </a>
+                </li>
               </ul>
             </div>
 
             <div>
               <h4 className="font-semibold mb-4">Community</h4>
               <ul className="space-y-2 text-slate-400">
-                <li><a href="https://discord.com/invite/VzPQBKJ5EK" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Discord</a></li>
-                <li><a href="https://x.com/ideomind" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Twitter</a></li>
-                <li><a href="https://github.com/unreal-art" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">GitHub</a></li>
+                <li>
+                  <a
+                    href="https://discord.com/invite/VzPQBKJ5EK"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-white transition-colors"
+                  >
+                    Discord
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="https://x.com/ideomind"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-white transition-colors"
+                  >
+                    Twitter
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="https://github.com/unreal-art"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-white transition-colors"
+                  >
+                    GitHub
+                  </a>
+                </li>
               </ul>
             </div>
 
             <div>
               <h4 className="font-semibold mb-4">Legal</h4>
               <ul className="space-y-2 text-slate-400">
-                <li><a href="#" className="hover:text-white transition-colors">Privacy</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Terms</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Security</a></li>
+                <li>
+                  <a href="#" className="hover:text-white transition-colors">
+                    Privacy
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-white transition-colors">
+                    Terms
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:text-white transition-colors">
+                    Security
+                  </a>
+                </li>
               </ul>
             </div>
           </div>
@@ -482,7 +576,7 @@ console.log(response.choices[0].message.content);`
         </div>
       </footer>
     </div>
-  );
-};
+  )
+}
 
-export default Index;
+export default Index
