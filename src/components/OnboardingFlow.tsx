@@ -60,12 +60,14 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
   const [callsAmount, setCallsAmount] = useState<number>(0)
   const [airdropRequested, setAirdropRequested] = useState<boolean>(false)
   const [airdropSuccess, setAirdropSuccess] = useState<boolean>(false)
-  const [airdropTxHash, setAirdropTxHash] = useState<string>("") 
+  const [airdropTxHash, setAirdropTxHash] = useState<string>("")
   const [isConfirming, setIsConfirming] = useState<boolean>(false)
   const [isConfirmed, setIsConfirmed] = useState<boolean>(false)
-  
+
   // Timer state for tracking confirmation time
-  const [confirmationStartTime, setConfirmationStartTime] = useState<number | null>(null)
+  const [confirmationStartTime, setConfirmationStartTime] = useState<
+    number | null
+  >(null)
   const [elapsedTime, setElapsedTime] = useState<number>(0)
 
   const fetchCallsAmount = useCallback(async () => {
@@ -91,11 +93,11 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
       console.log("calls=", calls)
 
       setCallsAmount(calls)
-      
+
       // Set showAirdropStep based on balance
       // Only show airdrop step if balance is 0
       setShowAirdropStep(calls === 0)
-      
+
       // Store for other components if needed
       localStorage.setItem("unreal_calls_value", calls.toString())
     } catch (err) {
@@ -139,34 +141,36 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
       setCurrentStep(2)
     }
   }, [isAuthenticated, walletAddress, token, verifyData, currentStep])
-  
+
   // Timer effect for tracking confirmation time
   useEffect(() => {
-    let timerInterval: NodeJS.Timeout | null = null;
-    
+    let timerInterval: NodeJS.Timeout | null = null
+
     if (isConfirming && !isConfirmed) {
       // The confirmationStartTime is now set in handleRequestAirdrop
       // immediately after receiving the transaction hash
-      
+
       // Update the elapsed time every second
       timerInterval = setInterval(() => {
         if (confirmationStartTime) {
-          const elapsed = Math.floor((Date.now() - confirmationStartTime) / 1000);
-          setElapsedTime(elapsed);
+          const elapsed = Math.floor(
+            (Date.now() - confirmationStartTime) / 1000
+          )
+          setElapsedTime(elapsed)
         }
-      }, 1000);
+      }, 1000)
     } else {
       // Reset timer when not confirming
       if (confirmationStartTime !== null) {
-        setConfirmationStartTime(null);
-        setElapsedTime(0);
+        setConfirmationStartTime(null)
+        setElapsedTime(0)
       }
     }
-    
+
     // Clean up interval on unmount or when confirming state changes
     return () => {
-      if (timerInterval) clearInterval(timerInterval);
-    };
+      if (timerInterval) clearInterval(timerInterval)
+    }
   }, [isConfirming, isConfirmed, confirmationStartTime])
 
   // Dynamically build steps based on wallet balance
@@ -181,7 +185,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
         detail: "MetaMask, WalletConnect, Coinbase Wallet supported",
       },
     ]
-    
+
     // If balance is 0, show Register Business, then Airdrop, and hide API Key
     if (showAirdropStep) {
       // Add Register Business as step 1
@@ -192,7 +196,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
         icon: FileText,
         detail: "EIP-712 signature for secure registration",
       })
-      
+
       // Add Airdrop as step 2
       baseSteps.push({
         id: 2,
@@ -210,7 +214,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
         icon: FileText,
         detail: "EIP-712 signature for secure registration",
       })
-      
+
       // Add API Key as step 2
       baseSteps.push({
         id: 2,
@@ -264,7 +268,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
       // After successful registration, check if user has UNREAL tokens
       // This will set showAirdropStep based on balance (true if balance is 0)
       await fetchCallsAmount()
-      
+
       // Complete the registration step
       handleStepComplete(1)
     } catch (error: unknown) {
@@ -291,20 +295,21 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
       if (response && response.txHash) {
         setAirdropRequested(true)
         setAirdropTxHash(response.txHash)
-        
+
         // Show appropriate message based on response
         if (response.alreadyClaimed) {
           setAirdropSuccess(true)
           setIsConfirmed(response.confirmed)
-          
+
           toast({
             title: "Airdrop Already Claimed",
-            description: response.message || "You have already claimed your airdrop.",
+            description:
+              response.message || "You have already claimed your airdrop.",
           })
-          
+
           // Refresh balance after airdrop
           await fetchCallsAmount()
-          
+
           // Move to next step
           handleStepComplete(2)
         } else {
@@ -312,25 +317,31 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
           setIsConfirming(true)
           // Set confirmation start time here to start the timer
           setConfirmationStartTime(Date.now())
-          console.log('Starting confirmation process...', { airdropTxHash: response.txHash, isConfirming: true })
-          
+          console.log("Starting confirmation process...", {
+            airdropTxHash: response.txHash,
+            isConfirming: true,
+          })
+
           toast({
             title: "Transaction Submitted",
-            description: "Waiting for blockchain confirmation. This may take a minute or two.",
+            description:
+              "Waiting for blockchain confirmation. This may take a minute or two.",
           })
-          
+
           try {
             // Wait for transaction confirmation with publicClient
             const receipt = await publicClient.waitForTransactionReceipt({
               hash: response.txHash as `0x${string}`,
               confirmations: 1, // Wait for 1 confirmation
+              timeout: 20 * 60 * 1e3, // 20 minutes //blocktime
+              pollingInterval: 5_000, // optional, check every 5s
             })
 
             console.log("Transaction confirmed:", receipt)
             setIsConfirming(false)
             setIsConfirmed(true)
             setAirdropSuccess(true)
-            
+
             toast({
               title: "Airdrop Confirmed",
               description: "Your airdrop has been confirmed on the blockchain!",
@@ -338,19 +349,22 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
 
             // Refresh balance after airdrop
             await fetchCallsAmount()
-            
+
             // After successful airdrop and balance refresh, the steps will be recalculated
             // based on the new balance (which should be > 0 now).
             // This will hide the airdrop step and show the API key step.
-            
+
             // Move to the next step (which should now be the API key step).
             handleStepComplete(2)
-
           } catch (confirmationError) {
-            console.error("Error waiting for transaction confirmation:", confirmationError)
+            console.error(
+              "Error waiting for transaction confirmation:",
+              confirmationError
+            )
             toast({
               title: "Confirmation Error",
-              description: "Could not confirm transaction. You may check the status later.",
+              description:
+                "Could not confirm transaction. You may check the status later.",
               variant: "destructive",
             })
             // Reset states on confirmation error to allow retry
@@ -410,8 +424,10 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
     const hours = Math.floor(totalSeconds / 3600)
     const minutes = Math.floor((totalSeconds % 3600) / 60)
     const seconds = totalSeconds % 60
-    
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+
+    return `${hours.toString().padStart(2, "0")}:${minutes
+      .toString()
+      .padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`
   }
 
   // Copy API key to clipboard
@@ -422,7 +438,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
       setTimeout(() => setCopied(false), 2000)
     }
   }
-  
+
   // Close API key dialog
   const handleCloseApiKeyDialog = () => {
     setShowApiKeyDialog(false)
@@ -463,25 +479,33 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center">
                   <div className="animate-pulse mr-2 h-4 w-4 rounded-full bg-amber-400"></div>
-                  <AlertDescription className="font-medium text-amber-400 text-lg">Confirming Airdrop Transaction</AlertDescription>
+                  <AlertDescription className="font-medium text-amber-400 text-lg">
+                    Confirming Airdrop Transaction
+                  </AlertDescription>
                 </div>
-                <div className="text-amber-400 font-mono font-bold">{formatTime(elapsedTime)}</div>
+                <div className="text-amber-400 font-mono font-bold">
+                  {formatTime(elapsedTime)}
+                </div>
               </div>
-              
+
               <p className="text-sm text-slate-300 my-3">
-                Waiting for blockchain confirmation. This may take a minute or two.
+                Waiting for blockchain confirmation. This may take a minute or
+                two.
               </p>
-              
+
               <div className="flex items-center justify-between text-sm">
                 <div className="text-slate-400">Transaction ID:</div>
                 <div className="text-slate-300 font-mono">
-                  {`${airdropTxHash.substring(0, 10)}...${airdropTxHash.substring(airdropTxHash.length - 8)}`}
+                  {`${airdropTxHash.substring(
+                    0,
+                    10
+                  )}...${airdropTxHash.substring(airdropTxHash.length - 8)}`}
                 </div>
               </div>
             </Alert>
           </div>
         )}
-        
+
         {/* Progress Bar */}
         <div className="max-w-2xl mx-auto mb-12">
           <div className="flex justify-between items-center mb-4">
@@ -597,12 +621,13 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
                         </div>
                         {airdropTxHash && (
                           <div className="text-xs text-slate-400 break-all">
-                            <span className="font-semibold">Transaction:</span> {airdropTxHash}
+                            <span className="font-semibold">Transaction:</span>{" "}
+                            {airdropTxHash}
                           </div>
                         )}
                       </div>
                     )}
-                    
+
                     {isActive && !isCompleted && (
                       <Button
                         onClick={() => {
@@ -617,13 +642,26 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
                             handleGenerateApiKey()
                         }}
                         className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-                        disabled={isLoading || (step.id === 2 && showAirdropStep && (isConfirming || airdropRequested))}
+                        disabled={
+                          isLoading ||
+                          (step.id === 2 &&
+                            showAirdropStep &&
+                            (isConfirming || airdropRequested))
+                        }
                       >
-                        {isLoading || (step.id === 2 && showAirdropStep && (isConfirming || airdropRequested)) ? (
+                        {isLoading ||
+                        (step.id === 2 &&
+                          showAirdropStep &&
+                          (isConfirming || airdropRequested)) ? (
                           <span className="flex items-center">
                             <span className="animate-spin mr-2 h-4 w-4 border-t-2 border-b-2 border-white rounded-full"></span>
-                            {step.id === 2 && showAirdropStep && isConfirming ? "Confirming..." : 
-                             step.id === 2 && showAirdropStep && airdropRequested ? "Processing..." : "Loading..."}
+                            {step.id === 2 && showAirdropStep && isConfirming
+                              ? "Confirming..."
+                              : step.id === 2 &&
+                                showAirdropStep &&
+                                airdropRequested
+                              ? "Processing..."
+                              : "Loading..."}
                           </span>
                         ) : (
                           <>
@@ -637,8 +675,8 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
                             {step.id === 1 && "Sign & Register"}
                             {step.id === 2 &&
                               showAirdropStep &&
-                              (airdropRequested && airdropSuccess 
-                                ? "Airdrop Claimed" 
+                              (airdropRequested && airdropSuccess
+                                ? "Airdrop Claimed"
                                 : "Request Air Drop")}
                             {(step.id === 2 && !showAirdropStep) ||
                             step.id === 3
@@ -656,8 +694,6 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
                         Completed
                       </div>
                     )}
-                    
-                
                   </CardContent>
                 </Card>
               </motion.div>
