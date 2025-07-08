@@ -334,7 +334,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
               hash: response.txHash as `0x${string}`,
               confirmations: 1, // Wait for 1 confirmation
               timeout: 20 * 60 * 1e3, // 20 minutes //blocktime
-              pollingInterval: 5_000, // optional, check every 5s
+              pollingInterval: 10e3, // optional, check every 10s
             })
 
             console.log("Transaction confirmed:", receipt)
