@@ -1,1 +1,52 @@
-{"name":"","short_name":"","icons":[{"src":"/android-chrome-192x192.png","sizes":"192x192","type":"image/png"},{"src":"/android-chrome-512x512.png","sizes":"512x512","type":"image/png"}],"theme_color":"#ffffff","background_color":"#ffffff","display":"standalone"}
+{
+  "name": "Unreal Console – On-Chain API Keys for AI Inference",
+  "short_name": "Unreal Console",
+  "description": "Instantly create and manage API keys for OpenAI-compatible AI inference. Connect your wallet, register, and request $UNREAL airdrops. Secure, transparent, and on-chain.",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0a23",
+  "theme_color": "#0a0a23",
+  "icons": [
+    {
+      "src": "/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Create API Key",
+      "short_name": "New Key",
+      "description": "Quickly create a new API key",
+      "url": "/",
+      "icons": [
+        {
+          "src": "/android-chrome-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Request Airdrop",
+      "short_name": "Airdrop",
+      "description": "Request $UNREAL airdrop if your wallet is low",
+      "url": "/",
+      "icons": [
+        {
+          "src": "/android-chrome-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
+  "id": "/?source=pwa"
+}
