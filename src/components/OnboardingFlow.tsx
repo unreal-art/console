@@ -145,10 +145,8 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
     let timerInterval: NodeJS.Timeout | null = null;
     
     if (isConfirming && !isConfirmed) {
-      // Set the start time when confirmation begins
-      if (!confirmationStartTime) {
-        setConfirmationStartTime(Date.now());
-      }
+      // The confirmationStartTime is now set in handleRequestAirdrop
+      // immediately after receiving the transaction hash
       
       // Update the elapsed time every second
       timerInterval = setInterval(() => {
@@ -310,10 +308,19 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
           // Move to next step
           handleStepComplete(2)
         } else {
-          // Always wait for the transaction confirmation on the client-side to ensure UI consistency.
+          // Start the confirmation process and timer immediately after receiving tx hash
           setIsConfirming(true)
+          // Set confirmation start time here to start the timer
+          setConfirmationStartTime(Date.now())
           console.log('Starting confirmation process...', { airdropTxHash: response.txHash, isConfirming: true })
+          
+          toast({
+            title: "Transaction Submitted",
+            description: "Waiting for blockchain confirmation. This may take a minute or two.",
+          })
+          
           try {
+            // Wait for transaction confirmation with publicClient
             const receipt = await publicClient.waitForTransactionReceipt({
               hash: response.txHash as `0x${string}`,
               confirmations: 1, // Wait for 1 confirmation
@@ -466,14 +473,10 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
               </p>
               
               <div className="flex items-center justify-between text-sm">
-                <div className="text-slate-400">Transaction:</div>
-                <a 
-                  href={`https://sepolia.etherscan.io/tx/${airdropTxHash}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-400 hover:text-blue-300 font-mono">
+                <div className="text-slate-400">Transaction ID:</div>
+                <div className="text-slate-300 font-mono">
                   {`${airdropTxHash.substring(0, 10)}...${airdropTxHash.substring(airdropTxHash.length - 8)}`}
-                </a>
+                </div>
               </div>
             </Alert>
           </div>
