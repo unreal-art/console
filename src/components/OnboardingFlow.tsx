@@ -87,6 +87,11 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
       console.log("calls=", calls)
 
       setCallsAmount(calls)
+      
+      // Set showAirdropStep based on balance
+      // Only show airdrop step if balance is 0
+      setShowAirdropStep(calls === 0)
+      
       // Store for other components if needed
       localStorage.setItem("unreal_calls_value", calls.toString())
     } catch (err) {
@@ -176,7 +181,11 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
             // Refresh balance after airdrop
             await fetchCallsAmount()
             
-            // Move to next step
+            // After successful airdrop and balance refresh, the steps will be recalculated
+            // based on the new balance (should be > 0 now)
+            // This will hide the airdrop step and show the API key step
+            
+            // Move to the API key step (which should now be visible)
             handleStepComplete(2)
           }
         }
@@ -212,7 +221,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
   const [isZeroBalanceRegistration, setIsZeroBalanceRegistration] =
     useState<boolean>(false)
 
-  // State to control whether to show the airdrop step
+  // State to control whether to show the airdrop step (only shown when balance is 0)
   const [showAirdropStep, setShowAirdropStep] = useState<boolean>(false)
 
   // Update loading state when API context loading changes
@@ -240,8 +249,9 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
     }
   }, [isAuthenticated, walletAddress, token, verifyData, currentStep])
 
-  // Dynamically build steps based on whether airdrop step should be shown
+  // Dynamically build steps based on wallet balance
   const getSteps = () => {
+    // Base steps that are always shown
     const baseSteps = [
       {
         id: 0,
@@ -250,16 +260,20 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
         icon: Wallet,
         detail: "MetaMask, WalletConnect, Coinbase Wallet supported",
       },
-      {
+    ]
+    
+    // If balance is 0, show Register Business, then Airdrop, and hide API Key
+    if (showAirdropStep) {
+      // Add Register Business as step 1
+      baseSteps.push({
         id: 1,
         title: "Register Business",
         description: "Auto-fill wallet address, sign payload",
         icon: FileText,
         detail: "EIP-712 signature for secure registration",
-      },
-    ]
-
-    if (showAirdropStep) {
+      })
+      
+      // Add Airdrop as step 2
       baseSteps.push({
         id: 2,
         title: "Request Air Drop",
@@ -267,15 +281,25 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
         icon: Wallet,
         detail: "Free tokens for testing the API",
       })
+    } else {
+      // Normal flow: Register Business, then API Key
+      baseSteps.push({
+        id: 1,
+        title: "Register Business",
+        description: "Auto-fill wallet address, sign payload",
+        icon: FileText,
+        detail: "EIP-712 signature for secure registration",
+      })
+      
+      // Add API Key as step 2
+      baseSteps.push({
+        id: 2,
+        title: "Generate API Key",
+        description: "One-time display with security warning",
+        icon: Key,
+        detail: "Copy to clipboard and store securely",
+      })
     }
-
-    baseSteps.push({
-      id: showAirdropStep ? 3 : 2,
-      title: "Generate API Key",
-      description: "One-time display with security warning",
-      icon: Key,
-      detail: "Copy to clipboard and store securely",
-    })
 
     return baseSteps
   }
@@ -309,10 +333,10 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
       await registerWithWallet(callsAmount)
 
       // After successful registration, check if user has UNREAL tokens
+      // This will set showAirdropStep based on balance (true if balance is 0)
       await fetchCallsAmount()
-
-      // Always show the airdrop step regardless of balance
-      setShowAirdropStep(true)
+      
+      // Complete the registration step
       handleStepComplete(1)
     } catch (error: unknown) {
       const errorMessage =
