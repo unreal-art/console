@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useCallback } from "react"
 import { apiClient } from "@/lib/api"
 import { getUnrealBalance } from "@/utils/web3/unreal"
 import { formatEther, type Address } from "viem"
@@ -56,8 +56,10 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
 
   // State for calls amount (number of API calls user can make based on UNREAL balance)
   const [callsAmount, setCallsAmount] = useState<number>(0)
+  const [airdropRequested, setAirdropRequested] = useState<boolean>(false)
+  const [airdropSuccess, setAirdropSuccess] = useState<boolean>(false)
 
-  const fetchCallsAmount = async () => {
+  const fetchCallsAmount = useCallback(async () => {
     console.log("fetchCallsAmount")
     try {
       if (!walletAddress) return
@@ -85,16 +87,49 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
     } catch (err) {
       console.error("Unable to fetch calls amount:", err)
     }
+  }, [walletAddress])
+  
+  // Handle airdrop request
+  const handleRequestAirdrop = async () => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      // Simulate API call for airdrop
+      // In a real implementation, you would call an API endpoint to request tokens
+      await new Promise(resolve => setTimeout(resolve, 2000)) // Simulate network delay
+      
+      setAirdropRequested(true)
+      setAirdropSuccess(true)
+      
+      // Refresh balance after airdrop
+      await fetchCallsAmount()
+      
+      // Move to next step
+      handleStepComplete(2)
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to request airdrop. Please try again."
+      console.error("Error requesting airdrop:", error)
+      setError(errorMessage)
+      setAirdropSuccess(false)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   // Fetch calls amount similar to cockpit registration logic
   useEffect(() => {
     fetchCallsAmount()
-  }, [walletAddress])
+  }, [walletAddress, fetchCallsAmount])
 
   // State to track if this is a zero-balance registration
   const [isZeroBalanceRegistration, setIsZeroBalanceRegistration] =
     useState<boolean>(false)
+  
+  // State to control whether to show the airdrop step
+  const [showAirdropStep, setShowAirdropStep] = useState<boolean>(false)
 
   // Update loading state when API context loading changes
   useEffect(() => {
@@ -121,29 +156,47 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
     }
   }, [isAuthenticated, walletAddress, token, verifyData, currentStep])
 
-  const steps = [
-    {
-      id: 0,
-      title: "Connect Wallet",
-      description: "Connect your non-custodial wallet",
-      icon: Wallet,
-      detail: "MetaMask, WalletConnect, Coinbase Wallet supported",
-    },
-    {
-      id: 1,
-      title: "Register Business",
-      description: "Auto-fill wallet address, sign payload",
-      icon: FileText,
-      detail: "EIP-712 signature for secure registration",
-    },
-    {
-      id: 2,
+  // Dynamically build steps based on whether airdrop step should be shown
+  const getSteps = () => {
+    const baseSteps = [
+      {
+        id: 0,
+        title: "Connect Wallet",
+        description: "Connect your non-custodial wallet",
+        icon: Wallet,
+        detail: "MetaMask, WalletConnect, Coinbase Wallet supported",
+      },
+      {
+        id: 1,
+        title: "Register Business",
+        description: "Auto-fill wallet address, sign payload",
+        icon: FileText,
+        detail: "EIP-712 signature for secure registration",
+      }
+    ]
+    
+    if (showAirdropStep) {
+      baseSteps.push({
+        id: 2,
+        title: "Request Air Drop",
+        description: "Get $UNREAL tokens to use the API",
+        icon: Wallet,
+        detail: "Free tokens for testing the API",
+      })
+    }
+    
+    baseSteps.push({
+      id: showAirdropStep ? 3 : 2,
       title: "Generate API Key",
       description: "One-time display with security warning",
       icon: Key,
       detail: "Copy to clipboard and store securely",
-    },
-  ]
+    })
+    
+    return baseSteps
+  }
+  
+  const steps = getSteps()
 
   // Handle wallet connection
   const handleConnectWallet = async () => {
@@ -170,7 +223,19 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
     setError(null)
     try {
       await registerWithWallet(callsAmount)
-      handleStepComplete(1)
+      
+      // After successful registration, check if user has UNREAL tokens
+      await fetchCallsAmount()
+      
+      // If balance is zero, show the airdrop step
+      if (callsAmount === 0) {
+        setShowAirdropStep(true)
+        handleStepComplete(1)
+      } else {
+        // Skip airdrop step if user has tokens
+        setShowAirdropStep(false)
+        handleStepComplete(1)
+      }
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error
@@ -380,7 +445,8 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
                         onClick={() => {
                           if (step.id === 0) handleConnectWallet()
                           else if (step.id === 1) handleRegister()
-                          else if (step.id === 2) handleGenerateApiKey()
+                          else if (step.id === 2 && showAirdropStep) handleRequestAirdrop()
+                          else if ((step.id === 2 && !showAirdropStep) || step.id === 3) handleGenerateApiKey()
                         }}
                         className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
                         disabled={isLoading}
@@ -400,7 +466,8 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
                                   )}...${walletAddress.slice(-4)}`
                                 : "Connect Wallet")}
                             {step.id === 1 && "Sign & Register"}
-                            {step.id === 2 && "Generate Key"}
+                            {step.id === 2 && showAirdropStep && "Request Air Drop"}
+                            {(step.id === 2 && !showAirdropStep) || step.id === 3 ? "Generate Key" : ""}
                             <ArrowRight className="ml-2 w-4 h-4" />
                           </>
                         )}
