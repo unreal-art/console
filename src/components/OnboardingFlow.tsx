@@ -63,6 +63,10 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
   const [airdropTxHash, setAirdropTxHash] = useState<string>("") 
   const [isConfirming, setIsConfirming] = useState<boolean>(false)
   const [isConfirmed, setIsConfirmed] = useState<boolean>(false)
+  
+  // Timer state for tracking confirmation time
+  const [confirmationStartTime, setConfirmationStartTime] = useState<number | null>(null)
+  const [elapsedTime, setElapsedTime] = useState<number>(0)
 
   const fetchCallsAmount = useCallback(async () => {
     console.log("fetchCallsAmount")
@@ -98,119 +102,6 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
       console.error("Unable to fetch calls amount:", err)
     }
   }, [walletAddress])
-
-  // Handle airdrop request
-  const handleRequestAirdrop = async () => {
-    setIsLoading(true)
-    setError(null)
-    try {
-      // Call the typed airdrop method
-      const response = await apiClient.airdrop()
-
-      if (response && response.txHash) {
-        setAirdropRequested(true)
-        setAirdropTxHash(response.txHash)
-        
-        // Show appropriate message based on response
-        if (response.alreadyClaimed) {
-          setAirdropSuccess(true)
-          setIsConfirmed(response.confirmed)
-          
-          toast({
-            title: "Airdrop Already Claimed",
-            description: response.message || "You have already claimed your airdrop.",
-          })
-          
-          // Refresh balance after airdrop
-          await fetchCallsAmount()
-          
-          // Move to next step
-          handleStepComplete(2)
-        } else {
-          // If not already confirmed, start waiting for confirmation
-          if (!response.confirmed) {
-            setIsConfirming(true)
-            
-            toast({
-              title: "Airdrop Requested",
-              description: "Your airdrop request is being processed. Waiting for blockchain confirmation...",
-            })
-            
-            try {
-              // Wait for 1 confirmation using publicClient
-              const receipt = await publicClient.waitForTransactionReceipt({
-                hash: response.txHash as `0x${string}`,
-                confirmations: 1,
-              })
-              
-              if (receipt) {
-                setIsConfirmed(true)
-                setAirdropSuccess(true)
-                setIsConfirming(false)
-                
-                toast({
-                  title: "Airdrop Confirmed",
-                  description: "Your airdrop has been confirmed on the blockchain!",
-                })
-                
-                // Refresh balance after confirmed airdrop
-                await fetchCallsAmount()
-                
-                // Move to next step
-                handleStepComplete(2)
-              }
-            } catch (confirmError) {
-              console.error("Error confirming transaction:", confirmError)
-              toast({
-                title: "Confirmation Error",
-                description: "Could not confirm transaction. You may check the status later.",
-                variant: "destructive",
-              })
-              setIsConfirming(false)
-            }
-          } else {
-            // Already confirmed
-            setIsConfirmed(true)
-            setAirdropSuccess(true)
-            
-            toast({
-              title: "Airdrop Confirmed",
-              description: "Your airdrop has been confirmed on the blockchain!",
-            })
-            
-            // Refresh balance after airdrop
-            await fetchCallsAmount()
-            
-            // After successful airdrop and balance refresh, the steps will be recalculated
-            // based on the new balance (should be > 0 now)
-            // This will hide the airdrop step and show the API key step
-            
-            // Move to the API key step (which should now be visible)
-            handleStepComplete(2)
-          }
-        }
-      } else {
-        throw new Error("Invalid response from airdrop endpoint")
-      }
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "Failed to request airdrop. Please try again."
-      console.error("Error requesting airdrop:", error)
-      setError(errorMessage)
-      setAirdropSuccess(false)
-      setIsConfirming(false)
-      
-      toast({
-        title: "Airdrop Failed",
-        description: errorMessage,
-        variant: "destructive",
-      })
-    } finally {
-      setIsLoading(false)
-    }
-  }
 
   // Fetch calls amount similar to cockpit registration logic
   useEffect(() => {
@@ -248,6 +139,37 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
       setCurrentStep(2)
     }
   }, [isAuthenticated, walletAddress, token, verifyData, currentStep])
+  
+  // Timer effect for tracking confirmation time
+  useEffect(() => {
+    let timerInterval: NodeJS.Timeout | null = null;
+    
+    if (isConfirming && !isConfirmed) {
+      // Set the start time when confirmation begins
+      if (!confirmationStartTime) {
+        setConfirmationStartTime(Date.now());
+      }
+      
+      // Update the elapsed time every second
+      timerInterval = setInterval(() => {
+        if (confirmationStartTime) {
+          const elapsed = Math.floor((Date.now() - confirmationStartTime) / 1000);
+          setElapsedTime(elapsed);
+        }
+      }, 1000);
+    } else {
+      // Reset timer when not confirming
+      if (confirmationStartTime !== null) {
+        setConfirmationStartTime(null);
+        setElapsedTime(0);
+      }
+    }
+    
+    // Clean up interval on unmount or when confirming state changes
+    return () => {
+      if (timerInterval) clearInterval(timerInterval);
+    };
+  }, [isConfirming, isConfirmed, confirmationStartTime])
 
   // Dynamically build steps based on wallet balance
   const getSteps = () => {
@@ -306,13 +228,22 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
 
   const steps = getSteps()
 
+  const handleStepComplete = (stepId: number) => {
+    if (!completedSteps.includes(stepId)) {
+      setCompletedSteps([...completedSteps, stepId])
+    }
+    if (stepId < steps.length - 1) {
+      setCurrentStep(stepId + 1)
+    }
+  }
+
   // Handle wallet connection
   const handleConnectWallet = async () => {
     setIsLoading(true)
     setError(null)
     try {
       await connectWallet()
-      setCurrentStep(1) // Move to next step after successful connection
+      handleStepComplete(0)
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error
@@ -350,37 +281,105 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
     }
   }
 
+  // Handle airdrop request
+  const handleRequestAirdrop = async () => {
+    setIsLoading(true)
+    setError(null)
+    setAirdropRequested(true) // Set requested state immediately to prevent multiple clicks
+    try {
+      // Call the typed airdrop method
+      const response = await apiClient.airdrop()
+
+      if (response && response.txHash) {
+        setAirdropRequested(true)
+        setAirdropTxHash(response.txHash)
+        
+        // Show appropriate message based on response
+        if (response.alreadyClaimed) {
+          setAirdropSuccess(true)
+          setIsConfirmed(response.confirmed)
+          
+          toast({
+            title: "Airdrop Already Claimed",
+            description: response.message || "You have already claimed your airdrop.",
+          })
+          
+          // Refresh balance after airdrop
+          await fetchCallsAmount()
+          
+          // Move to next step
+          handleStepComplete(2)
+        } else {
+          // Always wait for the transaction confirmation on the client-side to ensure UI consistency.
+          setIsConfirming(true)
+          console.log('Starting confirmation process...', { airdropTxHash: response.txHash, isConfirming: true })
+          try {
+            const receipt = await publicClient.waitForTransactionReceipt({
+              hash: response.txHash as `0x${string}`,
+              confirmations: 1, // Wait for 1 confirmation
+            })
+
+            console.log("Transaction confirmed:", receipt)
+            setIsConfirming(false)
+            setIsConfirmed(true)
+            setAirdropSuccess(true)
+            
+            toast({
+              title: "Airdrop Confirmed",
+              description: "Your airdrop has been confirmed on the blockchain!",
+            })
+
+            // Refresh balance after airdrop
+            await fetchCallsAmount()
+            
+            // After successful airdrop and balance refresh, the steps will be recalculated
+            // based on the new balance (which should be > 0 now).
+            // This will hide the airdrop step and show the API key step.
+            
+            // Move to the next step (which should now be the API key step).
+            handleStepComplete(2)
+
+          } catch (confirmationError) {
+            console.error("Error waiting for transaction confirmation:", confirmationError)
+            toast({
+              title: "Confirmation Error",
+              description: "Could not confirm transaction. You may check the status later.",
+              variant: "destructive",
+            })
+            // Reset states on confirmation error to allow retry
+            setIsConfirming(false)
+            setAirdropRequested(false)
+          }
+        }
+      } else {
+        throw new Error("Invalid response from airdrop endpoint")
+      }
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to request airdrop. Please try again."
+      console.error("Error requesting airdrop:", error)
+      setError(errorMessage)
+      // Reset all airdrop states on error
+      setAirdropRequested(false)
+      setAirdropSuccess(false)
+      setIsConfirming(false)
+      toast({
+        title: "Airdrop Error",
+        description: errorMessage,
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   // Handle API key generation
   const handleGenerateApiKey = async () => {
     setIsLoading(true)
     setError(null)
     try {
-      // Check if we have valid token data with remaining calls
-      // or if this is a zero-balance registration
-      const storedCallsValue = localStorage.getItem("unreal_calls_value")
-      const isZeroBalance = storedCallsValue === "0"
-      setIsZeroBalanceRegistration(isZeroBalance)
-
-      // if ((!verifyData || verifyData.remaining <= 0) && !isZeroBalance) {
-      //   // Only try to refresh verification data if not a zero-balance registration
-      //   try {
-      //     await verifyToken()
-      //     // After refresh, check if we have calls now
-      //     if (!verifyData || verifyData.remaining <= 0) {
-      //       throw new Error(
-      //         "Insufficient UNREAL token balance. Please ensure you have UNREAL tokens in your wallet."
-      //       )
-      //     }
-      //   } catch (verifyError) {
-      //     // If zero balance is explicitly set, we'll allow generation despite low balance
-      //     if (!isZeroBalance) {
-      //       throw new Error(
-      //         "Insufficient UNREAL token balance. Please ensure you have UNREAL tokens in your wallet."
-      //       )
-      //     }
-      //   }
-      // }
-
       // Generate API key with a name based on the current date
       const keyName = `api-key-${new Date().toISOString().split("T")[0]}`
       const response = await createApiKey(keyName)
@@ -397,6 +396,15 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  // Helper function to format time in HH:MM:SS
+  const formatTime = (totalSeconds: number) => {
+    const hours = Math.floor(totalSeconds / 3600)
+    const minutes = Math.floor((totalSeconds % 3600) / 60)
+    const seconds = totalSeconds % 60
+    
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
   }
 
   // Copy API key to clipboard
@@ -422,15 +430,6 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
     }
   }
 
-  const handleStepComplete = (stepId: number) => {
-    if (!completedSteps.includes(stepId)) {
-      setCompletedSteps([...completedSteps, stepId])
-    }
-    if (stepId < steps.length - 1) {
-      setCurrentStep(stepId + 1)
-    }
-  }
-
   const progressPercentage = (completedSteps.length / steps.length) * 100
 
   return (
@@ -450,6 +449,36 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
           </p>
         </motion.div>
 
+        {/* Transaction Confirmation Alert Box - Highly Visible */}
+        {isConfirming && airdropTxHash && (
+          <div className="max-w-3xl mx-auto px-4 mb-8">
+            <Alert className="border-2 border-amber-400/50 bg-amber-50/10 shadow-lg shadow-amber-900/20">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center">
+                  <div className="animate-pulse mr-2 h-4 w-4 rounded-full bg-amber-400"></div>
+                  <AlertDescription className="font-medium text-amber-400 text-lg">Confirming Airdrop Transaction</AlertDescription>
+                </div>
+                <div className="text-amber-400 font-mono font-bold">{formatTime(elapsedTime)}</div>
+              </div>
+              
+              <p className="text-sm text-slate-300 my-3">
+                Waiting for blockchain confirmation. This may take a minute or two.
+              </p>
+              
+              <div className="flex items-center justify-between text-sm">
+                <div className="text-slate-400">Transaction:</div>
+                <a 
+                  href={`https://sepolia.etherscan.io/tx/${airdropTxHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-400 hover:text-blue-300 font-mono">
+                  {`${airdropTxHash.substring(0, 10)}...${airdropTxHash.substring(airdropTxHash.length - 8)}`}
+                </a>
+              </div>
+            </Alert>
+          </div>
+        )}
+        
         {/* Progress Bar */}
         <div className="max-w-2xl mx-auto mb-12">
           <div className="flex justify-between items-center mb-4">
@@ -585,12 +614,13 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
                             handleGenerateApiKey()
                         }}
                         className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-                        disabled={isLoading || (step.id === 2 && showAirdropStep && isConfirming)}
+                        disabled={isLoading || (step.id === 2 && showAirdropStep && (isConfirming || airdropRequested))}
                       >
-                        {isLoading || (step.id === 2 && showAirdropStep && isConfirming) ? (
+                        {isLoading || (step.id === 2 && showAirdropStep && (isConfirming || airdropRequested)) ? (
                           <span className="flex items-center">
                             <span className="animate-spin mr-2 h-4 w-4 border-t-2 border-b-2 border-white rounded-full"></span>
-                            {step.id === 2 && showAirdropStep && isConfirming ? "Confirming..." : "Loading..."}
+                            {step.id === 2 && showAirdropStep && isConfirming ? "Confirming..." : 
+                             step.id === 2 && showAirdropStep && airdropRequested ? "Processing..." : "Loading..."}
                           </span>
                         ) : (
                           <>
@@ -623,6 +653,8 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
                         Completed
                       </div>
                     )}
+                    
+                
                   </CardContent>
                 </Card>
               </motion.div>
