@@ -8,11 +8,12 @@ import {
   hashMessage,
 } from "viem"
 import { mainnet } from "viem/chains"
-import { OPENAI_URL } from "@config/unreal"
+import { OPENAI_URL } from "@/config/unreal"
 import { publicClient } from "@/config/wallet"
 
 // API base URL
 const API_BASE_URL = OPENAI_URL
+import { openaiClient } from "@/config/unreal"
 
 // Types
 export interface AuthAddressResponse {
@@ -116,115 +117,48 @@ export class UnrealApiClient {
 
   // Get system info
   async getSystemInfo(): Promise<any> {
-    return this.get("/system")
+    const response = await openaiClient.get("/system")
+    return response.data
   }
 
-  // Get auth address for wallet connection
   async getAuthAddress(): Promise<AuthAddressResponse> {
-    return this.get("/auth/address")
+    const response = await openaiClient.get("/auth/address")
+    return response.data
   }
 
-  // Register with wallet signature
   async register(registerRequest: RegisterRequest): Promise<RegisterResponse> {
-    return this.post("/auth/register", registerRequest)
+    const response = await openaiClient.post("/auth/register", registerRequest)
+    return response.data
   }
 
-  // Verify token
   async verifyToken(token: string): Promise<VerifyResponse> {
-    return this.get(`/auth/verify?token=${token}`)
+    const response = await openaiClient.get(`/auth/verify?token=${token}`)
+    return response.data
   }
 
-  // Create API key
   async createApiKey(name: string): Promise<ApiKeyResponse> {
-    return this.post("/keys", { name })
+    const response = await openaiClient.post("/keys", { name })
+    return response.data
   }
 
-  // List all API keys
   async listApiKeys(): Promise<ApiKeyListResponse> {
-    return this.get("/keys")
+    const response = await openaiClient.get("/keys")
+    return response.data
   }
 
-  // Request airdrop of UNREAL tokens
   async airdrop(): Promise<AirdropResponse> {
-    return this.get("/web3/airdrop")
+    const response = await openaiClient.get("/web3/airdrop")
+    return response.data
   }
 
-  // Delete API key by hash
   async deleteApiKey(hash: string): Promise<{ success: boolean }> {
-    return this.delete(`/keys/${encodeURIComponent(hash)}`)
-  }
-
-  // Helper method for GET requests
-  private async get(endpoint: string): Promise<any> {
-    const headers: HeadersInit = {
-      "Content-Type": "application/json",
-    }
-
-    if (this.token) {
-      headers["Authorization"] = `Bearer ${this.token}`
-    }
-
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      method: "GET",
-      headers,
-    })
-
-    if (!response.ok) {
-      throw new Error(`API Error: ${response.status} ${response.statusText}`)
-    }
-
-    return response.json()
-  }
-
-  // Helper method for POST requests
-  private async post(endpoint: string, data: any): Promise<any> {
-    const headers: HeadersInit = {
-      "Content-Type": "application/json",
-    }
-
-    if (this.token) {
-      headers["Authorization"] = `Bearer ${this.token}`
-    }
-
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(data),
-    })
-
-    const responseData = await response.json()
-
-    if (!response.ok) {
-      throw new Error(responseData.error || "API request failed")
-    }
-
-    return responseData
-  }
-
-  // Helper method for DELETE requests
-  private async delete(endpoint: string): Promise<any> {
-    const headers: HeadersInit = {}
-
-    if (this.token) {
-      headers["Authorization"] = `Bearer ${this.token}`
-    }
-
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      method: "DELETE",
-      headers,
-    })
-
+    const response = await openaiClient.delete(
+      `/keys/${encodeURIComponent(hash)}`
+    )
     if (response.status === 204) {
       return { success: true }
     }
-
-    const responseData = await response.json()
-
-    if (!response.ok) {
-      throw new Error(responseData.error || "API request failed")
-    }
-
-    return responseData
+    return response.data
   }
 }
 
