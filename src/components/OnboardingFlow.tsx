@@ -297,9 +297,10 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
         setAirdropTxHash(response.txHash)
 
         // Show appropriate message based on response
-        if (response.alreadyClaimed) {
+        if (response.alreadyClaimed && response.confirmed) {
+          // Already claimed and confirmed, skip waiting
           setAirdropSuccess(true)
-          setIsConfirmed(response.confirmed)
+          setIsConfirmed(true)
 
           toast({
             title: "Airdrop Already Claimed",
@@ -313,9 +314,8 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
           // Move to next step
           handleStepComplete(2)
         } else {
-          // Start the confirmation process and timer immediately after receiving tx hash
+          // If not confirmed, wait for transaction confirmation as normal
           setIsConfirming(true)
-          // Set confirmation start time here to start the timer
           setConfirmationStartTime(Date.now())
           console.log("Starting confirmation process...", {
             airdropTxHash: response.txHash,
@@ -323,9 +323,9 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
           })
 
           toast({
-            title: "Transaction Submitted",
+            title: response.alreadyClaimed ? "Airdrop Already Claimed (Unconfirmed)" : "Transaction Submitted",
             description:
-              "Waiting for blockchain confirmation. This may take a minute or two.",
+              response.message || "Waiting for blockchain confirmation. This may take a minute or two.",
           })
 
           try {
@@ -349,10 +349,6 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
 
             // Refresh balance after airdrop
             await fetchCallsAmount()
-
-            // After successful airdrop and balance refresh, the steps will be recalculated
-            // based on the new balance (which should be > 0 now).
-            // This will hide the airdrop step and show the API key step.
 
             // Move to the next step (which should now be the API key step).
             handleStepComplete(2)
