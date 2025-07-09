@@ -16,6 +16,7 @@
     "skipLibCheck": true,
     "allowJs": true,
     "noUnusedLocals": false,
-    "strictNullChecks": false
+    "strictNullChecks": false,
+    "include": ["src", "vite-env.d.ts"]
   }
 }

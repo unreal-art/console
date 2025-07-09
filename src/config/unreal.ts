@@ -16,3 +16,13 @@ export const openaiClient = axios.create({
   },
 })
 openaiClient.defaults.withCredentials = true
+
+// Add interceptor to inject Authorization header if token is present in localStorage
+openaiClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem("unreal_token")
+  if (token) {
+    config.headers = config.headers || {}
+    config.headers["Authorization"] = `Bearer ${token}`
+  }
+  return config
+})
