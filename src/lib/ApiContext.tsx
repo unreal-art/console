@@ -351,7 +351,19 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
       setVerifyData(response)
       return response
     } catch (error: any) {
-      setError(error.message || "Failed to verify token")
+      // Check if the error is a 404 (token expired or invalid)
+      if (error.response && error.response.status === 404) {
+        console.log('Token expired or invalid, clearing authentication state')
+        // Clear token and reset authentication state
+        setIsAuthenticated(false)
+        setToken(null)
+        setVerifyData(null)
+        apiClient.clearToken()
+        localStorage.removeItem("unreal_token")
+        setError("Token expired. Please reconnect your wallet.")
+      } else {
+        setError(error.message || "Failed to verify token")
+      }
       throw error
     } finally {
       setIsLoading(false)
