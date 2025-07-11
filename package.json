@@ -4,6 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "setup:min": "npm install -g bun && mkdir -p tests/.data",
+    "postsetup:min": "bun install && bun check",
+    "setup": "npm run setup:min",
+    "postsetup": "bunx -y playwright install --with-deps",
     "dev": "vite",
     "build": "vite build",
     "build:dev": "vite build --mode development",
