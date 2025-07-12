@@ -200,6 +200,22 @@ export class WalletService {
     }
   }
 
+  /**
+   * Disconnect the wallet.
+   * Note: For injected wallets like MetaMask, there is no programmatic disconnect.
+   * This method clears the internal wallet client/account and removes any cached state.
+   * The user must disconnect manually from their wallet extension if needed.
+   */
+  async disconnect(): Promise<void> {
+    this.walletClient = null
+    this.account = null
+    // Optionally clear any cached wallet info in localStorage/sessionStorage
+    localStorage.removeItem("unreal_wallet_address")
+    localStorage.removeItem("unreal_openai_address")
+    // You may also want to clear other wallet-related state here
+    return
+  }
+
   // Check if wallet is connected
   async isConnected(): Promise<boolean> {
     if (!window.ethereum) return false

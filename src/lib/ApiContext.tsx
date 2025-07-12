@@ -463,6 +463,9 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     setOpenaiAddress(null)
 
     console.log("Wallet disconnected and refresh")
+
+    // implement thirdweb disconnect wallet
+    walletService.disconnect()
     window.location.reload()
   }
 
