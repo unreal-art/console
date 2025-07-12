@@ -1,6 +1,6 @@
 import { parseEther, type Address } from "viem"
 export const UNREAL_AMOUNT = parseEther(`${1}`)
-import axios from "axios"
+import axios, { AxiosHeaders } from "axios"
 
 export const UNREAL_ADDRESS =
   "0xA409B5E5D34928a0F1165c7a73c8aC572D1aBCDB".toLowerCase() as unknown as Address
@@ -24,8 +24,8 @@ openaiClient.defaults.withCredentials = true
 openaiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem("unreal_token")
   if (token) {
-    config.headers = config.headers || {}
-    config.headers["Authorization"] = `Bearer ${token}`
+    config.headers ??= new AxiosHeaders()
+    config.headers.set("Authorization", `Bearer ${token}`)
   }
   return config
 })
