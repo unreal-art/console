@@ -20,6 +20,7 @@ interface ApiContextType {
   isAuthenticated: boolean
   isLoading: boolean
   walletAddress: string | null
+  availableAddresses: string[]
   openaiAddress: string | null
   token: string | null
   verifyData: VerifyResponse | null
@@ -28,7 +29,8 @@ interface ApiContextType {
   apiKeys: ApiKey[]
   isLoadingApiKeys: boolean
   error: string | null
-  connectWallet: () => Promise<string>
+  connectWallet: (selectedAddress?: string) => Promise<string>
+  getAvailableAddresses: () => Promise<string[]>
   registerWithWallet: (calls: number) => Promise<string>
   verifyToken: () => Promise<VerifyResponse>
   createApiKey: (name: string) => Promise<ApiKeyResponse>
@@ -46,6 +48,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
 }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [availableAddresses, setAvailableAddresses] = useState<string[]>([])
   const [walletAddress, setWalletAddress] = useState<string | null>(null)
   const [openaiAddress, setOpenaiAddress] = useState<string | null>(null)
   const [token, setToken] = useState<string | null>(null)
@@ -235,13 +238,35 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     }
   }
 
-  // Connect wallet
-  const connectWallet = async (): Promise<string> => {
+  // Get available wallet addresses
+  const getAvailableAddresses = async (): Promise<string[]> => {
     setIsLoading(true)
     setError(null)
 
     try {
-      const address = await walletService.connect()
+      const addresses = await walletService.getAvailableAddresses()
+      setAvailableAddresses(addresses)
+      return addresses
+    } catch (error: any) {
+      setError(error.message || "Failed to get wallet addresses")
+      throw error
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Connect wallet
+  const connectWallet = async (selectedAddress?: string): Promise<string> => {
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      // Get available addresses first if not already fetched
+      if (availableAddresses.length === 0) {
+        await getAvailableAddresses()
+      }
+      
+      const address = await walletService.connect(selectedAddress)
       setWalletAddress(address)
       localStorage.setItem("unreal_wallet_address", address)
 
@@ -483,6 +508,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     isAuthenticated,
     isLoading,
     walletAddress,
+    availableAddresses,
     openaiAddress,
     token,
     verifyData,
@@ -492,6 +518,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     isLoadingApiKeys,
     error,
     connectWallet,
+    getAvailableAddresses,
     registerWithWallet,
     verifyToken,
     createApiKey,

@@ -172,8 +172,29 @@ export class WalletService {
     return window.ethereum
   }
 
+  // Get all available wallet addresses
+  async getAvailableAddresses(): Promise<`0x${string}`[]> {
+    if (window.ethereum) {
+      try {
+        // Request accounts
+        const addresses = (await window.ethereum.request({
+          method: "eth_requestAccounts",
+        })) as `0x${string}`[]
+
+        return addresses
+      } catch (error) {
+        console.error("Error getting wallet addresses:", error)
+        throw new Error("Failed to get wallet addresses")
+      }
+    } else {
+      throw new Error(
+        "No Ethereum wallet detected. Please install MetaMask or another wallet."
+      )
+    }
+  }
+
   // Connect to wallet
-  async connect(): Promise<string> {
+  async connect(selectedAddress?: string): Promise<string> {
     if (window.ethereum) {
       try {
         // Create a wallet client
@@ -183,11 +204,22 @@ export class WalletService {
         })
 
         // Request accounts
-        const [address] = (await window.ethereum.request({
+        const addresses = (await window.ethereum.request({
           method: "eth_requestAccounts",
         })) as `0x${string}`[]
-        this.account = address
 
+        // Use the selected address if provided and valid, otherwise use the first address
+        let address: `0x${string}`
+        if (
+          selectedAddress &&
+          addresses.includes(selectedAddress as `0x${string}`)
+        ) {
+          address = selectedAddress as `0x${string}`
+        } else {
+          address = addresses[0]
+        }
+
+        this.account = address
         return address
       } catch (error) {
         console.error("Error connecting wallet:", error)
