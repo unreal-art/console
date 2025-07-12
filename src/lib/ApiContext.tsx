@@ -353,7 +353,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     } catch (error: any) {
       // Check if the error is a 404 (token expired or invalid)
       if (error.response && error.response.status === 404) {
-        console.log('Token expired or invalid, clearing authentication state')
+        console.log("Token expired or invalid, clearing authentication state")
         // Clear token and reset authentication state
         setIsAuthenticated(false)
         setToken(null)
@@ -441,11 +441,28 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
 
   // Logout
   const logout = () => {
+    // // Reset authentication state
     setIsAuthenticated(false)
     setToken(null)
     setVerifyData(null)
+    setApiKey(null)
+    setApiKeyHash(null)
+
+    // Clear API client token
     apiClient.clearToken()
+
+    // Remove all related items from localStorage
     localStorage.removeItem("unreal_token")
+    localStorage.removeItem("unreal_wallet_address")
+    localStorage.removeItem("unreal_openai_address")
+    localStorage.removeItem("unreal_calls_value")
+    localStorage.removeItem("unreal_payment_token")
+
+    // Reset wallet address state
+    setWalletAddress(null)
+    setOpenaiAddress(null)
+
+    console.log("Wallet disconnected")
   }
 
   // Clear current API key (after copy)

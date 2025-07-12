@@ -199,14 +199,7 @@ console.log(response.choices[0].message.content);`,
                 Loading...
               </span>
             ) : isAuthenticated ? (
-              <>
-                Disconnect Wallet
-                {verifyData && (
-                  <span className="ml-2 text-xs">
-                    ({verifyData.remaining} calls)
-                  </span>
-                )}
-              </>
+              <>Disconnect Wallet</>
             ) : (
               <>
                 Connect Wallet & Get API Key
