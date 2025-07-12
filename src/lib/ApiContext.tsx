@@ -462,7 +462,8 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     setWalletAddress(null)
     setOpenaiAddress(null)
 
-    console.log("Wallet disconnected")
+    console.log("Wallet disconnected and refresh")
+    window.location.reload()
   }
 
   // Clear current API key (after copy)
