@@ -32,6 +32,7 @@ import OnboardingFlow from "@/components/OnboardingFlow"
 import ChatCompletion from "@/components/ChatCompletion"
 import { useOpenWidget } from "@/hooks/useOpenWidget"
 import { useApi } from "@/lib/ApiContext"
+import { OPENAI_DOCS_URL } from "@/config/unreal"
 
 const Index = () => {
   const [copied, setCopied] = useState(false)
@@ -168,8 +169,8 @@ console.log(response.choices[0].message.content);`,
   }
 
   const handleViewDocs = () => {
-    // For now, just show the coming soon modal
-    // Later this would redirect to docs.openai.unreal.art
+    // Open docs URL in a new tab
+    window.open(OPENAI_DOCS_URL, '_blank')
   }
 
   return (
@@ -242,63 +243,15 @@ console.log(response.choices[0].message.content);`,
                 Connect Wallet & Get Started
                 <ArrowRight className="ml-2 w-5 h-5" />
               </Button>
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    className="border-slate-600 hover:bg-slate-800 text-lg px-8 py-4"
-                  >
-                    View API Docs
-                    <Code className="ml-2 w-5 h-5" />
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-md">
-                  <DialogHeader>
-                    <DialogTitle className="text-center text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-                      Coming Soon
-                    </DialogTitle>
-                  </DialogHeader>
-                  <div className="text-center py-6">
-                    <Clock className="w-16 h-16 mx-auto mb-4 text-blue-500" />
-                    <p className="text-slate-300 mb-6">
-                      API Documentation launches on
-                    </p>
-                    <div className="text-3xl font-bold mb-6 text-blue-400">
-                      August 2nd, 2025
-                    </div>
-                    <div className="grid grid-cols-4 gap-4 mb-6">
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-white">
-                          {timeLeft.days}
-                        </div>
-                        <div className="text-sm text-slate-400">Days</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-white">
-                          {timeLeft.hours}
-                        </div>
-                        <div className="text-sm text-slate-400">Hours</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-white">
-                          {timeLeft.minutes}
-                        </div>
-                        <div className="text-sm text-slate-400">Minutes</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-white">
-                          {timeLeft.seconds}
-                        </div>
-                        <div className="text-sm text-slate-400">Seconds</div>
-                      </div>
-                    </div>
-                    <p className="text-slate-400 text-sm">
-                      Get early access by connecting your wallet now
-                    </p>
-                  </div>
-                </DialogContent>
-              </Dialog>
+              <Button
+                size="lg"
+                variant="outline"
+                className="border-slate-600 hover:bg-slate-800 text-lg px-8 py-4"
+                onClick={handleViewDocs}
+              >
+                View API Docs
+                <Code className="ml-2 w-5 h-5" />
+              </Button>
             </div>
 
             {/* Trust Badges */}

@@ -9,7 +9,7 @@ export const OPENAI_URL =
   import.meta.env.VITE_OPENAI_URL || "https://openai.unreal.art/v1"
 
 export const OPENAI_DOCS_URL =
-  import.meta.env.VITE_OPENAI_URL || "https://docs.unreal.art"
+  import.meta.env.VITE_DOCS_URL || "https://docs.unreal.art"
 
 console.log("OPENAI_URL", OPENAI_URL)
 export const openaiClient = axios.create({
