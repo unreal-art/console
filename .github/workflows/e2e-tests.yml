@@ -9,11 +9,14 @@ on:
       - main
   workflow_dispatch:
 
+concurrency:
+  group: ${{github.workflow}}-${{github.ref_name}}
+  cancel-in-progress: false
+
 jobs:
   test:
     name: E2E Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
