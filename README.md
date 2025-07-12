@@ -1,73 +1,95 @@
-# Welcome to your Lovable project
+# Unreal Console
 
-## Project info
+**Developer Dashboard for API Management & Integration**
 
-**URL**: https://lovable.dev/projects/8afd1d72-661f-404e-b866-5d2d3b4cfeb9
+Unreal Console is a sleek, modern React-based dashboard that enables businesses and developers to authenticate, generate API keys, and seamlessly integrate their applications with Unreal's OpenAI-compatible backend. It serves as the front-end interface for the OpenAI Router, providing intuitive tools for API management and usage monitoring.
 
-## How can I edit this code?
+> 🔾 Connect, authenticate, and deploy AI in minutes.
 
-There are several ways of editing your application.
+---
 
-**Use Lovable**
+## ✨ Key Features
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/8afd1d72-661f-404e-b866-5d2d3b4cfeb9) and start prompting.
+• **Web3 Authentication** – Secure wallet-based login
+• **API Key Management** – Generate, view, and revoke API keys
+• **Usage Dashboard** – Real-time monitoring of API consumption
+• **Chat Playground** – Test API functionality directly in the console
+• **Multi-Page Architecture** – Organized workflow with dedicated sections
+• **Interactive Onboarding** – Guided setup for new developers
+• **Token-Based Access** – On-chain payment and authentication
 
-Changes made via Lovable will be committed automatically to this repo.
+---
 
-**Use your preferred IDE**
+## 🗺️ Application Structure
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```
+unreal-console/
+├─ src/
+│  ├─ components/     # Reusable UI components
+│  ├─ pages/         # Application pages
+│  ├─ lib/           # Core functionality and context
+│  ├─ hooks/         # Custom React hooks
+│  ├─ abis/          # Blockchain contract ABIs
+│  └─ config/        # Application configuration
+├─ public/          # Static assets
+└─ tests/           # Playwright E2E tests
 ```
 
-**Edit a file directly in GitHub**
+---
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## 📡 Key Pages
 
-**Use GitHub Codespaces**
+| Page      | Description                                       |
+|-----------|---------------------------------------------------|
+| Home      | Landing page with onboarding flow                 |
+| Login     | Wallet connection and authentication              |
+| Dashboard | API key status and usage statistics               |
+| Chat      | Interactive chat completion API testing           |
+| Settings  | API key management and account settings           |
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+---
 
-## What technologies are used for this project?
+## 🛠️ Tech Stack
 
-This project is built with:
+- **Frontend Framework**: React with Vite
+- **Styling**: Tailwind CSS with shadcn/ui components
+- **State Management**: React Context API
+- **Authentication**: Web3 wallet integration via Viem
+- **Routing**: React Router
+- **Testing**: Playwright for E2E testing
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+---
 
-## How can I deploy this project?
+## 🧩 Development
 
-Simply open [Lovable](https://lovable.dev/projects/8afd1d72-661f-404e-b866-5d2d3b4cfeb9) and click on Share -> Publish.
+```bash
+# Setup development environment
+npm run setup:min
 
-## Can I connect a custom domain to my Lovable project?
+# Start development server
+npm run dev
 
-Yes, you can!
+# Build for production
+npm run build
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+# Run tests
+npm run test
+```
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+---
+
+## 🔌 Integration Flow
+
+Unreal Console works as part of a complete API management solution:
+
+1. **Connect** your wallet to authenticate
+2. **Configure** your API access with custom keys
+3. **Test** API functionality in the playground
+4. **Monitor** usage and manage costs
+5. **Integrate** your applications with the OpenAI-compatible API
+
+---
+
+## 📜 License
+
+MIT © Unreal AI contributors
