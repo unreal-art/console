@@ -1,7 +1,7 @@
 // playwright.config.ts
 import { chromium, defineConfig, devices } from "@playwright/test"
 
-const PORT = process.env.PORT ?? "4173"
+const PORT = process.env.PORT ?? "8080"
 export const u = `http://localhost:${PORT}`
 
 const CI = process.env.CI ?? false
