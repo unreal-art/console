@@ -86,7 +86,9 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
   const fetchCallsAmount = useCallback(async () => {
     console.log("fetchCallsAmount")
     try {
+      // Use the current wallet address from context, which is now correctly set to the selected address
       if (!walletAddress) return
+      
       // 1. Get payment token from system info
       const systemInfo = await apiClient.getSystemInfo()
       console.log("systemInfo", systemInfo)
@@ -97,6 +99,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
       }
 
       // 2. Get UNREAL balance for the wallet
+      // This will now use the selected wallet address from the dropdown
       const balance = await getUnrealBalance(
         paymentToken,
         walletAddress as `0x${string}`

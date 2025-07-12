@@ -266,16 +266,20 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
         await getAvailableAddresses()
       }
       
+      // Connect wallet with selected address
       const address = await walletService.connect(selectedAddress)
-      setWalletAddress(address)
-      localStorage.setItem("unreal_wallet_address", address)
+      
+      // Ensure we're using the selected address if provided
+      const finalAddress = selectedAddress || address
+      setWalletAddress(finalAddress)
+      localStorage.setItem("unreal_wallet_address", finalAddress)
 
       // Get OpenAI address
       const authAddressResponse = await apiClient.getAuthAddress()
       setOpenaiAddress(authAddressResponse.address)
       localStorage.setItem("unreal_openai_address", authAddressResponse.address)
 
-      return address
+      return finalAddress
     } catch (error: any) {
       setError(error.message || "Failed to connect wallet")
       throw error
