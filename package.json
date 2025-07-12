@@ -15,8 +15,8 @@
     "preview": "vite preview",
     "test": "playwright test",
     "test-report": "playwright show-report",
-    "test:gen": "playwright codegen localhost:5173",
-    "test:prod": "bun start & CI=1 PORT=8080 bun run test",
+    "test:gen": "playwright codegen localhost:8080",
+    "test:prod": "bun start & CI=1 PORT=4173 bun run test",
     "test:preview": "PORT=4173 CI=1 bun run test"
   },
   "dependencies": {
