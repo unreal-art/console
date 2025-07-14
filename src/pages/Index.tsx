@@ -65,10 +65,22 @@ const Index = () => {
     logout,
   } = useApi()
 
+  // Create a ref to track verification attempts outside the useEffect
+  const verificationAttempted = useRef(false);
+
   // Verify token on load if authenticated
   useEffect(() => {
-    if (isAuthenticated && token && !verifyData) {
-      verifyToken().catch(console.error)
+    // Only verify token if authenticated, token exists, and we don't already have verification data
+    if (isAuthenticated && token && !verifyData && !verificationAttempted.current) {
+      // Mark that we've attempted verification to prevent repeated calls
+      verificationAttempted.current = true;
+      
+      verifyToken().catch((error) => {
+        console.error("Token verification failed:", error);
+      });
+    } else if (!token) {
+      // Reset the verification flag when token is cleared
+      verificationAttempted.current = false;
     }
   }, [isAuthenticated, token, verifyData, verifyToken])
 

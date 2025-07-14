@@ -132,12 +132,25 @@ export class UnrealApiClient {
   }
 
   async verifyToken(token: string): Promise<VerifyResponse> {
-    const response = await openaiClient.get(`/auth/verify`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-    return response.data
+    try {
+      const response = await openaiClient.get(`/auth/verify`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      return response.data
+    } catch (error: any) {
+      // Handle 401 Unauthorized or other token validation errors
+      if (
+        error.response &&
+        (error.response.status === 401 || error.response.status === 403)
+      ) {
+        console.error("Token validation failed:", error.response.status)
+        // Clear token from local storage and client state
+        this.clearToken()
+      }
+      throw error // Re-throw the error for the caller to handle
+    }
   }
 
   async createApiKey(name: string): Promise<ApiKeyResponse> {
