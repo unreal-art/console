@@ -132,7 +132,11 @@ export class UnrealApiClient {
   }
 
   async verifyToken(token: string): Promise<VerifyResponse> {
-    const response = await openaiClient.get(`/auth/verify?token=${token}`)
+    const response = await openaiClient.get(`/auth/verify`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
     return response.data
   }
 
