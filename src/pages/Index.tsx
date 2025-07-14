@@ -170,11 +170,13 @@ console.log(response.choices[0].message.content);`,
   const handleWalletConnect = async () => {
     try {
       if (isAuthenticated) {
+        // Just disconnect the wallet when already authenticated
         logout()
       } else {
+        // Connect wallet and then scroll to the API key section
         await connectWallet()
+        scrollToOnboarding()
       }
-      scrollToOnboarding()
     } catch (error) {
       console.error("Wallet connection error:", error)
     }
@@ -215,7 +217,7 @@ console.log(response.choices[0].message.content);`,
               <>Disconnect Wallet</>
             ) : (
               <>
-                Connect Wallet & Get API Key
+                Connect Wallet
                 <ArrowRight className="ml-2 w-4 h-4" />
               </>
             )}
@@ -252,8 +254,12 @@ console.log(response.choices[0].message.content);`,
                 className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-lg px-8 py-4"
                 onClick={handleWalletConnect}
               >
-                Connect Wallet & Get Started
-                <ArrowRight className="ml-2 w-5 h-5" />
+                {isAuthenticated ? (
+                  <>Disconnect Wallet</>
+                ) : (
+                  <>Connect Wallet
+                  <ArrowRight className="ml-2 w-5 h-5" /></>
+                )}
               </Button>
               <Button
                 size="lg"
