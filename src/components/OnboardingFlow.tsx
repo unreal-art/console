@@ -687,138 +687,45 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }): React.Re
 
                     {/* Generate API Key - Step 4 */}
                     {step.id === 4 && (
-                      <div className="mt-6">
-                        <Card className="bg-slate-900/50 border-slate-700">
-                          <CardContent className="p-6">
-                            <div className="flex flex-col items-center space-y-4">
-                              <Key className="w-12 h-12 text-blue-400" />
-                              <h3 className="text-lg font-semibold">Generate Your API Key</h3>
-                              <p className="text-slate-400 text-center mb-2">
-                                Create a new API key to access Unreal AI services
-                              </p>
-                              <Dialog open={isCreateKeyDialogOpen} onOpenChange={setIsCreateKeyDialogOpen}>
-                                <DialogTrigger asChild>
-                                  <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
-                                    <Plus className="w-4 h-4 mr-2" />
-                                    Create API Key
-                                  </Button>
-                                </DialogTrigger>
-                                <DialogContent className="bg-slate-900 border-slate-700">
-                                  <DialogHeader>
-                                    <DialogTitle>Create New API Key</DialogTitle>
-                                    <DialogDescription>
-                                      Create a new API key to access Unreal AI services
-                                    </DialogDescription>
-                                  </DialogHeader>
-                                  <div className="space-y-4">
-                                    <div>
-                                      <Label htmlFor="keyName">Key Name</Label>
-                                      <Input
-                                        id="keyName"
-                                        value={newKeyName}
-                                        onChange={(e) => setNewKeyName(e.target.value)}
-                                        placeholder="e.g., Production API Key"
-                                        className="bg-slate-800 border-slate-600"
-                                      />
-                                    </div>
-                                    {generatedApiKey && (
-                                      <div className="p-4 bg-amber-900/30 border border-amber-500/50 rounded-md">
-                                        <div className="flex items-center mb-2">
-                                          <AlertCircle className="w-4 h-4 text-amber-500 mr-2" />
-                                          <span className="text-amber-400 font-medium">Security Warning</span>
-                                        </div>
-                                        <p className="text-amber-300 mb-3 text-sm">
-                                          This is the only time your API key will be displayed in full. Please copy it now and store it securely.
-                                        </p>
-                                        <div className="bg-slate-800 p-3 rounded flex justify-between items-center mb-2">
-                                          <code className="text-green-400 text-sm font-mono break-all">
-                                            {generatedApiKey}
-                                          </code>
-                                          <Button
-                                            size="sm"
-                                            variant="ghost"
-                                            onClick={() => {
-                                              navigator.clipboard.writeText(generatedApiKey);
-                                              toast({
-                                                title: "Copied!",
-                                                description: "API key copied to clipboard",
-                                              });
-                                            }}
-                                            className="ml-2"
-                                          >
-                                            <Copy className="w-4 h-4" />
-                                          </Button>
-                                        </div>
-                                      </div>
-                                    )}
-                                    <div className="flex justify-end space-x-2">
-                                      <Button
-                                        variant="outline"
-                                        className="border-slate-600"
-                                        onClick={() => {
-                                          setIsCreateKeyDialogOpen(false);
-                                          setNewKeyName("");
-                                          setGeneratedApiKey(null);
-                                        }}
-                                      >
-                                        {generatedApiKey ? "Close" : "Cancel"}
-                                      </Button>
-                                      {!generatedApiKey && (
-                                        <Button
-                                          onClick={async () => {
-                                            if (!newKeyName.trim()) {
-                                              toast({
-                                                title: "Error",
-                                                description: "Please enter a key name",
-                                                variant: "destructive",
-                                              });
-                                              return;
-                                            }
-                                            
-                                            setIsCreatingKey(true);
-                                            try {
-                                              const response = await apiClient.createApiKey(newKeyName.trim());
-                                              setGeneratedApiKey(response.key);
-                                              toast({
-                                                title: "Success",
-                                                description: "API key created successfully",
-                                              });
-                                            } catch (error: unknown) {
-                                              toast({
-                                                title: "Error",
-                                                description: error instanceof Error ? error.message : "Failed to create API key",
-                                                variant: "destructive",
-                                              });
-                                            } finally {
-                                              setIsCreatingKey(false);
-                                            }
-                                          }}
-                                          disabled={isCreatingKey}
-                                          className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-                                        >
-                                          {isCreatingKey ? "Creating..." : "Create Key"}
-                                        </Button>
-                                      )}
-                                      {generatedApiKey && (
-                                        <Button
-                                          onClick={() => {
-                                            setIsCreateKeyDialogOpen(false);
-                                            setNewKeyName("");
-                                            setGeneratedApiKey(null);
-                                            handleStepComplete(step.id);
-                                          }}
-                                          className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
-                                        >
-                                          Continue to Manage Keys
-                                        </Button>
-                                      )}
-                                    </div>
-                                  </div>
-                                </DialogContent>
-                              </Dialog>
-                            </div>
-                          </CardContent>
-                        </Card>
+                      <div className="mt-6 space-y-6">
+                        <Alert className="bg-blue-900/20 border border-blue-500/50">
+                          <AlertCircle className="h-4 w-4 text-blue-400" />
+                          <AlertDescription className="text-blue-100">
+                            Generate an API key to access Unreal AI services.
+                          </AlertDescription>
+                        </Alert>
+                        
+                        <div className="flex justify-center">
+                          <Button 
+                            onClick={handleGenerateApiKey} 
+                            disabled={isLoading}
+                            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 px-8 py-6 text-lg"
+                          >
+                            {isLoading ? (
+                              <>
+                                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Generating...
+                              </>
+                            ) : (
+                              <>
+                                <Key className="mr-2 h-5 w-5" />
+                                Generate API Key
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                        
+                        {error && (
+                          <Alert className="bg-red-900/20 border border-red-500/50">
+                            <AlertCircle className="h-4 w-4 text-red-400" />
+                            <AlertDescription className="text-red-100">
+                              {error}
+                            </AlertDescription>
+                          </Alert>
+                        )}
                       </div>
                     )}
                     
