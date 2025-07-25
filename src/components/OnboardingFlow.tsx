@@ -15,6 +15,8 @@ import {
   Copy,
   AlertCircle,
   ChevronDown,
+  Computer,
+  Plus,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -25,7 +27,11 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogTrigger,
+  DialogDescription,
 } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   DropdownMenu,
@@ -39,10 +45,15 @@ interface OnboardingFlowProps {
   onComplete?: () => void
 }
 
-const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
+const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }): React.ReactNode => {
   const [currentStep, setCurrentStep] = useState(0)
   const [completedSteps, setCompletedSteps] = useState<number[]>([])
   const [showApiKeyDialog, setShowApiKeyDialog] = useState(false)
+  const [isApiKeyDialogOpen, setIsApiKeyDialogOpen] = useState(false)
+  const [isCreateKeyDialogOpen, setIsCreateKeyDialogOpen] = useState(false)
+  const [newKeyName, setNewKeyName] = useState("")
+  const [generatedApiKey, setGeneratedApiKey] = useState<string | null>(null)
+  const [isCreatingKey, setIsCreatingKey] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -227,9 +238,18 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
       baseSteps.push({
         id: 4,
         title: "Generate API Key",
-        description: "One-time display with security warning",
+        description: "Create a new API key for development",
         icon: Key,
         detail: "Copy to clipboard and store securely",
+      })
+      
+      // Add API Key Management as step 5
+      baseSteps.push({
+        id: 5,
+        title: "Manage API Keys",
+        description: "View, copy, and delete your API keys",
+        icon: Key,
+        detail: "Manage your API keys securely",
       })
     } else {
       // Normal flow: Register Business, then API Key
@@ -245,9 +265,18 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
       baseSteps.push({
         id: 4,
         title: "Generate API Key",
-        description: "One-time display with security warning",
+        description: "Create a new API key for development",
         icon: Key,
         detail: "Copy to clipboard and store securely",
+      })
+      
+      // Add API Key Management as step 5
+      baseSteps.push({
+        id: 5,
+        title: "Manage API Keys",
+        description: "View, copy, and delete your API keys",
+        icon: Key,
+        detail: "Manage your API keys securely",
       })
     }
 
@@ -650,12 +679,149 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
                     <p className="text-slate-400 mb-4">{step.description}</p>
                     <p className="text-sm text-slate-500 mb-6">{step.detail}</p>
 
-                    {/* Inline API Key Manager */}
+                    {/* Generate API Key - Step 4 */}
                     {step.id === 4 && (
+                      <div className="mt-6">
+                        <Card className="bg-slate-900/50 border-slate-700">
+                          <CardContent className="p-6">
+                            <div className="flex flex-col items-center space-y-4">
+                              <Key className="w-12 h-12 text-blue-400" />
+                              <h3 className="text-lg font-semibold">Generate Your API Key</h3>
+                              <p className="text-slate-400 text-center mb-2">
+                                Create a new API key to access Unreal AI services
+                              </p>
+                              <Dialog open={isCreateKeyDialogOpen} onOpenChange={setIsCreateKeyDialogOpen}>
+                                <DialogTrigger asChild>
+                                  <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+                                    <Plus className="w-4 h-4 mr-2" />
+                                    Create API Key
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent className="bg-slate-900 border-slate-700">
+                                  <DialogHeader>
+                                    <DialogTitle>Create New API Key</DialogTitle>
+                                    <DialogDescription>
+                                      Create a new API key to access Unreal AI services
+                                    </DialogDescription>
+                                  </DialogHeader>
+                                  <div className="space-y-4">
+                                    <div>
+                                      <Label htmlFor="keyName">Key Name</Label>
+                                      <Input
+                                        id="keyName"
+                                        value={newKeyName}
+                                        onChange={(e) => setNewKeyName(e.target.value)}
+                                        placeholder="e.g., Production API Key"
+                                        className="bg-slate-800 border-slate-600"
+                                      />
+                                    </div>
+                                    {generatedApiKey && (
+                                      <div className="p-4 bg-amber-900/30 border border-amber-500/50 rounded-md">
+                                        <div className="flex items-center mb-2">
+                                          <AlertCircle className="w-4 h-4 text-amber-500 mr-2" />
+                                          <span className="text-amber-400 font-medium">Security Warning</span>
+                                        </div>
+                                        <p className="text-amber-300 mb-3 text-sm">
+                                          This is the only time your API key will be displayed in full. Please copy it now and store it securely.
+                                        </p>
+                                        <div className="bg-slate-800 p-3 rounded flex justify-between items-center mb-2">
+                                          <code className="text-green-400 text-sm font-mono break-all">
+                                            {generatedApiKey}
+                                          </code>
+                                          <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={() => {
+                                              navigator.clipboard.writeText(generatedApiKey);
+                                              toast({
+                                                title: "Copied!",
+                                                description: "API key copied to clipboard",
+                                              });
+                                            }}
+                                            className="ml-2"
+                                          >
+                                            <Copy className="w-4 h-4" />
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    )}
+                                    <div className="flex justify-end space-x-2">
+                                      <Button
+                                        variant="outline"
+                                        className="border-slate-600"
+                                        onClick={() => {
+                                          setIsCreateKeyDialogOpen(false);
+                                          setNewKeyName("");
+                                          setGeneratedApiKey(null);
+                                        }}
+                                      >
+                                        {generatedApiKey ? "Close" : "Cancel"}
+                                      </Button>
+                                      {!generatedApiKey && (
+                                        <Button
+                                          onClick={async () => {
+                                            if (!newKeyName.trim()) {
+                                              toast({
+                                                title: "Error",
+                                                description: "Please enter a key name",
+                                                variant: "destructive",
+                                              });
+                                              return;
+                                            }
+                                            
+                                            setIsCreatingKey(true);
+                                            try {
+                                              const response = await apiClient.createApiKey(newKeyName.trim());
+                                              setGeneratedApiKey(response.key);
+                                              toast({
+                                                title: "Success",
+                                                description: "API key created successfully",
+                                              });
+                                            } catch (error: unknown) {
+                                              toast({
+                                                title: "Error",
+                                                description: error instanceof Error ? error.message : "Failed to create API key",
+                                                variant: "destructive",
+                                              });
+                                            } finally {
+                                              setIsCreatingKey(false);
+                                            }
+                                          }}
+                                          disabled={isCreatingKey}
+                                          className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                                        >
+                                          {isCreatingKey ? "Creating..." : "Create Key"}
+                                        </Button>
+                                      )}
+                                      {generatedApiKey && (
+                                        <Button
+                                          onClick={() => {
+                                            setIsCreateKeyDialogOpen(false);
+                                            setNewKeyName("");
+                                            setGeneratedApiKey(null);
+                                            handleStepComplete(step.id);
+                                          }}
+                                          className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+                                        >
+                                          Continue to Manage Keys
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    )}
+                    
+                    {/* Manage API Keys - Step 5 */}
+                    {step.id === 5 && (
                       <div className="mt-6">
                         <ApiKeyManager
                           isAuthenticated={isAuthenticated}
-                          onCreateKey={() => handleStepComplete(step.id)}
+                          onCreateKey={() => {}}
                         />
                       </div>
                     )}
