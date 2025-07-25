@@ -53,10 +53,11 @@ import { useToast } from "@/hooks/use-toast"
 import { apiClient, ApiKey as ApiKeyDto } from "@/lib/api"
 
 interface ApiKeyRow extends ApiKeyDto {
-  calls: number
-  updatedAt: number
-  wallet: string
-  paymentToken: string
+  isVisible?: boolean
+  calls?: number
+  updatedAt?: number
+  wallet?: string
+  paymentToken?: string
 }
 
 interface ApiKeyManagerProps {
@@ -80,6 +81,8 @@ const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
   const { toast } = useToast()
 
   const fetchApiKeys = useCallback(async () => {
+    if (!isAuthenticated) return
+    
     setIsLoading(true)
     try {
       const response = await apiClient.listApiKeys()
@@ -88,38 +91,33 @@ const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
 
       // Deduplicate by hash to avoid React key warnings
       const dedupedMap = new Map<string, ApiKeyDto>()
-      normalized.forEach((k) => {
-        if (k.hash) {
-          dedupedMap.set(k.hash, k)
+      normalized.forEach((key) => {
+        if (key.hash) {
+          dedupedMap.set(key.hash, key)
         }
       })
 
-      const dedupedArray = Array.from(dedupedMap.values())
+      // Convert to ApiKeyRow objects with additional properties
+      const keys: ApiKeyRow[] = Array.from(dedupedMap.values()).map((key) => ({
+        ...key,
+        isVisible: false,
+        calls: 0,
+        updatedAt: key.created_at ? new Date(key.created_at).getTime() / 1000 : 0,
+        wallet: "",
+        paymentToken: ""
+      }))
 
-      setApiKeys(
-        dedupedArray.map(
-          (k: ApiKeyDto): ApiKeyRow => ({
-            ...k,
-            calls: 0,
-            updatedAt: k.created_at
-              ? new Date(k.created_at).getTime() / 1000
-              : 0,
-            wallet: "",
-            paymentToken: "",
-          })
-        )
-      )
-
-    } catch (error: any) {
+      setApiKeys(keys)
+    } catch (error: unknown) {
       toast({
         title: "Error",
-        description: error.message || "Failed to fetch API keys",
+        description: error instanceof Error ? error.message : "Failed to fetch API keys",
         variant: "destructive",
       })
     } finally {
       setIsLoading(false)
     }
-  }, [toast])
+  }, [toast, isAuthenticated])
 
   // Fetch API keys on component mount and when authenticated
   useEffect(() => {
@@ -146,15 +144,17 @@ const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
       setNewKeyLimit(undefined)
       setIsCreateDialogOpen(false)
       await fetchApiKeys() // Refresh the list
-      onCreateKey?.(response.key)
+      if (onCreateKey && response.key) {
+        onCreateKey(response.key)
+      }
       toast({
         title: "Success",
         description: "API key created successfully",
       })
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Error",
-        description: error.message || "Failed to create API key",
+        description: error instanceof Error ? error.message : "Failed to create API key",
         variant: "destructive",
       })
     } finally {
@@ -164,16 +164,16 @@ const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
 
   const deleteApiKey = async (keyHash: string) => {
     try {
-      await apiClient.deleteApiKey(keyHash)
+      await apiClient.deleteApiKey(keyHash) // Pass the key directly
       await fetchApiKeys() // Refresh the list
       toast({
         title: "Success",
         description: "API key deleted successfully",
       })
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Error",
-        description: error.message || "Failed to delete API key",
+        description: error instanceof Error ? error.message : "Failed to delete API key",
         variant: "destructive",
       })
     }

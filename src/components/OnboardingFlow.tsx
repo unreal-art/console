@@ -223,9 +223,9 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
         detail: "Free tokens for testing the API",
       })
 
-      // Add API Key as step 3 (after successful airdrop)
+      // Add API Key as step 4 (after successful airdrop)
       baseSteps.push({
-        id: 3,
+        id: 4,
         title: "Generate API Key",
         description: "One-time display with security warning",
         icon: Key,
@@ -241,9 +241,9 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
         detail: "EIP-712 signature for secure registration",
       })
 
-      // Add API Key as step 2
+      // Add API Key as step 4
       baseSteps.push({
-        id: 2,
+        id: 4,
         title: "Generate API Key",
         description: "One-time display with security warning",
         icon: Key,
@@ -651,7 +651,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
                     <p className="text-sm text-slate-500 mb-6">{step.detail}</p>
 
                     {/* Inline API Key Manager */}
-                    {((!showAirdropStep && step.id === 2) || (showAirdropStep && step.id === 3)) && (
+                    {step.id === 4 && (
                       <div className="mt-6">
                         <ApiKeyManager
                           isAuthenticated={isAuthenticated}
