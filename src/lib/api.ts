@@ -168,10 +168,8 @@ export class UnrealApiClient {
     return response.data
   }
 
-  async deleteApiKey(hash: string): Promise<{ success: boolean }> {
-    const response = await openaiClient.delete(
-      `/keys/${encodeURIComponent(hash)}`
-    )
+  async deleteApiKey(key: string): Promise<{ success: boolean }> {
+    const response = await openaiClient.delete(`/keys/${key}`)
     if (response.status === 204) {
       return { success: true }
     }

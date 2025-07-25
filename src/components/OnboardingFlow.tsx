@@ -33,6 +33,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import ApiKeyManager from "@/components/ApiKeyManager"
 
 interface OnboardingFlowProps {
   onComplete?: () => void
@@ -220,6 +221,15 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
         description: "Get $UNREAL tokens to use the API",
         icon: Wallet,
         detail: "Free tokens for testing the API",
+      })
+
+      // Add API Key as step 3 (after successful airdrop)
+      baseSteps.push({
+        id: 3,
+        title: "Generate API Key",
+        description: "One-time display with security warning",
+        icon: Key,
+        detail: "Copy to clipboard and store securely",
       })
     } else {
       // Normal flow: Register Business, then API Key
@@ -639,6 +649,16 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
                     <h3 className="text-xl font-semibold mb-2">{step.title}</h3>
                     <p className="text-slate-400 mb-4">{step.description}</p>
                     <p className="text-sm text-slate-500 mb-6">{step.detail}</p>
+
+                    {/* Inline API Key Manager */}
+                    {((!showAirdropStep && step.id === 2) || (showAirdropStep && step.id === 3)) && (
+                      <div className="mt-6">
+                        <ApiKeyManager
+                          isAuthenticated={isAuthenticated}
+                          onCreateKey={() => handleStepComplete(step.id)}
+                        />
+                      </div>
+                    )}
 
                     {/* Transaction status indicator for airdrop step */}
                     {step.id === 2 && showAirdropStep && airdropRequested && (

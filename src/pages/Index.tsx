@@ -30,7 +30,6 @@ import TestimonialCarousel from "@/components/TestimonialCarousel"
 import FAQ from "@/components/FAQ"
 import OnboardingFlow from "@/components/OnboardingFlow"
 import ChatCompletion from "@/components/ChatCompletion"
-import ApiKeyManager from "@/components/ApiKeyManager"
 import { useApi } from "@/lib/ApiContext"
 import { OPENAI_DOCS_URL } from "@/config/unreal"
 
@@ -296,16 +295,6 @@ console.log(response.choices[0].message.content);`,
         <div ref={onboardingRef}>
           <OnboardingFlow />
         </div>
-      </section>
-
-      {/* API Key Management */}
-      <section className="py-16 px-4 md:px-8 max-w-6xl mx-auto">
-        <ApiKeyManager 
-          isAuthenticated={isAuthenticated} 
-          onCreateKey={(key) => {
-            console.log('New API key created:', key);
-          }}
-        />
       </section>
 
       {/* Chat Completion Demo */}
