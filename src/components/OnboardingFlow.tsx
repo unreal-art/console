@@ -588,37 +588,43 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }): React.Re
         )}
 
         {/* Progress Bar */}
-        <div className="max-w-2xl mx-auto mb-12">
-          <div className="flex justify-between items-center mb-4">
-            {steps.map((step, index) => (
-              <div
-                key={step.id}
-                className={`flex items-center space-x-2 ${
-                  index <= currentStep ? "text-blue-400" : "text-slate-500"
-                }`}
-              >
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${
-                    completedSteps.includes(step.id)
-                      ? "bg-blue-600 border-blue-600"
-                      : index === currentStep
-                      ? "border-blue-400 bg-slate-800"
-                      : "border-slate-600 bg-slate-900"
-                  }`}
-                >
-                  {completedSteps.includes(step.id) ? (
-                    <Check className="w-4 h-4 text-white" />
-                  ) : (
-                    <span className="text-sm font-semibold">{index + 1}</span>
-                  )}
-                </div>
-                <span className="text-sm font-medium hidden sm:block">
-                  {step.title}
-                </span>
+        <div className="max-w-full mx-auto mb-12 px-4">
+          <div className="relative">
+            <div className="overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-slate-900">
+              <div className="flex min-w-max space-x-8 md:space-x-12 items-center">
+                {steps.map((step, index) => (
+                  <div
+                    key={step.id}
+                    className={`flex items-center space-x-2 ${
+                      index <= currentStep ? "text-blue-400" : "text-slate-500"
+                    }`}
+                  >
+                    <div
+                      className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${
+                        completedSteps.includes(step.id)
+                          ? "bg-blue-600 border-blue-600"
+                          : index === currentStep
+                          ? "border-blue-400 bg-slate-800"
+                          : "border-slate-600 bg-slate-900"
+                      }`}
+                    >
+                      {completedSteps.includes(step.id) ? (
+                        <Check className="w-4 h-4 text-white" />
+                      ) : (
+                        <span className="text-sm font-semibold">{index + 1}</span>
+                      )}
+                    </div>
+                    <span className="text-sm font-medium whitespace-nowrap">
+                      {step.title}
+                    </span>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
+            <div className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-slate-900 to-transparent pointer-events-none" />
+            <div className="absolute right-0 top-0 bottom-0 w-4 bg-gradient-to-l from-slate-900 to-transparent pointer-events-none" />
           </div>
-          <Progress value={progressPercentage} className="h-2 mb-8" />
+          <Progress value={progressPercentage} className="h-2 mb-8 mt-2" />
         </div>
 
         {/* Step Cards */}
