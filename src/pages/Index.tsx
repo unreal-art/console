@@ -30,7 +30,7 @@ import TestimonialCarousel from "@/components/TestimonialCarousel"
 import FAQ from "@/components/FAQ"
 import OnboardingFlow from "@/components/OnboardingFlow"
 import ChatCompletion from "@/components/ChatCompletion"
-import { useOpenWidget } from "@/hooks/useOpenWidget"
+import ApiKeyManager from "@/components/ApiKeyManager"
 import { useApi } from "@/lib/ApiContext"
 import { OPENAI_DOCS_URL } from "@/config/unreal"
 
@@ -47,9 +47,6 @@ const Index = () => {
   const { scrollY } = useScroll()
   const heroY = useTransform(scrollY, [0, 300], [0, -50])
   const opacity = useTransform(scrollY, [0, 300], [1, 0.8])
-
-  // Initialize Open Widget
-  const { toggleWidget } = useOpenWidget()
 
   // Get API context
   const {
@@ -167,7 +164,7 @@ console.log(response.choices[0].message.content);`,
     })
   }
 
-  const handleWalletConnect = async () => {
+  const handleWalletButton = async () => {
     try {
       if (isAuthenticated) {
         // Just disconnect the wallet when already authenticated
@@ -205,7 +202,7 @@ console.log(response.choices[0].message.content);`,
           </div>
           <Button
             className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-            onClick={handleWalletConnect}
+            onClick={handleWalletButton}
             disabled={isLoading}
           >
             {isLoading ? (
@@ -252,7 +249,7 @@ console.log(response.choices[0].message.content);`,
               <Button
                 size="lg"
                 className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-lg px-8 py-4"
-                onClick={handleWalletConnect}
+                onClick={handleWalletButton}
               >
                 {isAuthenticated ? (
                   <>Disconnect Wallet</>
@@ -299,6 +296,16 @@ console.log(response.choices[0].message.content);`,
         <div ref={onboardingRef}>
           <OnboardingFlow />
         </div>
+      </section>
+
+      {/* API Key Management */}
+      <section className="py-16 px-4 md:px-8 max-w-6xl mx-auto">
+        <ApiKeyManager 
+          isAuthenticated={isAuthenticated} 
+          onCreateKey={(key) => {
+            console.log('New API key created:', key);
+          }}
+        />
       </section>
 
       {/* Chat Completion Demo */}
