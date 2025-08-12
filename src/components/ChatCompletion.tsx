@@ -5,6 +5,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Send, AlertCircle } from 'lucide-react';
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
+import { DEFAULT_MODEL, SUPPORTED_MODELS } from '@/config/models';
+import type { UnrealModelId } from '@/config/models';
 
 interface Message {
   role: 'user' | 'assistant' | 'system';
@@ -18,6 +21,7 @@ const ChatCompletion: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   const { isAuthenticated, apiKey } = useApi();
+  const [model, setModel] = useState<UnrealModelId>(DEFAULT_MODEL);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,7 +46,7 @@ const ChatCompletion: React.FC = () => {
           'Authorization': `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: 'unreal-gpt-3.5-turbo',
+          model: model,
           messages: [...messages, userMessage],
           max_tokens: 1000
         })
@@ -81,6 +85,22 @@ const ChatCompletion: React.FC = () => {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
+
+        <div className="mb-4">
+          <div className="text-sm text-slate-400 mb-1">Model</div>
+          <Select value={model} onValueChange={(v) => setModel(v as UnrealModelId)}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SUPPORTED_MODELS.map((m) => (
+                <SelectItem key={m} value={m}>
+                  {m}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
         <div className="space-y-4 mb-4 max-h-[400px] overflow-y-auto">
           {messages.map((message, index) => (
