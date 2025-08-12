@@ -731,10 +731,12 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }): React.Re
                     
                     {/* Manage API Keys - Step 5 */}
                     {step.id === 5 && (
-                      <div className="mt-6">
+                      <div className="mt-6 w-full max-w-5xl mx-auto">
                         <ApiKeyManager
                           isAuthenticated={isAuthenticated}
                           onCreateKey={() => {}}
+                          hideTitle={true}
+                          className="w-full"
                         />
                       </div>
                     )}

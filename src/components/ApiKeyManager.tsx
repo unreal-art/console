@@ -48,6 +48,7 @@ import {
   Key,
   Calendar,
   Activity,
+  AlertCircle,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { apiClient, ApiKey as ApiKeyDto } from "@/lib/api"
@@ -63,11 +64,15 @@ interface ApiKeyRow extends ApiKeyDto {
 interface ApiKeyManagerProps {
   isAuthenticated: boolean
   onCreateKey?: (key: string) => void
+  hideTitle?: boolean
+  className?: string
 }
 
 const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
   isAuthenticated,
   onCreateKey,
+  hideTitle = false,
+  className = "",
 }) => {
   const [apiKeys, setApiKeys] = useState<ApiKeyRow[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -81,13 +86,20 @@ const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
   const { toast } = useToast()
 
   const fetchApiKeys = useCallback(async () => {
-    if (!isAuthenticated) return
+    if (!isAuthenticated) {
+      console.log('Not authenticated, skipping fetchApiKeys');
+      return;
+    }
     
     setIsLoading(true)
     try {
+      console.log('Fetching API keys...');
       const response = await apiClient.listApiKeys()
+      console.log('API response:', response);
+      
       // Normalize response to typed ApiKey array
       const normalized: ApiKeyDto[] = response.keys || []
+      console.log('Normalized keys:', normalized);
 
       // Deduplicate by hash to avoid React key warnings
       const dedupedMap = new Map<string, ApiKeyDto>()
@@ -96,6 +108,7 @@ const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
           dedupedMap.set(key.hash, key)
         }
       })
+      console.log('Deduped keys map size:', dedupedMap.size);
 
       // Convert to ApiKeyRow objects with additional properties
       const keys: ApiKeyRow[] = Array.from(dedupedMap.values()).map((key) => ({
@@ -106,7 +119,8 @@ const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
         wallet: "",
         paymentToken: ""
       }))
-
+      console.log('Final keys array:', keys);
+      
       setApiKeys(keys)
     } catch (error: unknown) {
       toast({
@@ -126,19 +140,19 @@ const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
     }
   }, [isAuthenticated, fetchApiKeys])
 
-  const createApiKey = async () => {
-    if (!newKeyName.trim()) {
+  const createApiKey = async (name: string) => {
+    if (!name.trim()) {
       toast({
         title: "Error",
         description: "Please enter a name for the API key",
         variant: "destructive",
       })
-      return
+      return { key: null }
     }
 
     setIsCreating(true)
     try {
-      const response = await apiClient.createApiKey(newKeyName)
+      const response = await apiClient.createApiKey(name)
       setCreatedKey(response.key)
       setNewKeyName("")
       setNewKeyLimit(undefined)
@@ -147,6 +161,7 @@ const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
       if (onCreateKey && response.key) {
         onCreateKey(response.key)
       }
+      return response
       toast({
         title: "Success",
         description: "API key created successfully",
@@ -223,73 +238,144 @@ const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
   }
 
   return (
-    <div className="space-y-6">
+    <div className={`space-y-6 ${className}`}>
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">API Key Management</h2>
-          <p className="text-slate-400">
-            Create and manage your API keys for accessing Unreal AI services
-          </p>
+      {!hideTitle && (
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold">API Key Management</h2>
+            <p className="text-slate-400">
+              Create and manage your API keys for accessing Unreal AI services
+            </p>
+          </div>
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+                <Plus className="w-4 h-4 mr-2" />
+                Create API Key
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="bg-slate-900 border-slate-700">
+              <DialogHeader>
+                <DialogTitle>Create New API Key</DialogTitle>
+                <DialogDescription>
+                  Create a new API key to access Unreal AI services
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="keyName">Key Name</Label>
+                  <Input
+                    id="keyName"
+                    value={newKeyName}
+                    onChange={(e) => setNewKeyName(e.target.value)}
+                    placeholder="e.g., Production API Key"
+                    className="bg-slate-800 border-slate-600"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="keyLimit">API Key Request Limit (optional)</Label>
+                  <Input
+                    id="keyLimit"
+                    type="number"
+                    value={newKeyLimit || ""}
+                    onChange={(e) => setNewKeyLimit(e.target.value ? Number(e.target.value) : undefined)}
+                    placeholder="Max requests per day"
+                    className="bg-slate-800 border-slate-600"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">Leave blank for no limit</p>
+                </div>
+                {createdKey && (
+                  <div className="p-4 bg-amber-900/30 border border-amber-500/50 rounded-md">
+                    <div className="flex items-center mb-2">
+                      <AlertCircle className="w-4 h-4 text-amber-500 mr-2" />
+                      <span className="text-amber-400 font-medium">Security Warning</span>
+                    </div>
+                    <p className="text-amber-300 mb-3 text-sm">
+                      This is the only time your API key will be displayed in full. Please copy it
+                      now and store it securely.
+                    </p>
+                    <div className="bg-slate-800 p-3 rounded flex justify-between items-center mb-2">
+                      <code className="text-green-400 text-sm font-mono break-all">
+                        {createdKey}
+                      </code>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => copyToClipboard(createdKey, "new")}
+                        className="ml-2"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                <div className="flex justify-end space-x-2 mt-4">
+                  <Button
+                    variant="outline"
+                    className="border-slate-600"
+                    onClick={() => {
+                      setIsCreateDialogOpen(false)
+                      setNewKeyName("")
+                      setNewKeyLimit(undefined)
+                      setCreatedKey(null)
+                    }}
+                  >
+                    {createdKey ? "Done" : "Cancel"}
+                  </Button>
+                  {!createdKey && (
+                    <Button
+                      onClick={async () => {
+                        if (!newKeyName.trim()) {
+                          toast({
+                            title: "Error",
+                            description: "Please enter a key name",
+                            variant: "destructive",
+                          })
+                          return
+                        }
+
+                        setIsCreating(true)
+                        try {
+                          const { key } = await createApiKey(newKeyName.trim())
+                          setCreatedKey(key)
+                          // Also add the key to our list with updated display properties
+                          fetchApiKeys()
+
+                          toast({
+                            title: "Success",
+                            description: "API key created successfully",
+                          })
+
+                          if (onCreateKey) {
+                            onCreateKey(key)
+                          }
+                        } catch (error) {
+                          const errorMessage =
+                            error instanceof Error
+                              ? error.message
+                              : "An error occurred creating the API key"
+                          toast({
+                            title: "Error",
+                            description: errorMessage,
+                            variant: "destructive",
+                          })
+                        } finally {
+                          setIsCreating(false)
+                        }
+                      }}
+                      disabled={isCreating}
+                      className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                    >
+                      {isCreating ? "Creating..." : "Create Key"}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
-              <Plus className="w-4 h-4 mr-2" />
-              Create API Key
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="bg-slate-900 border-slate-700">
-            <DialogHeader>
-              <DialogTitle>Create New API Key</DialogTitle>
-              <DialogDescription>
-                Create a new API key to access Unreal AI services
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="keyName">Key Name</Label>
-                <Input
-                  id="keyName"
-                  value={newKeyName}
-                  onChange={(e) => setNewKeyName(e.target.value)}
-                  placeholder="e.g., Production API Key"
-                  className="bg-slate-800 border-slate-600"
-                />
-              </div>
-              <div>
-                <Label htmlFor="keyLimit">Usage Limit (Optional)</Label>
-                <Input
-                  id="keyLimit"
-                  type="number"
-                  value={newKeyLimit || ""}
-                  onChange={(e) =>
-                    setNewKeyLimit(e.target.value ? parseInt(e.target.value) : undefined)
-                  }
-                  placeholder="Leave empty for no limit"
-                  className="bg-slate-800 border-slate-600"
-                />
-              </div>
-              <div className="flex justify-end space-x-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setIsCreateDialogOpen(false)}
-                  className="border-slate-600"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={createApiKey}
-                  disabled={isCreating}
-                  className="bg-gradient-to-r from-blue-600 to-purple-600"
-                >
-                  {isCreating ? "Creating..." : "Create Key"}
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-      </div>
+      )}
 
       {/* Created Key Display */}
       {createdKey && (
@@ -333,38 +419,35 @@ const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
       )}
 
       {/* API Keys Table */}
-      <Card className="bg-slate-900/50 border-slate-700">
-        <CardHeader>
-          <CardTitle className="flex items-center">
-            <Key className="w-5 h-5 mr-2" />
-            Your API Keys
-          </CardTitle>
-          <CardDescription>
-            Manage your existing API keys and monitor their usage
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="text-center py-8">
-              <div className="animate-spin w-8 h-8 border-t-2 border-b-2 border-blue-500 rounded-full mx-auto mb-4"></div>
-              <p className="text-slate-400">Loading API keys...</p>
-            </div>
-          ) : apiKeys.length === 0 ? (
-            <div className="text-center py-8">
-              <Key className="w-12 h-12 mx-auto mb-4 text-slate-400" />
-              <h3 className="text-lg font-semibold mb-2">No API Keys</h3>
-              <p className="text-slate-400 mb-4">
-                You haven't created any API keys yet
-              </p>
-              <Button
-                onClick={() => setIsCreateDialogOpen(true)}
-                className="bg-gradient-to-r from-blue-600 to-purple-600"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Create Your First API Key
-              </Button>
-            </div>
-          ) : (
+      <div>
+        {!hideTitle && (
+          <div className="flex items-center mb-4">
+            <Key className="w-5 h-5 mr-2 text-blue-400" />
+            <h2 className="text-lg font-semibold">Your API Keys</h2>
+          </div>
+        )}
+        
+        {isLoading ? (
+          <div className="text-center py-8">
+            <div className="animate-spin w-8 h-8 border-t-2 border-b-2 border-blue-500 rounded-full mx-auto mb-4"></div>
+            <p className="text-slate-400">Loading API keys...</p>
+          </div>
+        ) : apiKeys.length === 0 ? (
+          <div className="text-center py-8 border border-dashed border-slate-700 rounded-lg bg-slate-900/30">
+            <Key className="w-12 h-12 mx-auto mb-4 text-slate-400" />
+            <h3 className="text-lg font-semibold mb-2">No API Keys</h3>
+            <p className="text-slate-400 mb-4">
+              You haven't created any API keys yet
+            </p>
+            <Button
+              onClick={() => setIsCreateDialogOpen(true)}
+              className="bg-gradient-to-r from-blue-600 to-purple-600"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Create Your First API Key
+            </Button>
+          </div>
+        ) : (
             <Table>
               <TableHeader>
                 <TableRow className="border-slate-700">
@@ -463,8 +546,7 @@ const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
               </TableBody>
             </Table>
           )}
-        </CardContent>
-      </Card>
+      </div>
     </div>
   )
 }
