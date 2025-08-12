@@ -66,7 +66,7 @@ const SignIn = () => {
         address: UNREAL_TOKEN_ADDRESS,
         abi: UNREAL_TOKEN_ABI,
         functionName: 'balanceOf',
-        args: [address],
+        args: [address as `0x${string}`],
       });
       
       // Convert to number for simplicity
@@ -93,7 +93,7 @@ const SignIn = () => {
     try {
       // Check if window.ethereum exists
       if (window.ethereum) {
-        const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+        const accounts = await window.ethereum.request({ method: 'eth_accounts', params: [] }) as string[];
         if (accounts && accounts.length > 0) {
           setWalletAddresses(accounts);
           // If we have a wallet address but no selected address, set the first one
@@ -142,7 +142,7 @@ const SignIn = () => {
     setIsConnecting(true);
     try {
       if (window.ethereum) {
-        await window.ethereum.request({ method: 'eth_requestAccounts' });
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts', params: [] }) as string[];
         await getConnectedWallets();
         setShowWalletModal(true);
       } else {

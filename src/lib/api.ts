@@ -7,13 +7,14 @@ import {
   formatUnits,
   hashMessage,
 } from "viem"
-import { mainnet } from "viem/chains"
 import { OPENAI_URL } from "@/config/unreal"
-import { publicClient } from "@/config/wallet"
+import { publicClient, torusMainnet, TORUS_RPC } from "@/config/wallet"
+import type { EIP1193Provider } from "viem"
 
 // API base URL
 const API_BASE_URL = OPENAI_URL
 import { openaiClient } from "@/config/unreal"
+import { isAxiosError } from "axios"
 
 // Types
 export interface AuthAddressResponse {
@@ -86,6 +87,15 @@ export interface AirdropResponse {
   message: string
 }
 
+// System Info type returned by backend
+export interface SystemInfo {
+  // Some backends may return a single paymentToken or an array of tokens
+  paymentToken?: `0x${string}` | string
+  paymentTokens?: (`0x${string}` | string)[]
+  // Allow additional fields without strict typing
+  [key: string]: unknown
+}
+
 // API Client
 export class UnrealApiClient {
   private baseUrl: string
@@ -116,7 +126,7 @@ export class UnrealApiClient {
   }
 
   // Get system info
-  async getSystemInfo(): Promise<any> {
+  async getSystemInfo(): Promise<SystemInfo> {
     const response = await openaiClient.get("/system")
     return response.data
   }
@@ -139,15 +149,15 @@ export class UnrealApiClient {
         },
       })
       return response.data
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Handle 401 Unauthorized or other token validation errors
-      if (
-        error.response &&
-        (error.response.status === 401 || error.response.status === 403)
-      ) {
-        console.error("Token validation failed:", error.response.status)
-        // Clear token from local storage and client state
-        this.clearToken()
+      if (isAxiosError(error)) {
+        const status = error.response?.status
+        if (status === 401 || status === 403) {
+          console.error("Token validation failed:", status)
+          // Clear token from local storage and client state
+          this.clearToken()
+        }
       }
       throw error // Re-throw the error for the caller to handle
     }
@@ -179,15 +189,35 @@ export class UnrealApiClient {
   }
 }
 
+// Minimal types to avoid deep generic instantiation while keeping strong typing
+type Eip712Domain = {
+  name?: string
+  version?: string
+  chainId?: number
+  verifyingContract?: `0x${string}`
+}
+type PermitTypes = {
+  readonly Permit: readonly { readonly name: string; readonly type: string }[]
+}
+type SignTypedDataArgsLike = {
+  account: `0x${string}`
+  domain: Eip712Domain
+  types: PermitTypes
+  primaryType: "Permit"
+  message: PermitMessage
+}
+type SignMessageArgsLike = { account: `0x${string}`; message: string }
+type WalletClientLike = {
+  signMessage: (args: SignMessageArgsLike) => Promise<`0x${string}`>
+  signTypedData: (args: SignTypedDataArgsLike) => Promise<`0x${string}`>
+}
+
 // Wallet utilities
 export class WalletService {
-  private walletClient: ReturnType<typeof createWalletClient> | null = null
+  private walletClient: WalletClientLike | null = null
   private account: `0x${string}` | null = null
 
-  // Define window.ethereum for TypeScript
-  private get ethereum(): any {
-    return window.ethereum
-  }
+  // Using global window.ethereum typed via EIP-1193 (see declaration below)
 
   // Get all available wallet addresses
   async getAvailableAddresses(): Promise<`0x${string}`[]> {
@@ -196,6 +226,7 @@ export class WalletService {
         // Request accounts
         const addresses = (await window.ethereum.request({
           method: "eth_requestAccounts",
+          params: [],
         })) as `0x${string}`[]
 
         return addresses
@@ -215,14 +246,15 @@ export class WalletService {
     if (window.ethereum) {
       try {
         // Create a wallet client
-        this.walletClient = createWalletClient({
-          chain: mainnet,
+        this.walletClient = (createWalletClient({
+          chain: torusMainnet,
           transport: custom(window.ethereum),
-        })
+        }) as unknown) as WalletClientLike
 
         // Request accounts
         const addresses = (await window.ethereum.request({
           method: "eth_requestAccounts",
+          params: [],
         })) as `0x${string}`[]
 
         // Use the selected address if provided and valid, otherwise use the first address
@@ -272,6 +304,7 @@ export class WalletService {
     try {
       const accounts = (await window.ethereum.request({
         method: "eth_accounts",
+        params: [],
       })) as string[]
       return accounts.length > 0
     } catch (error) {
@@ -287,6 +320,7 @@ export class WalletService {
       if (!this.account) {
         const accounts = (await window.ethereum.request({
           method: "eth_accounts",
+          params: [],
         })) as string[]
         if (accounts.length > 0) {
           this.account = accounts[0] as `0x${string}`
@@ -297,6 +331,64 @@ export class WalletService {
       return this.account
     } catch (error) {
       return null
+    }
+  }
+
+  // Get current chain id from wallet
+  async getCurrentChainId(): Promise<number> {
+    if (!window.ethereum) throw new Error("No Ethereum wallet detected")
+    const chainIdHex = (await window.ethereum.request({
+      method: "eth_chainId",
+      params: [],
+    })) as string
+    // chainId is hex string like '0x1'
+    return parseInt(chainIdHex, 16)
+  }
+
+  // Ensure the wallet is on the expected chain. Attempts to switch; if chain is unknown, attempts to add it.
+  async ensureChain(targetChainId: number = torusMainnet.id): Promise<boolean> {
+    if (!window.ethereum) throw new Error("No Ethereum wallet detected")
+    const current = await this.getCurrentChainId()
+    if (current === targetChainId) return true
+
+    const chainIdHex = `0x${targetChainId.toString(16)}`
+    try {
+      await window.ethereum.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: chainIdHex }],
+      })
+      return true
+    } catch (switchError: unknown) {
+      // 4902: Unrecognized chain by the wallet
+      if (
+        typeof switchError === "object" &&
+        switchError !== null &&
+        "code" in switchError &&
+        (switchError as { code?: number }).code === 4902
+      ) {
+        try {
+          await window.ethereum.request({
+            method: "wallet_addEthereumChain",
+            params: [
+              {
+                chainId: chainIdHex,
+                chainName: torusMainnet.name,
+                nativeCurrency: torusMainnet.nativeCurrency,
+                rpcUrls: [TORUS_RPC],
+                blockExplorerUrls: [
+                  torusMainnet.blockExplorers?.default?.url,
+                ].filter(Boolean) as string[],
+              },
+            ],
+          })
+          return true
+        } catch (addError: unknown) {
+          console.error("Failed to add chain to wallet:", addError)
+          throw addError
+        }
+      }
+      console.error("Failed to switch chain:", switchError)
+      throw switchError
     }
   }
 
@@ -332,11 +424,8 @@ export class WalletService {
       const ownerAddress = await this.getAddress()
       if (!ownerAddress) throw new Error("No wallet address available")
 
-      // Create a public client for read operations
-      const walletClient = createWalletClient({
-        chain: mainnet,
-        transport: custom(window.ethereum),
-      })
+      // Ensure viem client metadata aligns with current chain (Torus)
+      // Note: we sign via this.walletClient; no additional client is required here.
 
       // Define ERC20 ABI
       const erc20Abi = [
@@ -366,7 +455,7 @@ export class WalletService {
         abi: erc20Abi,
         address: tokenAddress as `0x${string}`,
         functionName: "nonces",
-        args: [ownerAddress],
+        args: [ownerAddress as `0x${string}`],
       })
 
       const chainId = await publicClient.getChainId()
@@ -408,16 +497,16 @@ export class WalletService {
         message: permit,
       })
 
-      const permitMsg = {
+      // Optional: log stringified view for debugging
+      const permitPreview = {
         ...permit,
-        value: amount.toString(),
-        nonce: nonce.toString(),
-        deadline: deadline.toString(),
+        value: permit.value.toString(),
+        nonce: permit.nonce.toString(),
+        deadline: permit.deadline.toString(),
       }
+      console.log("permit", permitPreview)
 
-      console.log("pemrit", permitMsg)
-
-      return { permit: permitMsg, signature }
+      return { permit, signature }
     } catch (error) {
       console.error("Error creating permit signature:", error)
       throw new Error("Failed to create permit signature")
@@ -432,6 +521,6 @@ export const walletService = new WalletService()
 // Add TypeScript interface for window.ethereum
 declare global {
   interface Window {
-    ethereum?: any
+    ethereum?: EIP1193Provider
   }
 }

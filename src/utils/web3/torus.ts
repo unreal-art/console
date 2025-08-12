@@ -1,13 +1,18 @@
-import type { PublicClient } from 'viem';
+type PublicClientLike = {
+  waitForTransactionReceipt: (args: {
+    hash: `0x${string}`
+    confirmations?: number
+  }) => Promise<unknown>
+}
 
 export async function waitForTransactionReceipt(
-	client: PublicClient,
-	txHash: `0x${string}`,
-	confirmations?: number
+  client: PublicClientLike,
+  txHash: `0x${string}`,
+  confirmations?: number
 ) {
-	const receipt = await client.waitForTransactionReceipt({
-		hash: txHash,
-		confirmations: confirmations ?? 1
-	});
-	return receipt;
+  const receipt = await client.waitForTransactionReceipt({
+    hash: txHash,
+    confirmations: confirmations ?? 1,
+  })
+  return receipt
 }
