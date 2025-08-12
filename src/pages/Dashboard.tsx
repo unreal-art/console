@@ -87,7 +87,7 @@ const Dashboard = () => {
                 <div>
                   <div className="flex justify-between mb-2">
                     <span className="text-sm text-muted-foreground">Calls Remaining:</span>
-                    <span className="font-medium">{verifyData.remaining ?? 0}</span>
+                    <span className="font-medium">{verifyData.calls || 0}</span>
                   </div>
                   <div className="flex justify-between mb-2">
                     <span className="text-sm text-muted-foreground">Plan:</span>

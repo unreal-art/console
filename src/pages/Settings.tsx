@@ -56,8 +56,8 @@ const Settings = () => {
       const response = await createApiKey(apiKeyName);
       setApiKeyName('');
       setShowNewApiKey(true);
-    } catch (error: unknown) {
-      const errorMessage = (error as Error)?.message || 'Failed to create API key';
+    } catch (error: Error | unknown) {
+      const errorMessage = error.message || 'Failed to create API key';
       console.error('Error creating API key:', errorMessage);
       setOperationError(`Failed to create API key: ${errorMessage}`);
     } finally {
@@ -75,8 +75,8 @@ const Settings = () => {
         if (!success) {
           setOperationError(`Failed to delete API key "${name}"`); 
         }
-      } catch (error: unknown) {
-        const errorMessage = (error as Error)?.message || 'Unknown error';
+      } catch (error: any) {
+        const errorMessage = error.message || 'Unknown error';
         console.error(`Error deleting API key ${hash}:`, errorMessage);
         setOperationError(`Failed to delete API key "${name}": ${errorMessage}`);
       } finally {

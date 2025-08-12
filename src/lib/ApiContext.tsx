@@ -178,8 +178,6 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     calls: number
   ): Promise<string | null> => {
     try {
-      // Ensure correct network before proceeding (will prompt to switch/add if needed)
-      await walletService.ensureChain()
       // Constants
       const PAYMENT_TOKEN = "0xA409B5E5D34928a0F1165c7a73c8aC572D1aBCDB"
       const EXPIRY_SECONDS = 3600 // 1 hour
@@ -263,8 +261,6 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     setError(null)
 
     try {
-      // Ensure correct network before connecting (wallet will prompt to switch/add)
-      await walletService.ensureChain()
       // Get available addresses first if not already fetched
       if (availableAddresses.length === 0) {
         await getAvailableAddresses()
@@ -304,8 +300,6 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     }
 
     try {
-      // Ensure correct network before signing/registering
-      await walletService.ensureChain()
       // Constants
       const PAYMENT_TOKEN = "0xA409B5E5D34928a0F1165c7a73c8aC572D1aBCDB"
       const EXPIRY_SECONDS = 3600 // 1 hour
