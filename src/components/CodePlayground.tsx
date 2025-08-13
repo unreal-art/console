@@ -4,6 +4,7 @@ import { Play, Copy, Check, Terminal } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { DEFAULT_MODEL } from "@/config/models"
 
 const CodePlayground = () => {
   const [isRunning, setIsRunning] = useState(false)
@@ -17,7 +18,7 @@ const CodePlayground = () => {
     'Content-Type': 'application/json'
   },
   body: JSON.stringify({
-    model: 'unreal::r1-1776',
+    model: '${DEFAULT_MODEL}',
     messages: [{
       role: 'user', 
       content: 'Explain quantum computing in simple terms'

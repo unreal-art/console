@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dialog"
 import AnimatedBackground from "@/components/AnimatedBackground"
 import CodePlayground from "@/components/CodePlayground"
+import OpenAIStreamingPlayground from "@/components/OpenAIStreamingPlayground"
 import FeatureCards from "@/components/FeatureCards"
 import TestimonialCarousel from "@/components/TestimonialCarousel"
 import FAQ from "@/components/FAQ"
@@ -376,6 +377,9 @@ console.log(response.choices[0].message.content);`,
 
       {/* Code Playground */}
       <CodePlayground />
+
+      {/* OpenAI SDK Streaming Playground */}
+      <OpenAIStreamingPlayground />
 
       {/* Feature Cards */}
       <FeatureCards />
