@@ -11,7 +11,7 @@ import { CODING_MODEL } from "@/config/models"
 import { OPENAI_URL } from "@/config/unreal"
 
 const OpenAIStreamingPlayground: React.FC = () => {
-  const { apiKey, isAuthenticated } = useApi()
+  const { apiKey, token: sessionToken, isAuthenticated } = useApi()
 
   const [prompt, setPrompt] = useState<string>(
     "Write a concise TypeScript function called `toTitleCase` that converts a string to Title Case, followed by a short usage example."
@@ -43,7 +43,7 @@ const stream = await client.chat.completions.create({
 for await (const chunk of stream) {
   const delta = chunk.choices?.[0]?.delta?.content || '';
   // append delta to your UI
-  process.stdout.write(delta);
+  console.log(delta);
 }`,
     [prompt]
   )
@@ -58,10 +58,15 @@ for await (const chunk of stream) {
     setError(null)
     setResponse("")
 
-    if (!apiKey || !isAuthenticated) {
-      setError(
-        "You need to connect your wallet and generate an API key first to run this demo."
-      )
+    if (!isAuthenticated) {
+      setError("You need to connect your wallet first to run this demo.")
+      return
+    }
+
+    // Use explicit API key if provided, else fall back to session token (register key)
+        const effectiveKey = apiKey || sessionToken
+    if (!effectiveKey) {
+      setError("No API key or session token found. Please generate one or register first.")
       return
     }
 
@@ -72,7 +77,7 @@ for await (const chunk of stream) {
       const OpenAI = mod.default ?? mod
 
       const client = new OpenAI({
-        apiKey,
+        apiKey: effectiveKey,
         baseURL: OPENAI_URL,
         dangerouslyAllowBrowser: true,
       })
@@ -100,7 +105,7 @@ for await (const chunk of stream) {
         const mod2: any = await import("openai")
         const OpenAI2 = mod2.default ?? mod2
         const client2 = new OpenAI2({
-          apiKey,
+          apiKey: effectiveKey,
           baseURL: OPENAI_URL,
           dangerouslyAllowBrowser: true,
         })
@@ -130,7 +135,7 @@ for await (const chunk of stream) {
     } finally {
       setIsRunning(false)
     }
-  }, [apiKey, isAuthenticated, prompt])
+  }, [apiKey, sessionToken, isAuthenticated, prompt])
 
   return (
     <section className="py-20 relative">
