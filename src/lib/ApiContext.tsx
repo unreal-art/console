@@ -73,11 +73,15 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     walletDisconnectRef.current = fn
   }
 
+  // Prevent auto-reconnect after a deliberate logout
+  const SIGNED_OUT_KEY = "unreal_signed_out"
+
   // Initialize state from localStorage and handle auto-registration
   useEffect(() => {
     const storedToken = localStorage.getItem("unreal_token")
     const storedWalletAddress = localStorage.getItem("unreal_wallet_address")
     const storedOpenaiAddress = localStorage.getItem("unreal_openai_address")
+    const signedOut = localStorage.getItem(SIGNED_OUT_KEY) === "1"
 
     if (storedToken) {
       setToken(storedToken)
@@ -85,11 +89,11 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
       setIsAuthenticated(true)
     }
 
-    if (storedWalletAddress) {
+    if (storedWalletAddress && !signedOut) {
       setWalletAddress(storedWalletAddress)
     }
 
-    if (storedOpenaiAddress) {
+    if (storedOpenaiAddress && !signedOut) {
       setOpenaiAddress(storedOpenaiAddress)
     }
 
@@ -182,7 +186,11 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
       }
     }
 
-    checkWalletConnection()
+    if (!signedOut) {
+      checkWalletConnection()
+    } else {
+      setIsLoading(false)
+    }
   }, [])
 
   // Helper function for auto-registration
@@ -287,6 +295,8 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
       const finalAddress = selectedAddress || address
       setWalletAddress(finalAddress)
       localStorage.setItem("unreal_wallet_address", finalAddress)
+      // Clear signed-out flag upon a successful manual connect
+      localStorage.removeItem(SIGNED_OUT_KEY)
 
       // Get OpenAI address
       const authAddressResponse = await apiClient.getAuthAddress()
@@ -522,6 +532,8 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     } catch (e) {
       console.warn("thirdweb disconnect warning:", e)
     }
+    // Mark that the user intentionally signed out to prevent auto-reconnect on next mount
+    localStorage.setItem(SIGNED_OUT_KEY, "1")
     window.location.reload()
   }
 
