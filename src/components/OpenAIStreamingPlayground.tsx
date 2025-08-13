@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { useApi } from "@/lib/ApiContext"
 import { CODING_MODEL } from "@/config/models"
 import { OPENAI_URL } from "@/config/unreal"
+import OpenAI from "openai"
 
 const OpenAIStreamingPlayground: React.FC = () => {
   const { apiKey, token: sessionToken, isAuthenticated } = useApi()
@@ -64,25 +65,30 @@ for await (const chunk of stream) {
     }
 
     // Use explicit API key if provided, else fall back to session token (register key)
-        const effectiveKey = apiKey || sessionToken
+    const effectiveKey = apiKey || sessionToken
     if (!effectiveKey) {
-      setError("No API key or session token found. Please generate one or register first.")
+      setError(
+        "No API key or session token found. Please generate one or register first."
+      )
       return
     }
 
     setIsRunning(true)
     try {
-      // Dynamic import to avoid bundling the SDK unless needed
-      const mod: any = await import("openai")
-      const OpenAI = mod.default ?? mod
-
       const client = new OpenAI({
         apiKey: effectiveKey,
         baseURL: OPENAI_URL,
         dangerouslyAllowBrowser: true,
       })
 
-      const stream: AsyncIterable<any> = await client.chat.completions.create({
+      console.log("Creating stream with params:", {
+        model: CODING_MODEL,
+        apiKey: effectiveKey.substring(0, 10) + "...",
+        baseURL: OPENAI_URL,
+        prompt: prompt.substring(0, 50) + "..."
+      })
+
+      const stream = await client.chat.completions.create({
         model: CODING_MODEL,
         stream: true,
         messages: [
@@ -92,46 +98,41 @@ for await (const chunk of stream) {
         max_tokens: 600,
       })
 
-      for await (const chunk of stream) {
-        const delta: string = chunk?.choices?.[0]?.delta?.content ?? ""
-        if (delta) {
-          setResponse((prev) => prev + delta)
-        }
-      }
-    } catch (e: any) {
-      console.error(e)
-      // Attempt a non-streaming fallback
+      console.log("stream object:", stream)
+      console.log("stream type:", typeof stream)
+      console.log("stream constructor:", stream.constructor.name)
+      console.log("Is async iterable?", Symbol.asyncIterator in stream)
+      
+      // Try to check if stream has any properties
+      console.log("Stream properties:", Object.keys(stream))
+      
+      console.log("About to start iterating...")
+      
+      let chunkCount = 0
       try {
-        const mod2: any = await import("openai")
-        const OpenAI2 = mod2.default ?? mod2
-        const client2 = new OpenAI2({
-          apiKey: effectiveKey,
-          baseURL: OPENAI_URL,
-          dangerouslyAllowBrowser: true,
-        })
-        const resp = await client2.chat.completions.create({
-          model: CODING_MODEL,
-          stream: false,
-          messages: [
-            { role: "system", content: "You are a helpful coding assistant." },
-            { role: "user", content: prompt },
-          ],
-          max_tokens: 600,
-        })
-        const content = resp?.choices?.[0]?.message?.content ?? ""
-        setResponse(content)
-        return // success via fallback
-      } catch (e2: any) {
-        if (String(e?.message || e).includes("Cannot find module 'openai'")) {
-          setError(
-            "The 'openai' SDK is not installed. Please run: npm i openai"
-          )
-        } else {
-          const msg =
-            e2?.message || e?.message || "Request failed. Please try again."
-          setError(msg)
+        for await (const chunk of stream) {
+          chunkCount++
+          console.log(`Chunk ${chunkCount}:`, chunk)
+          
+          if (chunk.choices && chunk.choices[0]) {
+            const delta = chunk.choices[0].delta?.content || ""
+            console.log("delta content:", delta)
+            if (delta) {
+              setResponse((prev) => prev + delta)
+            }
+          } else {
+            console.log("No choices in chunk:", chunk)
+          }
         }
+      } catch (iterError) {
+        console.error("Error during iteration:", iterError)
       }
+      
+      console.log(`Stream finished. Total chunks: ${chunkCount}`)
+    } catch (error: any) {
+      console.error("Streaming error:", error)
+      const errorMessage = error?.message || "Request failed. Please try again."
+      setError(errorMessage)
     } finally {
       setIsRunning(false)
     }
