@@ -1,25 +1,25 @@
-import React, { useCallback, useMemo, useState } from "react";
-import { motion } from "framer-motion";
-import { Play, Copy, Check, Terminal, Package } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Textarea } from "@/components/ui/textarea";
-import { useApi } from "@/lib/ApiContext";
-import { DEFAULT_MODEL } from "@/config/models";
-import { OPENAI_URL } from "@/config/unreal";
+import React, { useCallback, useMemo, useState } from "react"
+import { motion } from "framer-motion"
+import { Play, Copy, Check, Terminal, Package } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Textarea } from "@/components/ui/textarea"
+import { useApi } from "@/lib/ApiContext"
+import { CODING_MODEL } from "@/config/models"
+import { OPENAI_URL } from "@/config/unreal"
 
 const OpenAIStreamingPlayground: React.FC = () => {
-  const { apiKey, isAuthenticated } = useApi();
+  const { apiKey, isAuthenticated } = useApi()
 
   const [prompt, setPrompt] = useState<string>(
     "Write a concise TypeScript function called `toTitleCase` that converts a string to Title Case, followed by a short usage example."
-  );
-  const [isRunning, setIsRunning] = useState(false);
-  const [response, setResponse] = useState("");
-  const [copied, setCopied] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  )
+  const [isRunning, setIsRunning] = useState(false)
+  const [response, setResponse] = useState("")
+  const [copied, setCopied] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const codeSnippet = useMemo(
     () => `import OpenAI from 'openai';
@@ -32,11 +32,11 @@ const client = new OpenAI({
 });
 
 const stream = await client.chat.completions.create({
-  model: '${DEFAULT_MODEL}',
+  model: '${CODING_MODEL}',
   stream: true,
   messages: [
     { role: 'system', content: 'You are a helpful coding assistant.' },
-    { role: 'user', content: '${prompt.replace(/`/g, '\\`')}' },
+    { role: 'user', content: '${prompt.replace(/`/g, "\\`")}' },
   ],
 });
 
@@ -46,88 +46,91 @@ for await (const chunk of stream) {
   process.stdout.write(delta);
 }`,
     [prompt]
-  );
+  )
 
   const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+    navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
 
   const handleRun = useCallback(async () => {
-    setError(null);
-    setResponse("");
+    setError(null)
+    setResponse("")
 
     if (!apiKey || !isAuthenticated) {
       setError(
         "You need to connect your wallet and generate an API key first to run this demo."
-      );
-      return;
+      )
+      return
     }
 
-    setIsRunning(true);
+    setIsRunning(true)
     try {
       // Dynamic import to avoid bundling the SDK unless needed
-      const mod: any = await import('openai');
-      const OpenAI = mod.default ?? mod;
+      const mod: any = await import("openai")
+      const OpenAI = mod.default ?? mod
 
       const client = new OpenAI({
         apiKey,
         baseURL: OPENAI_URL,
         dangerouslyAllowBrowser: true,
-      });
+      })
 
       const stream: AsyncIterable<any> = await client.chat.completions.create({
-        model: DEFAULT_MODEL,
+        model: CODING_MODEL,
         stream: true,
         messages: [
-          { role: 'system', content: 'You are a helpful coding assistant.' },
-          { role: 'user', content: prompt },
+          { role: "system", content: "You are a helpful coding assistant." },
+          { role: "user", content: prompt },
         ],
         max_tokens: 600,
-      });
+      })
 
       for await (const chunk of stream) {
-        const delta: string = chunk?.choices?.[0]?.delta?.content ?? '';
+        const delta: string = chunk?.choices?.[0]?.delta?.content ?? ""
         if (delta) {
-          setResponse((prev) => prev + delta);
+          setResponse((prev) => prev + delta)
         }
       }
     } catch (e: any) {
-      console.error(e);
+      console.error(e)
       // Attempt a non-streaming fallback
       try {
-        const mod2: any = await import('openai');
-        const OpenAI2 = mod2.default ?? mod2;
+        const mod2: any = await import("openai")
+        const OpenAI2 = mod2.default ?? mod2
         const client2 = new OpenAI2({
           apiKey,
           baseURL: OPENAI_URL,
           dangerouslyAllowBrowser: true,
-        });
+        })
         const resp = await client2.chat.completions.create({
-          model: DEFAULT_MODEL,
+          model: CODING_MODEL,
           stream: false,
           messages: [
-            { role: 'system', content: 'You are a helpful coding assistant.' },
-            { role: 'user', content: prompt },
+            { role: "system", content: "You are a helpful coding assistant." },
+            { role: "user", content: prompt },
           ],
           max_tokens: 600,
-        });
-        const content = resp?.choices?.[0]?.message?.content ?? '';
-        setResponse(content);
-        return; // success via fallback
+        })
+        const content = resp?.choices?.[0]?.message?.content ?? ""
+        setResponse(content)
+        return // success via fallback
       } catch (e2: any) {
         if (String(e?.message || e).includes("Cannot find module 'openai'")) {
-          setError("The 'openai' SDK is not installed. Please run: npm i openai");
+          setError(
+            "The 'openai' SDK is not installed. Please run: npm i openai"
+          )
         } else {
-          const msg = e2?.message || e?.message || 'Request failed. Please try again.';
-          setError(msg);
+          const msg =
+            e2?.message || e?.message || "Request failed. Please try again."
+          setError(msg)
         }
       }
     } finally {
-      setIsRunning(false);
+      setIsRunning(false)
     }
-  }, [apiKey, isAuthenticated, prompt]);
+  }, [apiKey, isAuthenticated, prompt])
 
   return (
     <section className="py-20 relative">
@@ -138,9 +141,12 @@ for await (const chunk of stream) {
           transition={{ duration: 0.8 }}
           className="text-center mb-12"
         >
-          <h2 className="text-4xl font-bold mb-2">Try It Live: OpenAI SDK Streaming</h2>
+          <h2 className="text-4xl font-bold mb-2">
+            Try It Live: OpenAI SDK Streaming
+          </h2>
           <p className="text-xl text-slate-300">
-            Uses the official OpenAI-compatible SDK to stream tokens in real time
+            Uses the official OpenAI-compatible SDK to stream tokens in real
+            time
           </p>
         </motion.div>
 
@@ -150,7 +156,12 @@ for await (const chunk of stream) {
               <AlertDescription>
                 <div className="flex items-center justify-between gap-3">
                   <span className="truncate">{error}</span>
-                  <Button size="sm" variant="outline" onClick={handleRun} disabled={isRunning}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleRun}
+                    disabled={isRunning}
+                  >
                     Retry
                   </Button>
                 </div>
@@ -174,7 +185,11 @@ for await (const chunk of stream) {
                       onClick={() => copyToClipboard(codeSnippet)}
                       className="text-slate-400 hover:text-white"
                     >
-                      {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      {copied ? (
+                        <Check className="w-4 h-4" />
+                      ) : (
+                        <Copy className="w-4 h-4" />
+                      )}
                     </Button>
                     <Button
                       size="sm"
@@ -186,7 +201,11 @@ for await (const chunk of stream) {
                         <>
                           <motion.div
                             animate={{ rotate: 360 }}
-                            transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                            transition={{
+                              duration: 1,
+                              repeat: Infinity,
+                              ease: "linear",
+                            }}
                             className="w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2"
                           />
                           Running...
@@ -214,7 +233,9 @@ for await (const chunk of stream) {
                   </div>
 
                   <div>
-                    <div className="text-sm text-slate-400 mb-2">JavaScript (OpenAI SDK)</div>
+                    <div className="text-sm text-slate-400 mb-2">
+                      JavaScript (OpenAI SDK)
+                    </div>
                     <pre className="text-xs md:text-sm text-green-400 overflow-x-auto">
                       <code>{codeSnippet}</code>
                     </pre>
@@ -222,7 +243,8 @@ for await (const chunk of stream) {
 
                   <div className="flex items-center gap-2 text-xs text-slate-400">
                     <Package className="w-3.5 h-3.5" />
-                    Install SDK: <code className="text-slate-300">npm i openai</code>
+                    Install SDK:{" "}
+                    <code className="text-slate-300">npm i openai</code>
                   </div>
                 </div>
               </CardContent>
@@ -234,11 +256,16 @@ for await (const chunk of stream) {
                 <div className="bg-slate-800 px-4 py-2 flex items-center justify-between border-b border-slate-700">
                   <div className="flex items-center space-x-2">
                     <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                    <span className="text-sm text-slate-300">Live Response</span>
+                    <span className="text-sm text-slate-300">
+                      Live Response
+                    </span>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <Badge variant="secondary" className="bg-blue-600 text-white">
-                      {DEFAULT_MODEL}
+                    <Badge
+                      variant="secondary"
+                      className="bg-blue-600 text-white"
+                    >
+                      {CODING_MODEL}
                     </Badge>
                   </div>
                 </div>
@@ -267,7 +294,7 @@ for await (const chunk of stream) {
         </div>
       </div>
     </section>
-  );
-};
+  )
+}
 
-export default OpenAIStreamingPlayground;
+export default OpenAIStreamingPlayground
