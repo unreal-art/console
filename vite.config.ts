@@ -19,11 +19,19 @@ export default defineConfig(({ mode }) => {
     plugins: [react(), mode === "development" && componentTagger()].filter(
       Boolean
     ),
+    optimizeDeps: {
+      dedupe: ["zod"],
+      include: ["zod"],
+    },
     resolve: {
       alias: {
+        zod: path.resolve(__dirname, "./node_modules/zod"),
         "@": path.resolve(__dirname, "./src"),
         "@config": path.resolve(__dirname, "./src/config"),
         "@abis": path.resolve(__dirname, "./src/abis"),
+        "zod/v4": "zod",
+        "zod/v4-mini": "zod",
+        "zod/v3": "zod",
       },
     },
     define: {
