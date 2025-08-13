@@ -3,6 +3,7 @@ import React, {
   useState,
   useContext,
   useEffect,
+  useRef,
   ReactNode,
 } from "react"
 import {
@@ -36,7 +37,10 @@ interface ApiContextType {
   createApiKey: (name: string) => Promise<ApiKeyResponse>
   listApiKeys: () => Promise<ApiKey[]>
   deleteApiKey: (hash: string) => Promise<boolean>
-  logout: () => void
+  logout: () => Promise<void>
+  registerWalletDisconnector: (
+    fn: (() => Promise<void> | void) | null
+  ) => void
   clearApiKey: () => void
   clearError: () => void
 }
@@ -58,6 +62,16 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
   const [isLoadingApiKeys, setIsLoadingApiKeys] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // External wallet disconnector (e.g., thirdweb)
+  const walletDisconnectRef = useRef<(() => Promise<void> | void) | null>(null)
+
+  // Allow UI layer (e.g., thirdweb hooks) to register a disconnector we can call on logout
+  const registerWalletDisconnector = (
+    fn: (() => Promise<void> | void) | null
+  ) => {
+    walletDisconnectRef.current = fn
+  }
 
   // Initialize state from localStorage and handle auto-registration
   useEffect(() => {
@@ -469,7 +483,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
   }
 
   // Logout
-  const logout = () => {
+  const logout = async () => {
     // // Reset authentication state
     setIsAuthenticated(false)
     setToken(null)
@@ -493,8 +507,21 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
 
     console.log("Wallet disconnected and refresh")
 
-    // implement thirdweb disconnect wallet
-    walletService.disconnect()
+    // Disconnect local WalletService state
+    try {
+      await walletService.disconnect()
+    } catch (e) {
+      console.warn("WalletService.disconnect warning:", e)
+    }
+
+    // If a thirdweb disconnector is registered, call it before reload
+    try {
+      if (walletDisconnectRef.current) {
+        await walletDisconnectRef.current()
+      }
+    } catch (e) {
+      console.warn("thirdweb disconnect warning:", e)
+    }
     window.location.reload()
   }
 
@@ -529,6 +556,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     listApiKeys,
     deleteApiKey,
     logout,
+    registerWalletDisconnector,
     clearApiKey,
     clearError,
   }
