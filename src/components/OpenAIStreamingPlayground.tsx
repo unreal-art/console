@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react"
+import React, { useCallback, useMemo, useState, useEffect, useRef } from "react"
 import { motion } from "framer-motion"
 import { Play, Copy, Check, Terminal, Package } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -11,9 +11,11 @@ import { CODING_MODEL } from "@/config/models"
 import { OPENAI_URL } from "@/config/unreal"
 import { createOpenAI } from "@ai-sdk/openai"
 import { streamText } from "ai"
+import { useNavigate } from "react-router-dom"
 
 const OpenAIStreamingPlayground: React.FC = () => {
-  const { apiKey, token: sessionToken, isAuthenticated } = useApi()
+  const { apiKey, isAuthenticated } = useApi()
+  const navigate = useNavigate()
 
   const [prompt, setPrompt] = useState<string>(
     "Write a concise TypeScript function called `toTitleCase` that converts a string to Title Case, followed by a short usage example."
@@ -23,30 +25,32 @@ const OpenAIStreamingPlayground: React.FC = () => {
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Auto-scroll live response
+  const responseContainerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = responseContainerRef.current
+    if (el) {
+      el.scrollTop = el.scrollHeight
+    }
+  }, [response])
+
   const codeSnippet = useMemo(
-    () => `import OpenAI from 'openai';
-
-const client = new OpenAI({
-  apiKey: 'your-api-key-here',
-  baseURL: '${OPENAI_URL}',
-  // Only for browser demos. Do NOT use this in production.
-  dangerouslyAllowBrowser: true,
+    () => `const response = await fetch('${OPENAI_URL}/chat/completions', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer your-api-key-here',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    model: '${CODING_MODEL}',
+    messages: [{
+      role: 'user',
+      content: '${prompt.replace(/`/g, "\\`")}'
+    }]
+  })
 });
-
-const stream = await client.chat.completions.create({
-  model: '${CODING_MODEL}',
-  stream: true,
-  messages: [
-    { role: 'system', content: 'You are a helpful coding assistant.' },
-    { role: 'user', content: '${prompt.replace(/`/g, "\\`")}' },
-  ],
-});
-
-for await (const chunk of stream) {
-  const delta = chunk.choices?.[0]?.delta?.content || '';
-  // append delta to your UI
-  console.log(delta);
-}`,
+const data = await response.json();
+console.log(data.choices[0].message.content);`,
     [prompt]
   )
 
@@ -65,12 +69,11 @@ for await (const chunk of stream) {
       return
     }
 
-    // Use explicit API key if provided, else fall back to session token (register key)
-    const effectiveKey = apiKey || sessionToken
+    // Require an explicit API key; redirect to Settings if missing
+    const effectiveKey = apiKey
     if (!effectiveKey) {
-      setError(
-        "No API key or session token found. Please generate one or register first."
-      )
+      setError("You need to generate an API key first. Redirecting to Settings...")
+      navigate("/settings")
       return
     }
 
@@ -109,7 +112,7 @@ for await (const chunk of stream) {
     } finally {
       setIsRunning(false)
     }
-  }, [apiKey, sessionToken, isAuthenticated, prompt])
+  }, [apiKey, isAuthenticated, prompt, navigate])
 
   return (
     <section className="py-20 relative">
@@ -120,13 +123,8 @@ for await (const chunk of stream) {
           transition={{ duration: 0.8 }}
           className="text-center mb-12"
         >
-          <h2 className="text-4xl font-bold mb-2">
-            Try It Live: OpenAI SDK Streaming
-          </h2>
-          <p className="text-xl text-slate-300">
-            Uses the official OpenAI-compatible SDK to stream tokens in real
-            time
-          </p>
+          <h2 className="text-4xl font-bold mb-2">Try It Live: API Test</h2>
+          <p className="text-xl text-slate-300">Test our API with your key and see real-time responses</p>
         </motion.div>
 
         <div className="max-w-6xl mx-auto">
@@ -155,7 +153,7 @@ for await (const chunk of stream) {
                 <div className="bg-slate-800 px-4 py-2 flex items-center justify-between border-b border-slate-700">
                   <div className="flex items-center space-x-2">
                     <Terminal className="w-4 h-4 text-slate-400" />
-                    <span className="text-sm text-slate-300">OpenAI SDK</span>
+                    <span className="text-sm text-slate-300">API Test (Fetch)</span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <Button
@@ -212,9 +210,7 @@ for await (const chunk of stream) {
                   </div>
 
                   <div>
-                    <div className="text-sm text-slate-400 mb-2">
-                      JavaScript (OpenAI SDK)
-                    </div>
+                    <div className="text-sm text-slate-400 mb-2">JavaScript (Fetch)</div>
                     <pre className="text-xs md:text-sm text-green-400 overflow-x-auto">
                       <code>{codeSnippet}</code>
                     </pre>
@@ -222,8 +218,8 @@ for await (const chunk of stream) {
 
                   <div className="flex items-center gap-2 text-xs text-slate-400">
                     <Package className="w-3.5 h-3.5" />
-                    Install SDK:{" "}
-                    <code className="text-slate-300">npm i openai</code>
+                    Endpoint: {" "}
+                    <code className="text-slate-300">{OPENAI_URL}/chat/completions</code>
                   </div>
                 </div>
               </CardContent>
@@ -249,7 +245,7 @@ for await (const chunk of stream) {
                   </div>
                 </div>
 
-                <div className="p-6 bg-slate-950 min-h-[300px]">
+                <div ref={responseContainerRef} className="p-6 bg-slate-950 min-h-[300px] max-h-[60vh] overflow-y-auto">
                   {response ? (
                     <motion.pre
                       initial={{ opacity: 0 }}
