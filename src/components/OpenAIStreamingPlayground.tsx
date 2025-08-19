@@ -83,102 +83,92 @@ const OpenAIStreamingPlayground: React.FC = () => {
   }, [apiKey, isAuthenticated, navigate])
 
   return (
-    <section className="py-20 relative">
-      <div className="container mx-auto px-6">
-        <div className="max-w-6xl mx-auto">
-          {error && (
-            <Alert className="mb-6 border-red-500 bg-red-500/15">
-              <AlertDescription>
-                <div className="flex items-center justify-between gap-3">
-                  <span className="truncate">{error}</span>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => navigate("/settings")}
-                    >
-                      Go to Settings
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={handleRun}
-                      disabled={isRunning}
-                    >
-                      Retry
-                    </Button>
-                  </div>
-                </div>
-              </AlertDescription>
-            </Alert>
-          )}
-          <Card className="bg-slate-900/50 border-slate-700">
-            <CardContent className="p-0">
-              <div className="bg-slate-800 px-4 py-2 flex items-center justify-between border-b border-slate-700">
-                <div className="flex items-center space-x-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                  <span className="text-sm text-slate-300">
-                    Live Response
-                  </span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Badge
-                    variant="secondary"
-                    className="bg-blue-600 text-white"
-                  >
-                    {CODING_MODEL}
-                  </Badge>
-                  <Button
-                    size="sm"
-                    onClick={handleRun}
-                    disabled={isRunning}
-                    className="bg-green-600 hover:bg-green-700"
-                  >
-                    {isRunning ? (
-                      <>
-                        <motion.div
-                          animate={{ rotate: 360 }}
-                          transition={{
-                            duration: 1,
-                            repeat: Infinity,
-                            ease: "linear",
-                          }}
-                          className="w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2"
-                        />
-                        Running...
-                      </>
-                    ) : (
-                      <>
-                        <Play className="w-4 h-4 mr-2" />
-                        Run
-                      </>
-                    )}
-                  </Button>
-                </div>
+    <div className="w-full">
+      {error && (
+        <Alert className="mb-6 border-red-500 bg-red-500/15">
+          <AlertDescription>
+            <div className="flex items-center justify-between gap-3">
+              <span className="truncate">{error}</span>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => navigate("/settings")}
+                >
+                  Go to Settings
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleRun}
+                  disabled={isRunning}
+                >
+                  Retry
+                </Button>
               </div>
-              <div ref={responseContainerRef} className="p-6 bg-slate-950 min-h-[300px] max-h-[60vh] overflow-y-auto">
-                {response ? (
-                  <motion.pre
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="text-sm text-blue-400 overflow-x-auto whitespace-pre-wrap"
-                  >
-                    <code>{response}</code>
-                  </motion.pre>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+      <Card className="bg-slate-900/50 border-slate-700">
+        <CardContent className="p-0">
+          <div className="bg-slate-800 px-4 py-2 flex items-center justify-between border-b border-slate-700">
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              <span className="text-sm text-slate-300">Live Response</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Badge variant="secondary" className="bg-blue-600 text-white">
+                {CODING_MODEL}
+              </Badge>
+              <Button
+                size="sm"
+                onClick={handleRun}
+                disabled={isRunning}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                {isRunning ? (
+                  <>
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                      className="w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2"
+                    />
+                    Running...
+                  </>
                 ) : (
-                  <div className="flex items-center justify-center h-full text-slate-500">
-                    <div className="text-center">
-                      <Terminal className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                      <p>Click "Run" to stream the code</p>
-                    </div>
-                  </div>
+                  <>
+                    <Play className="w-4 h-4 mr-2" />
+                    Run
+                  </>
                 )}
+              </Button>
+            </div>
+          </div>
+          <div
+            ref={responseContainerRef}
+            className="p-6 bg-slate-950 min-h-[300px] max-h-[60vh] overflow-y-auto"
+          >
+            {response ? (
+              <motion.pre
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-sm text-blue-400 overflow-x-auto whitespace-pre-wrap"
+              >
+                <code>{response}</code>
+              </motion.pre>
+            ) : (
+              <div className="flex items-center justify-center h-full text-slate-500">
+                <div className="text-center">
+                  <Terminal className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>Click "Run" to stream the code</p>
+                </div>
               </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    </section>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   )
 }
 
