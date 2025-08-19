@@ -34,6 +34,7 @@ import ChatCompletion from "@/components/ChatCompletion"
 import { useOpenWidget } from "@/hooks/useOpenWidget"
 import { useApi } from "@/lib/ApiContext"
 import { OPENAI_DOCS_URL } from "@/config/unreal"
+import { useNavigate } from "react-router-dom"
 
 const Index = () => {
   const [copied, setCopied] = useState(false)
@@ -188,6 +189,8 @@ console.log(response.choices[0].message.content);`,
     window.open(OPENAI_DOCS_URL, '_blank')
   }
 
+  const navigate = useNavigate()
+
   return (
     <div className="relative min-h-screen bg-slate-950 text-white overflow-hidden">
       <AnimatedBackground />
@@ -302,19 +305,24 @@ console.log(response.choices[0].message.content);`,
         </div>
       </section>
 
-      {/* Chat Completion Demo */}
-      {isAuthenticated && apiKey && (
-        <section className="py-16 px-4 md:px-8 max-w-6xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-4">Test Your API Key</h2>
-            <p className="text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-              Try out your new API key with our chat completion endpoint. This
-              demo shows how to use the API in a real application.
-            </p>
-          </div>
-          <ChatCompletion />
-        </section>
-      )}
+      {/* Chat Completion Demo CTA (opens dedicated page) */}
+      <section className="py-16 px-4 md:px-8 max-w-6xl mx-auto">
+        <div className="text-center mb-6">
+          <h2 className="text-3xl font-bold mb-2">Chat Completion Demo</h2>
+          <p className="text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+            Open the interactive chat demo on a dedicated page.
+          </p>
+        </div>
+        <div className="flex justify-center">
+          <Button
+            size="lg"
+            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+            onClick={() => navigate("/chat")}
+          >
+            Open Chat Demo
+          </Button>
+        </div>
+      </section>
 
       {/* Code Examples Section */}
       <section className="py-20 relative">
@@ -539,7 +547,7 @@ console.log(response.choices[0].message.content);`,
           </div>
 
           <div className="border-t border-slate-800 mt-8 pt-8 text-center text-slate-400">
-            <p>© 2025 Unreal AI. All rights reserved.</p>
+            <p> 2025 Unreal AI. All rights reserved.</p>
           </div>
         </div>
       </footer>

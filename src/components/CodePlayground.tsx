@@ -4,6 +4,7 @@ import { Play, Copy, Check, Terminal } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { DEFAULT_MODEL } from "@/config/models"
 import { useApi } from "@/lib/ApiContext"
 import { createOpenAI } from "@ai-sdk/openai"
@@ -17,6 +18,7 @@ const CodePlayground = () => {
   const [isRunning, setIsRunning] = useState(false)
   const [response, setResponse] = useState("")
   const [copied, setCopied] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const responseContainerRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const el = responseContainerRef.current
@@ -42,14 +44,15 @@ const data = await response.json();
 console.log(data.choices[0].message.content);`
 
   const handleRunCode = async () => {
-    // Require explicit API key; redirect to Settings if missing
+    // Require explicit API key; show alert instead of auto-redirect
     if (!apiKey) {
-      navigate("/settings")
+      setError("API key required. Please create one in Settings to run the demo.")
       return
     }
 
     setIsRunning(true)
     setResponse("")
+    setError(null)
     try {
       const openai = createOpenAI({ apiKey, baseURL: OPENAI_URL })
       const { textStream } = await streamText({
@@ -63,7 +66,7 @@ console.log(data.choices[0].message.content);`
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Request failed"
-      setResponse((prev) => prev + (prev ? "\n\n" : "") + `[Error] ${msg}`)
+      setError(msg)
     } finally {
       setIsRunning(false)
     }
@@ -78,6 +81,30 @@ console.log(data.choices[0].message.content);`
   return (
     <section className="py-20 relative">
       <div className="container mx-auto px-6">
+        {error && (
+          <Alert className="mb-6 border-red-500 bg-red-500/15">
+            <AlertDescription>
+              <div className="flex items-center justify-between gap-3">
+                <span className="truncate">{error}</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    className="px-3 py-1 text-sm border rounded"
+                    onClick={() => navigate("/settings")}
+                  >
+                    Go to Settings
+                  </button>
+                  <button
+                    className="px-3 py-1 text-sm border rounded"
+                    onClick={handleRunCode}
+                    disabled={isRunning}
+                  >
+                    Retry
+                  </button>
+                </div>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
