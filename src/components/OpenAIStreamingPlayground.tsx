@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useApi } from "@/lib/ApiContext"
 import { CODING_MODEL } from "@/config/models"
 import { OPENAI_URL } from "@/config/unreal"
@@ -12,7 +13,12 @@ import { createOpenAI } from "@ai-sdk/openai"
 import { streamText } from "ai"
 import { useNavigate } from "react-router-dom"
 
-const OpenAIStreamingPlayground: React.FC = () => {
+interface OpenAIStreamingPlaygroundProps {
+  initialPrompt?: string
+  autorun?: boolean
+}
+
+const OpenAIStreamingPlayground: React.FC<OpenAIStreamingPlaygroundProps> = ({ initialPrompt, autorun }) => {
   const { apiKey, isAuthenticated } = useApi()
   const navigate = useNavigate()
 
@@ -56,11 +62,15 @@ const OpenAIStreamingPlayground: React.FC = () => {
       console.log("Starting stream with AI SDK...")
       
       // Stream text using the AI SDK
+      const userPrompt = (initialPrompt && initialPrompt.trim().length > 0)
+        ? initialPrompt
+        : "Write a concise TypeScript function called `toTitleCase` that converts a string to Title Case, followed by a short usage example."
+
       const { textStream } = await streamText({
         model: openai(CODING_MODEL),
         messages: [
           { role: "system", content: "You are a helpful coding assistant." },
-          { role: "user", content: "Write a concise TypeScript function called `toTitleCase` that converts a string to Title Case, followed by a short usage example." },
+          { role: "user", content: userPrompt },
         ],
       })
 
@@ -80,7 +90,18 @@ const OpenAIStreamingPlayground: React.FC = () => {
     } finally {
       setIsRunning(false)
     }
-  }, [apiKey, isAuthenticated, navigate])
+  }, [apiKey, isAuthenticated, initialPrompt])
+
+  // Optional autorun for guided experiences
+  useEffect(() => {
+    if (autorun) {
+      // debounce slightly to allow layout to mount
+      const t = setTimeout(() => {
+        handleRun()
+      }, 100)
+      return () => clearTimeout(t)
+    }
+  }, [autorun, handleRun])
 
   return (
     <div className="w-full">
@@ -116,6 +137,20 @@ const OpenAIStreamingPlayground: React.FC = () => {
             <div className="flex items-center space-x-2">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
               <span className="text-sm text-slate-300">Live Response</span>
+              {initialPrompt && (
+                <div className="hidden md:block pl-3 border-l border-slate-700 ml-3">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="text-xs text-slate-400 truncate max-w-[360px] block">
+                        Prompt: {initialPrompt}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-md">
+                      <span className="text-xs break-words">Prompt: {initialPrompt}</span>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+              )}
             </div>
             <div className="flex items-center space-x-2">
               <Badge variant="secondary" className="bg-blue-600 text-white">

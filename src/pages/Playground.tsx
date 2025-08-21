@@ -1,11 +1,14 @@
 import React from "react"
 import Layout from "@/components/Layout"
 import OpenAIStreamingPlayground from "@/components/OpenAIStreamingPlayground"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { ArrowLeft } from "lucide-react"
 
 const Playground: React.FC = () => {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const initialPrompt = searchParams.get("prompt") || undefined
+  const autorun = ["1", "true", "yes"].includes((searchParams.get("autorun") || "").toLowerCase())
   return (
     <Layout>
       <div className="container mx-auto px-4 py-8">
@@ -18,7 +21,7 @@ const Playground: React.FC = () => {
           </button>
         </div>
         <h1 className="text-3xl font-bold mb-6">Streaming Playground</h1>
-        <OpenAIStreamingPlayground />
+        <OpenAIStreamingPlayground initialPrompt={initialPrompt} autorun={autorun} />
       </div>
     </Layout>
   )
