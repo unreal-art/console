@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -51,15 +51,31 @@ const Settings = () => {
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [operationError, setOperationError] = useState<string | null>(null);
   const [copiedHash, setCopiedHash] = useState<string | null>(null);
+  const fetchedKeysRef = useRef(false);
+  const listApiKeysRef = useRef(listApiKeys);
 
-  // Fetch API keys when authenticated; do not redirect away to avoid flicker/disappearing UI
+  // Keep a stable ref to the latest listApiKeys from context
   useEffect(() => {
-    if (!isLoading && isAuthenticated) {
-      listApiKeys().catch((err: unknown) => {
+    listApiKeysRef.current = listApiKeys;
+  }, [listApiKeys]);
+
+  // Fetch API keys once when authenticated; avoid infinite calls due to changing function identities
+  useEffect(() => {
+    if (!isLoading && isAuthenticated && !fetchedKeysRef.current) {
+      fetchedKeysRef.current = true;
+      listApiKeysRef.current().catch((err: unknown) => {
         console.error('Error fetching API keys:', err);
+        // Allow retry on next render if the initial load fails
+        fetchedKeysRef.current = false;
       });
     }
-  }, [isAuthenticated, isLoading, listApiKeys]);
+  }, [isAuthenticated, isLoading]);
+  // Reset the gate when user becomes unauthenticated
+  useEffect(() => {
+    if (!isAuthenticated) {
+      fetchedKeysRef.current = false;
+    }
+  }, [isAuthenticated]);
 
   // Handle API key creation
   const handleCreateApiKey = async () => {
