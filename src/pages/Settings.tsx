@@ -9,8 +9,22 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertCircle, Copy, Check, HelpCircle } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
 import { useApi } from '@/lib/ApiContext';
 import Layout from '@/components/Layout';
+
+const MAX_KEYS = 20;
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -36,6 +50,7 @@ const Settings = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [operationError, setOperationError] = useState<string | null>(null);
+  const [copiedHash, setCopiedHash] = useState<string | null>(null);
 
   // Fetch API keys when authenticated; do not redirect away to avoid flicker/disappearing UI
   useEffect(() => {
@@ -63,24 +78,29 @@ const Settings = () => {
     }
   };
 
-  // Handle API key deletion
+  // Handle API key deletion (confirmation handled via AlertDialog in UI)
   const handleDeleteApiKey = async (hash: string, name: string) => {
-    if (window.confirm(`Are you sure you want to delete API key "${name}"?`)) {
-      setIsDeleting(hash);
-      setOperationError(null);
-      try {
-        const success = await deleteApiKey(hash);
-        if (!success) {
-          setOperationError(`Failed to delete API key "${name}"`); 
-        }
-      } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        console.error(`Error deleting API key ${hash}:`, errorMessage);
-        setOperationError(`Failed to delete API key "${name}": ${errorMessage}`);
-      } finally {
-        setIsDeleting(null);
+    setIsDeleting(hash);
+    setOperationError(null);
+    try {
+      const success = await deleteApiKey(hash);
+      if (!success) {
+        setOperationError(`Failed to delete API key "${name}"`);
       }
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`Error deleting API key ${hash}:`, errorMessage);
+      setOperationError(`Failed to delete API key "${name}": ${errorMessage}`);
+    } finally {
+      setIsDeleting(null);
     }
+  };
+
+  // Copy a key hash from the list
+  const handleCopyHash = (hash: string) => {
+    navigator.clipboard.writeText(hash);
+    setCopiedHash(hash);
+    setTimeout(() => setCopiedHash(null), 2000);
   };
 
   // Handle copy to clipboard
@@ -195,10 +215,15 @@ const Settings = () => {
         
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>API Key Management</CardTitle>
-            <CardDescription>
-              Create and manage your API keys
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>API Key Management</CardTitle>
+                <CardDescription>Create and manage your API keys</CardDescription>
+              </div>
+              <Badge variant="secondary" className="text-xs">
+                {apiKeys.length}/{MAX_KEYS} used
+              </Badge>
+            </div>
           </CardHeader>
           <CardContent>
             {/* API Key Creation Form */}
@@ -212,14 +237,28 @@ const Settings = () => {
                     placeholder="My API Key"
                     value={apiKeyName}
                     onChange={(e) => setApiKeyName(e.target.value)}
+                    disabled={apiKeys.length >= MAX_KEYS}
                   />
                 </div>
               </div>
+              {apiKeys.length >= MAX_KEYS ? (
+                <Alert className="mb-4 border-amber-500 bg-amber-50 text-amber-900">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>API key limit reached</AlertTitle>
+                  <AlertDescription>
+                    You can create up to {MAX_KEYS} API keys. Delete an existing key to create a new one.
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <p className="text-xs text-muted-foreground mb-4">
+                  You can create up to {MAX_KEYS} keys. Remaining: {MAX_KEYS - apiKeys.length}.
+                </p>
+              )}
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button 
                     onClick={handleCreateApiKey}
-                    disabled={!apiKeyName.trim() || isCreating}
+                    disabled={!apiKeyName.trim() || isCreating || apiKeys.length >= MAX_KEYS}
                   >
                     {isCreating ? (
                       <>
@@ -246,42 +285,83 @@ const Settings = () => {
                 </div>
               ) : apiKeys.length > 0 ? (
                 <div className="space-y-4">
-                  {apiKeys.map((key) => (
-                    <div 
-                      key={key.hash} 
-                      className="flex items-center justify-between p-3 border rounded bg-muted/30"
-                    >
-                      <div>
-                        <p className="font-medium">{key.name}</p>
-                        <div className="flex items-center">
-                          <span className="text-xs text-muted-foreground mr-2">
-                            Hash:
-                          </span>
-                          <code className="text-xs bg-muted p-1 rounded">
-                            {key.hash.substring(0, 12)}...{key.hash.substring(key.hash.length - 4)}
-                          </code>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Created: {new Date(key.created_at).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <Button 
-                        variant="destructive" 
-                        size="sm"
-                        onClick={() => handleDeleteApiKey(key.hash, key.name)}
-                        disabled={isDeleting === key.hash}
+                  {apiKeys.map((key) => {
+                    const displayHash = key.hash ?? ""
+                    const shortHash = displayHash
+                      ? `${displayHash.substring(0, 12)}...${displayHash.substring(Math.max(0, displayHash.length - 4))}`
+                      : "N/A"
+                    const reactKey = `${key.hash ?? ''}:${key.name}:${key.created_at ?? ''}`
+                    const created = key.created_at ? new Date(key.created_at).toLocaleDateString() : "—"
+                    const isDeletingThis = isDeleting === displayHash
+                    return (
+                      <div 
+                        key={reactKey}
+                        className="flex items-center justify-between p-3 border rounded bg-muted/30"
                       >
-                        {isDeleting === key.hash ? (
-                          <>
-                            <span className="animate-spin mr-2">⏳</span>
-                            Deleting...
-                          </>
-                        ) : (
-                          'Delete'
-                        )}
-                      </Button>
-                    </div>
-                  ))}
+                        <div>
+                          <p className="font-medium">{key.name}</p>
+                          <div className="flex items-center flex-wrap gap-2 mt-1">
+                            <span className="text-xs text-muted-foreground">Hash:</span>
+                            <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
+                              {shortHash}
+                            </code>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => handleCopyHash(displayHash)}
+                              disabled={!displayHash}
+                            >
+                              {copiedHash === displayHash ? (
+                                <>
+                                  <Check className="h-3 w-3 mr-1" /> Copied
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="h-3 w-3 mr-1" /> Copy hash
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Created: {created}
+                          </p>
+                        </div>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button 
+                              variant="destructive" 
+                              size="sm"
+                              disabled={isDeletingThis || !displayHash}
+                            >
+                              {isDeletingThis ? (
+                                <>
+                                  <span className="animate-spin mr-2">⏳</span>
+                                  Deleting...
+                                </>
+                              ) : (
+                                'Delete'
+                              )}
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete API key</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to delete the API key "{key.name}"? This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDeleteApiKey(displayHash, key.name)} disabled={!displayHash}>
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    )
+                  })}
                 </div>
               ) : (
                 <p className="text-muted-foreground text-center py-4">
