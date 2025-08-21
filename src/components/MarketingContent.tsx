@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import FeatureCards from "@/components/FeatureCards"
 import TestimonialCarousel from "@/components/TestimonialCarousel"
 import FAQ from "@/components/FAQ"
-import { Check, Copy, Globe } from "lucide-react"
+import { Check, Copy } from "lucide-react"
 
 const MarketingContent: React.FC = () => {
   const [copied, setCopied] = useState(false)
@@ -109,54 +109,7 @@ console.log(response.choices[0].message.content);`,
       {/* Feature Cards */}
       <FeatureCards />
 
-      {/* App Availability */}
-      <section className="py-20">
-        <div className="container mx-auto px-6 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-          >
-            <h2 className="text-4xl font-bold mb-6">Available Everywhere</h2>
-            <p className="text-xl text-slate-300 mb-12">
-              Beta launches August 2nd, 2025. Get early access now.
-            </p>
 
-            <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
-              <Card className="bg-slate-900/50 border-slate-700">
-                <CardContent className="p-6 text-center">
-                  <Globe className="w-12 h-12 mx-auto mb-4 text-blue-500" />
-                  <h3 className="text-xl font-semibold mb-2">Web Console</h3>
-                  <p className="text-slate-400 mb-4">Full-featured dashboard</p>
-                  <Badge className="bg-green-600">Live Now</Badge>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-slate-900/50 border-slate-700">
-                <CardContent className="p-6 text-center">
-                  <div className="w-12 h-12 mx-auto mb-4 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                    📱
-                  </div>
-                  <h3 className="text-xl font-semibold mb-2">iOS App</h3>
-                  <p className="text-slate-400 mb-4">Native mobile experience</p>
-                  <Button variant="outline" size="sm">Notify Me</Button>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-slate-900/50 border-slate-700">
-                <CardContent className="p-6 text-center">
-                  <div className="w-12 h-12 mx-auto mb-4 bg-gradient-to-r from-green-500 to-blue-600 rounded-lg flex items-center justify-center">
-                    🤖
-                  </div>
-                  <h3 className="text-xl font-semibold mb-2">Android App</h3>
-                  <p className="text-slate-400 mb-4">Cross-platform support</p>
-                  <Button variant="outline" size="sm">Notify Me</Button>
-                </CardContent>
-              </Card>
-            </div>
-          </motion.div>
-        </div>
-      </section>
 
       {/* Testimonials */}
       <TestimonialCarousel />

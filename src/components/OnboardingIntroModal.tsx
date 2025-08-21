@@ -8,12 +8,14 @@ import { CheckCircle2, Circle, ArrowRight } from "lucide-react"
 
 interface OnboardingIntroModalProps {
   onStart: () => void
+  forceOpen?: boolean
 }
 
-const OnboardingIntroModal: React.FC<OnboardingIntroModalProps> = ({ onStart }) => {
+const OnboardingIntroModal: React.FC<OnboardingIntroModalProps> = ({ onStart, forceOpen }) => {
   const navigate = useNavigate()
-  const { isAuthenticated, verifyData, apiKey, apiKeyHash } = useApi()
+  const { isAuthenticated, token, verifyData, verifyToken, apiKey, apiKeyHash } = useApi()
   const [open, setOpen] = useState(false)
+  const [verifying, setVerifying] = useState(false)
 
   // Show only on first visit
   useEffect(() => {
@@ -23,6 +25,13 @@ const OnboardingIntroModal: React.FC<OnboardingIntroModalProps> = ({ onStart }) 
       localStorage.setItem("unreal_onboarding_seen", "1")
     }
   }, [])
+
+  // Allow replay via forceOpen
+  useEffect(() => {
+    if (forceOpen) {
+      setOpen(true)
+    }
+  }, [forceOpen])
 
   const hasApiKey = useMemo(() => Boolean(apiKeyHash || apiKey), [apiKey, apiKeyHash])
 
@@ -48,19 +57,39 @@ const OnboardingIntroModal: React.FC<OnboardingIntroModalProps> = ({ onStart }) 
     setOpen(false)
   }
 
+  const handleVerify = async () => {
+    try {
+      setVerifying(true)
+      await verifyToken()
+    } catch (e) {
+      // error state handled by context
+    } finally {
+      setVerifying(false)
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Welcome to Unreal Console</DialogTitle>
           <DialogDescription>
-            OpenAI-compatible API with wallet auth, keys, and live streaming. Follow these quick steps or try a sample prompt immediately.
+            OpenAI-compatible API with wallet auth, keys, and live streaming. Connect your wallet, then register to get a session token (cookie). You can call <code>/auth/verify</code> to see auth details. Finally, create an API key.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-2 mt-2">
           {statusItem("Connect wallet", isAuthenticated)}
-          {statusItem("Register business", Boolean(verifyData))}
+          {statusItem("Register (session token)", Boolean(token))}
+          {/* Optional verify helper */}
+          {token && !verifyData && (
+            <div className="flex items-center justify-between py-1">
+              <span className="text-sm text-slate-400">Optionally verify session</span>
+              <Button size="sm" variant="outline" onClick={handleVerify} disabled={verifying}>
+                {verifying ? "Verifying..." : "Verify session"}
+              </Button>
+            </div>
+          )}
           {statusItem("Generate API key", hasApiKey)}
         </div>
 

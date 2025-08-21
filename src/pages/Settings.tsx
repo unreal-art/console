@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { AlertCircle, Copy, Check } from 'lucide-react';
+import { AlertCircle, Copy, Check, HelpCircle } from 'lucide-react';
 import { useApi } from '@/lib/ApiContext';
 import Layout from '@/components/Layout';
 
@@ -41,7 +43,7 @@ const Settings = () => {
         navigate('/login');
       } else {
         // Fetch API keys when authenticated
-        listApiKeys().catch(err => {
+        listApiKeys().catch((err: unknown) => {
           console.error('Error fetching API keys:', err);
         });
       }
@@ -56,8 +58,8 @@ const Settings = () => {
       const response = await createApiKey(apiKeyName);
       setApiKeyName('');
       setShowNewApiKey(true);
-    } catch (error: Error | unknown) {
-      const errorMessage = error.message || 'Failed to create API key';
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('Error creating API key:', errorMessage);
       setOperationError(`Failed to create API key: ${errorMessage}`);
     } finally {
@@ -75,8 +77,8 @@ const Settings = () => {
         if (!success) {
           setOperationError(`Failed to delete API key "${name}"`); 
         }
-      } catch (error: any) {
-        const errorMessage = error.message || 'Unknown error';
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         console.error(`Error deleting API key ${hash}:`, errorMessage);
         setOperationError(`Failed to delete API key "${name}": ${errorMessage}`);
       } finally {
@@ -116,7 +118,27 @@ const Settings = () => {
   return (
     <Layout>
       <div className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-6">Settings</h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-3xl font-bold">Settings</h1>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2">
+                <HelpCircle className="h-4 w-4" /> Guide
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent side="bottom" align="end">
+              <div className="space-y-2 text-sm">
+                <p className="font-medium">Onboarding steps</p>
+                <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+                  <li>Connect your wallet (Use the Connect Wallet button in the header)</li>
+                  <li>Register — this issues a session token and sets a cookie</li>
+                  <li>Create an API key here, then copy it and store safely</li>
+                  <li>Head to Playground or Chat and run your first prompt</li>
+                </ol>
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
         {/* Show global API errors */}
         {error && (
           <Alert variant="destructive" className="mb-6">
@@ -171,19 +193,24 @@ const Settings = () => {
                   />
                 </div>
               </div>
-              <Button 
-                onClick={handleCreateApiKey}
-                disabled={!apiKeyName.trim() || isCreating}
-              >
-                {isCreating ? (
-                  <>
-                    <span className="animate-spin mr-2">⏳</span>
-                    Creating...
-                  </>
-                ) : (
-                  'Create API Key'
-                )}
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    onClick={handleCreateApiKey}
+                    disabled={!apiKeyName.trim() || isCreating}
+                  >
+                    {isCreating ? (
+                      <>
+                        <span className="animate-spin mr-2">⏳</span>
+                        Creating...
+                      </>
+                    ) : (
+                      'Create API Key'
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Step 3/3: Generate your API key</TooltipContent>
+              </Tooltip>
             </div>
             
             {/* API Keys List */}

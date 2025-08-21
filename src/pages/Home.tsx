@@ -1,17 +1,19 @@
 import React from "react"
 import Layout from "@/components/Layout"
 import { Button } from "@/components/ui/button"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import MarketingContent from "@/components/MarketingContent"
 import OnboardingIntroModal from "@/components/OnboardingIntroModal"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 const Home: React.FC = () => {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const forceOpen = searchParams.get("onboarding") === "1" || searchParams.get("guided") === "1"
   const handleStart = () => navigate("/settings")
   return (
     <Layout>
-      <OnboardingIntroModal onStart={handleStart} />
+      <OnboardingIntroModal onStart={handleStart} forceOpen={forceOpen} />
       <section className="py-16">
         <div className="container mx-auto px-6 text-center">
           <h1 className="text-5xl font-bold mb-4">Unreal Console</h1>

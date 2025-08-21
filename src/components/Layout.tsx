@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useApi } from '@/lib/ApiContext';
 
 interface LayoutProps {
@@ -60,6 +61,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </nav>
           </div>
           <div className="flex items-center space-x-4">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Link to="/?guided=1">
+                  <Button variant="outline" size="sm">Guided Start</Button>
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent>Replay onboarding modal</TooltipContent>
+            </Tooltip>
             {isAuthenticated ? (
               <>
                 <span className="text-sm text-muted-foreground hidden md:inline-block">
