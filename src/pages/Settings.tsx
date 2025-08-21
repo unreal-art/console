@@ -1,14 +1,35 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { AlertCircle, Copy, Check, HelpCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from "react"
+import { useNavigate } from "react-router-dom"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { AlertCircle, Copy, Check, HelpCircle } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,121 +40,123 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
-import { useApi } from '@/lib/ApiContext';
-import Layout from '@/components/Layout';
+} from "@/components/ui/alert-dialog"
+import { Badge } from "@/components/ui/badge"
+import { useApi } from "@/lib/ApiContext"
+import Layout from "@/components/Layout"
 
-const MAX_KEYS = 20;
+const MAX_KEYS = 20
 
 const Settings = () => {
-  const navigate = useNavigate();
-  const { 
-    isAuthenticated, 
-    isLoading, 
-    apiKey, 
-    apiKeyHash, 
+  const navigate = useNavigate()
+  const {
+    isAuthenticated,
+    isLoading,
+    apiKey,
+    apiKeyHash,
     apiKeys,
     isLoadingApiKeys,
-    error, 
-    createApiKey, 
+    error,
+    createApiKey,
     listApiKeys,
     deleteApiKey,
-    clearApiKey, 
+    clearApiKey,
     clearError,
     connectWallet,
-  } = useApi();
-  
-  const [apiKeyName, setApiKeyName] = useState('');
-  const [showNewApiKey, setShowNewApiKey] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
-  const [isDeleting, setIsDeleting] = useState<string | null>(null);
-  const [operationError, setOperationError] = useState<string | null>(null);
-  const [copiedHash, setCopiedHash] = useState<string | null>(null);
-  const fetchedKeysRef = useRef(false);
-  const listApiKeysRef = useRef(listApiKeys);
+  } = useApi()
+
+  const [apiKeyName, setApiKeyName] = useState("")
+  const [showNewApiKey, setShowNewApiKey] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [isCreating, setIsCreating] = useState(false)
+  const [isDeleting, setIsDeleting] = useState<string | null>(null)
+  const [operationError, setOperationError] = useState<string | null>(null)
+  const [copiedHash, setCopiedHash] = useState<string | null>(null)
+  const fetchedKeysRef = useRef(false)
+  const listApiKeysRef = useRef(listApiKeys)
 
   // Keep a stable ref to the latest listApiKeys from context
   useEffect(() => {
-    listApiKeysRef.current = listApiKeys;
-  }, [listApiKeys]);
+    listApiKeysRef.current = listApiKeys
+  }, [listApiKeys])
 
   // Fetch API keys once when authenticated; avoid infinite calls due to changing function identities
   useEffect(() => {
     if (!isLoading && isAuthenticated && !fetchedKeysRef.current) {
-      fetchedKeysRef.current = true;
+      fetchedKeysRef.current = true
       listApiKeysRef.current().catch((err: unknown) => {
-        console.error('Error fetching API keys:', err);
+        console.error("Error fetching API keys:", err)
         // Allow retry on next render if the initial load fails
-        fetchedKeysRef.current = false;
-      });
+        fetchedKeysRef.current = false
+      })
     }
-  }, [isAuthenticated, isLoading]);
+  }, [isAuthenticated, isLoading])
   // Reset the gate when user becomes unauthenticated
   useEffect(() => {
     if (!isAuthenticated) {
-      fetchedKeysRef.current = false;
+      fetchedKeysRef.current = false
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated])
 
   // Handle API key creation
   const handleCreateApiKey = async () => {
-    setIsCreating(true);
-    setOperationError(null);
+    setIsCreating(true)
+    setOperationError(null)
     try {
-      const response = await createApiKey(apiKeyName);
-      setApiKeyName('');
-      setShowNewApiKey(true);
+      const response = await createApiKey(apiKeyName)
+      setApiKeyName("")
+      setShowNewApiKey(true)
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error('Error creating API key:', errorMessage);
-      setOperationError(`Failed to create API key: ${errorMessage}`);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      console.error("Error creating API key:", errorMessage)
+      setOperationError(`Failed to create API key: ${errorMessage}`)
     } finally {
-      setIsCreating(false);
+      setIsCreating(false)
     }
-  };
+  }
 
   // Handle API key deletion (confirmation handled via AlertDialog in UI)
   const handleDeleteApiKey = async (hash: string, name: string) => {
-    setIsDeleting(hash);
-    setOperationError(null);
+    setIsDeleting(hash)
+    setOperationError(null)
     try {
-      const success = await deleteApiKey(hash);
+      const success = await deleteApiKey(hash)
       if (!success) {
-        setOperationError(`Failed to delete API key "${name}"`);
+        setOperationError(`Failed to delete API key "${name}"`)
       }
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`Error deleting API key ${hash}:`, errorMessage);
-      setOperationError(`Failed to delete API key "${name}": ${errorMessage}`);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error"
+      console.error(`Error deleting API key ${hash}:`, errorMessage)
+      setOperationError(`Failed to delete API key "${name}": ${errorMessage}`)
     } finally {
-      setIsDeleting(null);
+      setIsDeleting(null)
     }
-  };
+  }
 
   // Copy a key hash from the list
   const handleCopyHash = (hash: string) => {
-    navigator.clipboard.writeText(hash);
-    setCopiedHash(hash);
-    setTimeout(() => setCopiedHash(null), 2000);
-  };
+    navigator.clipboard.writeText(hash)
+    setCopiedHash(hash)
+    setTimeout(() => setCopiedHash(null), 2000)
+  }
 
   // Handle copy to clipboard
   const handleCopy = () => {
     if (apiKey) {
-      navigator.clipboard.writeText(apiKey);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      navigator.clipboard.writeText(apiKey)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
     }
-  };
+  }
 
   // Handle dialog close
   const handleCloseDialog = () => {
-    setShowNewApiKey(false);
-    clearApiKey();
-    setApiKeyName('');
-  };
+    setShowNewApiKey(false)
+    clearApiKey()
+    setApiKeyName("")
+  }
 
   if (isLoading) {
     return (
@@ -144,7 +167,7 @@ const Settings = () => {
           </div>
         </div>
       </Layout>
-    );
+    )
   }
 
   // Show an inline auth-required panel instead of redirecting, to prevent the page from vanishing
@@ -157,20 +180,19 @@ const Settings = () => {
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Wallet connection required</AlertTitle>
             <AlertDescription>
-              Please connect your wallet and register to obtain a session token before managing API keys.
+              Please connect your wallet and register to obtain a session token
+              before managing API keys.
             </AlertDescription>
           </Alert>
           <div className="flex gap-3">
-            <Button onClick={() => connectWallet?.()}>
-              Connect Wallet
-            </Button>
-            <Button variant="outline" onClick={() => navigate('/sign-in')}>
+            <Button onClick={() => connectWallet?.()}>Connect Wallet</Button>
+            <Button variant="outline" onClick={() => navigate("/sign-in")}>
               Go to Sign In
             </Button>
           </div>
         </div>
       </Layout>
-    );
+    )
   }
 
   return (
@@ -188,8 +210,13 @@ const Settings = () => {
               <div className="space-y-2 text-sm">
                 <p className="font-medium">Onboarding steps</p>
                 <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
-                  <li>Connect your wallet (Use the Connect Wallet button in the header)</li>
-                  <li>Register — this issues a session token and sets a cookie</li>
+                  <li>
+                    Connect your wallet (Use the Connect Wallet button in the
+                    header)
+                  </li>
+                  <li>
+                    Register — this issues a session token and sets a cookie
+                  </li>
                   <li>Create an API key here, then copy it and store safely</li>
                   <li>Head to Playground or Chat and run your first prompt</li>
                 </ol>
@@ -203,23 +230,20 @@ const Settings = () => {
             <AlertTitle>Error</AlertTitle>
             <AlertDescription>
               {error}
-              <button 
-                className="ml-2 underline text-sm"
-                onClick={clearError}
-              >
+              <button className="ml-2 underline text-sm" onClick={clearError}>
                 Dismiss
               </button>
             </AlertDescription>
           </Alert>
         )}
-        
+
         {/* Show operation-specific errors */}
         {operationError && (
           <Alert variant="destructive" className="mb-6">
             <AlertTitle>Operation Error</AlertTitle>
             <AlertDescription>
               {operationError}
-              <button 
+              <button
                 className="ml-2 underline text-sm"
                 onClick={() => setOperationError(null)}
               >
@@ -228,13 +252,15 @@ const Settings = () => {
             </AlertDescription>
           </Alert>
         )}
-        
+
         <Card className="mb-6">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>API Key Management</CardTitle>
-                <CardDescription>Create and manage your API keys</CardDescription>
+                <CardDescription>
+                  Create and manage your API keys
+                </CardDescription>
               </div>
               <Badge variant="secondary" className="text-xs">
                 {apiKeys.length}/{MAX_KEYS} used
@@ -262,19 +288,25 @@ const Settings = () => {
                   <AlertCircle className="h-4 w-4" />
                   <AlertTitle>API key limit reached</AlertTitle>
                   <AlertDescription>
-                    You can create up to {MAX_KEYS} API keys. Delete an existing key to create a new one.
+                    You can create up to {MAX_KEYS} API keys. Delete an existing
+                    key to create a new one.
                   </AlertDescription>
                 </Alert>
               ) : (
                 <p className="text-xs text-muted-foreground mb-4">
-                  You can create up to {MAX_KEYS} keys. Remaining: {MAX_KEYS - apiKeys.length}.
+                  You can create up to {MAX_KEYS} keys. Remaining:{" "}
+                  {MAX_KEYS - apiKeys.length}.
                 </p>
               )}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button 
+                  <Button
                     onClick={handleCreateApiKey}
-                    disabled={!apiKeyName.trim() || isCreating || apiKeys.length >= MAX_KEYS}
+                    disabled={
+                      !apiKeyName.trim() ||
+                      isCreating ||
+                      apiKeys.length >= MAX_KEYS
+                    }
                   >
                     {isCreating ? (
                       <>
@@ -282,18 +314,18 @@ const Settings = () => {
                         Creating...
                       </>
                     ) : (
-                      'Create API Key'
+                      "Create API Key"
                     )}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Step 3/3: Generate your API key</TooltipContent>
               </Tooltip>
             </div>
-            
+
             {/* API Keys List */}
             <div>
               <h3 className="text-lg font-medium mb-4">Your API Keys</h3>
-              
+
               {isLoadingApiKeys ? (
                 <div className="flex justify-center py-4">
                   <span className="animate-spin mr-2">⏳</span>
@@ -304,22 +336,33 @@ const Settings = () => {
                   {apiKeys.map((key) => {
                     const identifier = key.hash ?? key.name
                     const hasHash = Boolean(key.hash)
-                    const idLabel = hasHash ? 'Hash' : 'Key'
+                    const idLabel = hasHash ? "Hash" : "Key"
                     const shortId = identifier
-                      ? `${identifier.substring(0, 12)}...${identifier.substring(Math.max(0, identifier.length - 4))}`
-                      : 'N/A'
-                    const reactKey = `${key.hash ?? ''}:${key.name}:${key.created_at ?? ''}`
-                    const created = key.created_at ? new Date(key.created_at).toLocaleDateString() : '—'
+                      ? `${identifier.substring(
+                          0,
+                          12
+                        )}...${identifier.substring(
+                          Math.max(0, identifier.length - 4)
+                        )}`
+                      : "N/A"
+                    const reactKey = `${key.hash ?? ""}:${key.name}:${
+                      key.created_at ?? ""
+                    }`
+                    const created = key.created_at
+                      ? new Date(key.created_at).toLocaleDateString()
+                      : "—"
                     const isDeletingThis = isDeleting === identifier
                     return (
-                      <div 
+                      <div
                         key={reactKey}
                         className="flex items-center justify-between p-3 border rounded bg-muted/30"
                       >
                         <div>
                           <p className="font-medium">{key.name}</p>
                           <div className="flex items-center flex-wrap gap-2 mt-1">
-                            <span className="text-xs text-muted-foreground">{idLabel}:</span>
+                            <span className="text-xs text-muted-foreground">
+                              {idLabel}:
+                            </span>
                             <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
                               {shortId}
                             </code>
@@ -336,7 +379,8 @@ const Settings = () => {
                                 </>
                               ) : (
                                 <>
-                                  <Copy className="h-3 w-3 mr-1" /> {hasHash ? 'Copy hash' : 'Copy name'}
+                                  <Copy className="h-3 w-3 mr-1" />{" "}
+                                  {hasHash ? "Copy hash" : "Copy redacted key"}
                                 </>
                               )}
                             </Button>
@@ -347,8 +391,8 @@ const Settings = () => {
                         </div>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button 
-                              variant="destructive" 
+                            <Button
+                              variant="destructive"
                               size="sm"
                               disabled={isDeletingThis || !identifier}
                             >
@@ -358,20 +402,28 @@ const Settings = () => {
                                   Deleting...
                                 </>
                               ) : (
-                                'Delete'
+                                "Delete"
                               )}
                             </Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>Delete API key</AlertDialogTitle>
+                              <AlertDialogTitle>
+                                Delete API key
+                              </AlertDialogTitle>
                               <AlertDialogDescription>
-                                Are you sure you want to delete the API key "{key.name}"? This action cannot be undone.
+                                Are you sure you want to delete the API key "
+                                {key.name}"? This action cannot be undone.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                               <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDeleteApiKey(identifier, key.name)} disabled={!identifier}>
+                              <AlertDialogAction
+                                onClick={() =>
+                                  handleDeleteApiKey(identifier, key.name)
+                                }
+                                disabled={!identifier}
+                              >
                                 Delete
                               </AlertDialogAction>
                             </AlertDialogFooter>
@@ -396,8 +448,8 @@ const Settings = () => {
             <DialogHeader>
               <DialogTitle>API Key Created</DialogTitle>
               <DialogDescription>
-                Your new API key has been created. This is the only time you'll see this key.
-                Please copy it now and store it securely.
+                Your new API key has been created. This is the only time you'll
+                see this key. Please copy it now and store it securely.
               </DialogDescription>
             </DialogHeader>
             <div className="flex items-center space-x-2">
@@ -408,15 +460,11 @@ const Settings = () => {
                 <Input
                   id="apiKey"
                   readOnly
-                  value={apiKey || ''}
+                  value={apiKey || ""}
                   className="font-mono"
                 />
               </div>
-              <Button 
-                size="sm" 
-                className="px-3" 
-                onClick={handleCopy}
-              >
+              <Button size="sm" className="px-3" onClick={handleCopy}>
                 {copied ? (
                   <Check className="h-4 w-4" />
                 ) : (
@@ -438,7 +486,7 @@ const Settings = () => {
         </Dialog>
       </div>
     </Layout>
-  );
-};
+  )
+}
 
-export default Settings;
+export default Settings

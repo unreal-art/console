@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -13,6 +13,7 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { isAuthenticated, walletAddress, logout, connectWallet } = useApi();
   const [isConnecting, setIsConnecting] = useState(false);
   const [chainId, setChainId] = useState<string | null>(null);
@@ -80,6 +81,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       }
     } finally {
       setIsConnecting(false);
+      // Always take the user to sign-in to complete session/token setup
+      navigate('/sign-in');
     }
   };
 
