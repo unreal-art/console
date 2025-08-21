@@ -1,15 +1,7 @@
-import {
-  createWalletClient,
-  http,
-  custom,
-  getContract,
-  parseUnits,
-  formatUnits,
-  hashMessage,
-} from "viem"
-import { mainnet } from "viem/chains"
+import { createWalletClient, custom, createPublicClient, type EIP1193Provider, type PublicClient } from "viem"
 import { OPENAI_URL } from "@/config/unreal"
-import { publicClient } from "@/config/wallet"
+import { getOnboard } from "@/lib/onboard"
+import type { OnboardAPI, WalletState } from "@web3-onboard/core"
 
 // API base URL
 const API_BASE_URL = OPENAI_URL
@@ -86,8 +78,15 @@ export interface AirdropResponse {
   message: string
 }
 
+export interface SystemInfo {
+  paymentToken?: string
+  paymentTokens?: Record<string, string>
+  chains?: Array<{ id: string; token: string; label: string; rpcUrl: string }>
+  [key: string]: unknown
+}
+
 // API Client
-export class UnrealApiClient {
+export class ApiClient {
   private baseUrl: string
   private token: string | null = null
 
@@ -116,7 +115,12 @@ export class UnrealApiClient {
   }
 
   // Get system info
-  async getSystemInfo(): Promise<any> {
+  async getSystemInfo(): Promise<{
+    paymentToken?: string
+    paymentTokens?: Record<string, string>
+    chains?: Array<{ id: string; token: string; label: string; rpcUrl: string }>
+    [key: string]: unknown
+  }> {
     const response = await openaiClient.get("/system")
     return response.data
   }
@@ -139,13 +143,20 @@ export class UnrealApiClient {
         },
       })
       return response.data
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Handle 401 Unauthorized or other token validation errors
       if (
-        error.response &&
-        (error.response.status === 401 || error.response.status === 403)
+        typeof error === "object" &&
+        error !== null &&
+        "response" in error &&
+        typeof (error as { response?: { status?: number } }).response?.status ===
+          "number" &&
+        (((error as { response: { status: number } }).response.status === 401 ||
+          (error as { response: { status: number } }).response.status === 403))
       ) {
-        console.error("Token validation failed:", error.response.status)
+        const status = (error as { response: { status: number } }).response
+          .status
+        console.error("Token validation failed:", status)
         // Clear token from local storage and client state
         this.clearToken()
       }
@@ -183,69 +194,77 @@ export class UnrealApiClient {
 export class WalletService {
   private walletClient: ReturnType<typeof createWalletClient> | null = null
   private account: `0x${string}` | null = null
+  private provider: EIP1193Provider | null = null
+  private onboard: OnboardAPI | null = null
+  private connectedWallet: WalletState | null = null
 
   // Define window.ethereum for TypeScript
-  private get ethereum(): any {
-    return window.ethereum
+  private get ethereum(): EIP1193Provider | undefined {
+    return window.ethereum as EIP1193Provider | undefined
   }
 
   // Get all available wallet addresses
   async getAvailableAddresses(): Promise<`0x${string}`[]> {
-    if (window.ethereum) {
-      try {
-        // Request accounts
-        const addresses = (await window.ethereum.request({
-          method: "eth_requestAccounts",
-        })) as `0x${string}`[]
-
+    try {
+      const onboard = getOnboard()
+      const state = onboard?.state?.get?.()
+      const wallets: WalletState[] = (state?.wallets || []) as WalletState[]
+      if (wallets.length > 0) {
+        const addresses = wallets
+          .flatMap((w) => w.accounts || [])
+          .map((a) => a.address as `0x${string}`)
         return addresses
-      } catch (error) {
-        console.error("Error getting wallet addresses:", error)
-        throw new Error("Failed to get wallet addresses")
       }
-    } else {
-      throw new Error(
-        "No Ethereum wallet detected. Please install MetaMask or another wallet."
-      )
+      // Fallback to injected provider if available
+      if (window.ethereum?.request) {
+        const addresses = (await window.ethereum.request({
+          method: "eth_accounts",
+        })) as `0x${string}`[]
+        return addresses
+      }
+      return []
+    } catch (error) {
+      console.error("Error getting wallet addresses:", error)
+      throw new Error("Failed to get wallet addresses")
     }
   }
 
   // Connect to wallet
   async connect(selectedAddress?: string): Promise<string> {
-    if (window.ethereum) {
-      try {
-        // Create a wallet client
-        this.walletClient = createWalletClient({
-          chain: mainnet,
-          transport: custom(window.ethereum),
-        })
-
-        // Request accounts
-        const addresses = (await window.ethereum.request({
-          method: "eth_requestAccounts",
-        })) as `0x${string}`[]
-
-        // Use the selected address if provided and valid, otherwise use the first address
-        let address: `0x${string}`
-        if (
-          selectedAddress &&
-          addresses.includes(selectedAddress as `0x${string}`)
-        ) {
-          address = selectedAddress as `0x${string}`
-        } else {
-          address = addresses[0]
-        }
-
-        this.account = address
-        return address
-      } catch (error) {
-        console.error("Error connecting wallet:", error)
-        throw new Error("Failed to connect wallet")
+    try {
+      this.onboard = getOnboard()
+      const wallets = await this.onboard.connectWallet()
+      if (!wallets || wallets.length === 0) {
+        throw new Error("No wallet connected")
       }
-    } else {
-      throw new Error(
-        "No Ethereum wallet detected. Please install MetaMask or another wallet."
+
+      const primary = wallets[0]
+      this.connectedWallet = primary
+      this.provider = primary.provider
+
+      // Create a viem wallet client from the connected provider
+      this.walletClient = createWalletClient({
+        transport: custom(this.provider),
+      })
+
+      const addresses = (primary.accounts || []).map(
+        (a) => a.address as `0x${string}`
       )
+      if (addresses.length === 0) {
+        throw new Error("No accounts found in connected wallet")
+      }
+
+      // Use the selected address if provided and valid, otherwise the first address
+      let address: `0x${string}` = addresses[0]
+      if (selectedAddress && addresses.includes(selectedAddress as `0x${string}`)) {
+        address = selectedAddress as `0x${string}`
+      }
+
+      this.account = address
+      return address
+    } catch (error) {
+      console.error("Error connecting wallet:", error)
+      throw new Error("Failed to connect wallet")
     }
   }
 
@@ -256,23 +275,44 @@ export class WalletService {
    * The user must disconnect manually from their wallet extension if needed.
    */
   async disconnect(): Promise<void> {
+    try {
+      // Attempt to disconnect via web3-onboard
+      const onboard = this.onboard || getOnboard()
+      const wallets = onboard?.state?.get?.().wallets || []
+      for (const w of wallets) {
+        try {
+          await onboard.disconnect(w)
+        } catch (e) {
+          // ignore
+        }
+      }
+    } catch (e) {
+      // ignore onboard disconnect failures
+    }
+
     this.walletClient = null
     this.account = null
+    this.provider = null
+    this.connectedWallet = null
     // Optionally clear any cached wallet info in localStorage/sessionStorage
     localStorage.removeItem("unreal_wallet_address")
     localStorage.removeItem("unreal_openai_address")
-    // You may also want to clear other wallet-related state here
     return
   }
 
   // Check if wallet is connected
   async isConnected(): Promise<boolean> {
-    if (!window.ethereum) return false
-
     try {
-      const accounts = (await window.ethereum.request({
-        method: "eth_accounts",
-      })) as string[]
+      const onboard = this.onboard || getOnboard()
+      const wallets = onboard?.state?.get?.().wallets || []
+      if (wallets.length > 0) return true
+    } catch (e) {
+      // ignore state errors
+      void e
+    }
+    if (!window.ethereum) return false
+    try {
+      const accounts = (await window.ethereum.request({ method: "eth_accounts" })) as string[]
       return accounts.length > 0
     } catch (error) {
       return false
@@ -285,11 +325,18 @@ export class WalletService {
 
     try {
       if (!this.account) {
-        const accounts = (await window.ethereum.request({
-          method: "eth_accounts",
-        })) as string[]
-        if (accounts.length > 0) {
-          this.account = accounts[0] as `0x${string}`
+        const onboard = this.onboard || getOnboard()
+        const wallets = onboard?.state?.get?.().wallets || []
+        const first = wallets[0]
+        if (first && first.accounts && first.accounts[0]?.address) {
+          this.account = first.accounts[0].address as `0x${string}`
+        } else if (window.ethereum?.request) {
+          const accounts = (await window.ethereum.request({ method: "eth_accounts" })) as string[]
+          if (accounts.length > 0) {
+            this.account = accounts[0] as `0x${string}`
+          } else {
+            return null
+          }
         } else {
           return null
         }
@@ -298,6 +345,24 @@ export class WalletService {
     } catch (error) {
       return null
     }
+  }
+
+  // Expose a dynamic public client based on the connected provider
+  getPublicClient(): PublicClient {
+    if (!this.provider) {
+      throw new Error("No provider available - connect a wallet first")
+    }
+    return createPublicClient({ transport: custom(this.provider) })
+  }
+
+  async getChainId(): Promise<number> {
+    const client = this.getPublicClient()
+    return client.getChainId()
+  }
+
+  async setChain(chainIdHex: string): Promise<void> {
+    const onboard = this.onboard || getOnboard()
+    await onboard.setChain({ chainId: chainIdHex })
   }
 
   // Sign message for registration
@@ -332,10 +397,9 @@ export class WalletService {
       const ownerAddress = await this.getAddress()
       if (!ownerAddress) throw new Error("No wallet address available")
 
-      // Create a public client for read operations
-      const walletClient = createWalletClient({
-        chain: mainnet,
-        transport: custom(window.ethereum),
+      // Create a dynamic public client for read operations using the connected provider
+      const client = createPublicClient({
+        transport: custom(this.provider),
       })
 
       // Define ERC20 ABI
@@ -357,19 +421,19 @@ export class WalletService {
       ] as const
 
       // Get token name and nonce using direct calls
-      const tokenName = await publicClient.readContract({
+      const tokenName = await client.readContract({
         abi: erc20Abi,
         address: tokenAddress as `0x${string}`,
         functionName: "name",
       })
-      const nonce = await publicClient.readContract({
+      const nonce = await client.readContract({
         abi: erc20Abi,
         address: tokenAddress as `0x${string}`,
         functionName: "nonces",
         args: [ownerAddress],
       })
 
-      const chainId = await publicClient.getChainId()
+      const chainId = await client.getChainId()
 
       // Create the domain separator for EIP-712
       const domain = {
@@ -426,12 +490,12 @@ export class WalletService {
 }
 
 // Create and export instances
-export const apiClient = new UnrealApiClient()
+export const apiClient = new ApiClient()
 export const walletService = new WalletService()
 
 // Add TypeScript interface for window.ethereum
 declare global {
   interface Window {
-    ethereum?: any
+    ethereum?: EIP1193Provider
   }
 }

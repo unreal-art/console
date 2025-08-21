@@ -1,8 +1,11 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useApi } from '@/lib/ApiContext';
+import { getConfiguredChains, switchChain } from '@/lib/onboard';
+import { walletService } from '@/lib/api';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -10,7 +13,55 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
-  const { isAuthenticated, walletAddress, logout } = useApi();
+  const { isAuthenticated, walletAddress, logout, connectWallet } = useApi();
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [chainId, setChainId] = useState<string | null>(null);
+  const [chains, setChains] = useState(getConfiguredChains());
+
+  useEffect(() => {
+    // Sync current chain when wallet connects
+    const sync = async () => {
+      try {
+        if (walletAddress) {
+          const id = await walletService.getChainId();
+          const hex = `0x${id.toString(16)}`.toLowerCase();
+          setChainId(hex);
+        } else {
+          setChainId(null);
+        }
+        // refresh chains in case backend-configured chains were initialized
+        setChains(getConfiguredChains());
+      } catch (e) {
+        // ignore
+      }
+    };
+    void sync();
+  }, [walletAddress]);
+
+  const handleChainChange = async (value: string) => {
+    try {
+      await switchChain(value);
+      setChainId(value.toLowerCase());
+    } catch (e) {
+      console.warn('Failed to switch chain', e);
+    }
+  };
+
+  const handleConnect = async () => {
+    setIsConnecting(true);
+    try {
+      await connectWallet();
+      try {
+        const id = await walletService.getChainId();
+        const hex = `0x${id.toString(16)}`.toLowerCase();
+        setChainId(hex);
+      } catch (e) {
+        console.debug('Failed to get chainId after connect', e);
+      }
+    } finally {
+      setIsConnecting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -69,6 +120,24 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               </TooltipTrigger>
               <TooltipContent>Replay onboarding modal</TooltipContent>
             </Tooltip>
+            {chains.length > 0 && (
+              <Select
+                value={(chainId ?? chains[0]?.id) as string}
+                onValueChange={handleChainChange}
+                disabled={!walletAddress}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Select Chain" />
+                </SelectTrigger>
+                <SelectContent>
+                  {chains.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             {isAuthenticated ? (
               <>
                 <span className="text-sm text-muted-foreground hidden md:inline-block">
@@ -79,9 +148,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 </Button>
               </>
             ) : (
-              <Link to="/login">
-                <Button size="sm">Connect Wallet</Button>
-              </Link>
+              <Button size="sm" onClick={handleConnect} disabled={isConnecting}>
+                {isConnecting ? 'Connecting...' : 'Connect Wallet'}
+              </Button>
             )}
           </div>
         </div>

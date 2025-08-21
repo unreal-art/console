@@ -14,7 +14,8 @@ import {
   ApiKey,
   ApiKeyListResponse,
 } from "./api"
-import { getUnrealBalance } from "@/utils/web3/unreal"
+import { getErc20Balance } from "@/utils/web3/unreal"
+import { initOnboard, type OnboardChain } from "@/lib/onboard"
 import { formatEther, parseEther, type Address } from "viem"
 
 interface ApiContextType {
@@ -78,6 +79,24 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
 
   // Initialize state from localStorage and handle auto-registration
   useEffect(() => {
+    // Initialize web3-onboard chains from backend system info if available
+    ;(async () => {
+      try {
+        const si = await apiClient.getSystemInfo()
+        const chainsRaw = si?.chains
+        if (Array.isArray(chainsRaw) && chainsRaw.length > 0) {
+          const chains: OnboardChain[] = chainsRaw.map((c) => {
+            const idHex = c.id.startsWith("0x")
+              ? c.id.toLowerCase()
+              : `0x${parseInt(c.id, 10).toString(16)}`
+            return { id: idHex, token: c.token, label: c.label, rpcUrl: c.rpcUrl }
+          })
+          initOnboard(chains)
+        }
+      } catch (e) {
+        console.warn("Failed to init chains from system info", e)
+      }
+    })()
     const storedToken = localStorage.getItem("unreal_token")
     const storedWalletAddress = localStorage.getItem("unreal_wallet_address")
     const storedOpenaiAddress = localStorage.getItem("unreal_openai_address")
@@ -118,14 +137,31 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
                 )
 
                 try {
-                  // Get system info to get the token address
+                  // Get system info and chain-aware token address
                   const systemInfo = await apiClient.getSystemInfo()
-                  const paymentToken = systemInfo?.paymentToken as Address
+                  const chainId = await walletService.getChainId()
+                  const chainIdHex = `0x${chainId.toString(16)}`.toLowerCase()
+
+                  let paymentToken = (systemInfo?.paymentToken || "") as Address
+                  if (Array.isArray(systemInfo?.chains)) {
+                    const match = (systemInfo!.chains as Array<{
+                      id: string
+                      token: string
+                      label: string
+                      rpcUrl: string
+                    }>).find((c) => c.id.toLowerCase() === chainIdHex)
+                    if (match?.token) paymentToken = match.token as Address
+                  } else if (systemInfo?.paymentTokens) {
+                    const byDec = systemInfo.paymentTokens[String(chainId)]
+                    const byHex = systemInfo.paymentTokens[chainIdHex]
+                    const byHexNo0x = systemInfo.paymentTokens[chainId
+                      .toString(16)
+                      .toLowerCase()]
+                    paymentToken = (byDec || byHex || byHexNo0x || paymentToken) as Address
+                  }
 
                   if (!paymentToken) {
-                    console.error(
-                      "Payment token not available from system info"
-                    )
+                    console.error("Payment token not available from system info")
                     // Fallback to zero calls if token address not available
                     await autoRegisterWithWallet(
                       address,
@@ -135,14 +171,15 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
                     return
                   }
 
-                  // Get actual token balance
+                  // Get actual token balance via dynamic public client
                   let calls = 0
                   try {
-                    // Convert address to correct type for viem
-                    const walletAddress = address as `0x${string}`
-                    const balance = await getUnrealBalance(
+                    const walletAddr = address as `0x${string}`
+                    const client = walletService.getPublicClient()
+                    const balance = await getErc20Balance(
+                      client,
                       paymentToken,
-                      walletAddress
+                      walletAddr
                     )
                     const balanceInEther = formatEther(balance)
                     calls = parseInt(balanceInEther)
@@ -154,7 +191,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
                     // Continue with zero calls if balance check fails
                   }
 
-                  // Store the calls value in localStorage
+                  // Store values in localStorage
                   localStorage.setItem("unreal_calls_value", calls.toString())
                   localStorage.setItem("unreal_payment_token", paymentToken)
 
@@ -179,7 +216,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
             }
           }
         }
-      } catch (error) {
+      } catch (error: unknown) {
         console.error("Error checking wallet connection:", error)
       } finally {
         setIsLoading(false)
@@ -200,8 +237,31 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     calls: number
   ): Promise<string | null> => {
     try {
-      // Constants
-      const PAYMENT_TOKEN = "0xA409B5E5D34928a0F1165c7a73c8aC572D1aBCDB"
+      // Resolve payment token per current chain from system info
+      const systemInfo = await apiClient.getSystemInfo()
+      const chainId = await walletService.getChainId()
+      const chainIdHex = `0x${chainId.toString(16)}`.toLowerCase()
+      let PAYMENT_TOKEN = (systemInfo?.paymentToken || "") as Address
+      if (Array.isArray(systemInfo?.chains)) {
+        const match = (systemInfo!.chains as Array<{
+          id: string
+          token: string
+          label: string
+          rpcUrl: string
+        }>).find((c) => c.id.toLowerCase() === chainIdHex)
+        if (match?.token) PAYMENT_TOKEN = match.token as Address
+      } else if (systemInfo?.paymentTokens) {
+        const byDec = systemInfo.paymentTokens[String(chainId)]
+        const byHex = systemInfo.paymentTokens[chainIdHex]
+        const byHexNo0x = systemInfo.paymentTokens[chainId
+          .toString(16)
+          .toLowerCase()]
+        PAYMENT_TOKEN = (byDec || byHex || byHexNo0x || PAYMENT_TOKEN) as Address
+      }
+
+      if (!PAYMENT_TOKEN) {
+        console.error("Payment token not found; cannot register with calls")
+      }
       const EXPIRY_SECONDS = 3600 // 1 hour
 
       // Prepare payload with current timestamps
@@ -222,7 +282,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
       // Generate permit if calls > 0
       let permit
       let permitSignature
-      if (calls > 0) {
+      if (calls > 0 && PAYMENT_TOKEN) {
         const deadline = Math.floor(Date.now() / 1000) + 3600 // 1h
         try {
           const permitResult = await walletService.createPermitSignature(
@@ -254,7 +314,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
       setIsAuthenticated(true)
 
       return registerResponse.token
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Auto-registration failed:", error)
       return null
     }
@@ -269,9 +329,11 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
       const addresses = await walletService.getAvailableAddresses()
       setAvailableAddresses(addresses)
       return addresses
-    } catch (error: any) {
-      setError(error.message || "Failed to get wallet addresses")
-      throw error
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : "Failed to get wallet addresses"
+      setError(message)
+      throw error as Error
     } finally {
       setIsLoading(false)
     }
@@ -304,9 +366,10 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
       localStorage.setItem("unreal_openai_address", authAddressResponse.address)
 
       return finalAddress
-    } catch (error: any) {
-      setError(error.message || "Failed to connect wallet")
-      throw error
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to connect wallet"
+      setError(message)
+      throw error as Error
     } finally {
       setIsLoading(false)
     }
@@ -324,8 +387,27 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     }
 
     try {
-      // Constants
-      const PAYMENT_TOKEN = "0xA409B5E5D34928a0F1165c7a73c8aC572D1aBCDB"
+      // Resolve payment token per current chain
+      const systemInfo = await apiClient.getSystemInfo()
+      const chainId = await walletService.getChainId()
+      const chainIdHex = `0x${chainId.toString(16)}`.toLowerCase()
+      let PAYMENT_TOKEN = (systemInfo?.paymentToken || "") as Address
+      if (Array.isArray(systemInfo?.chains)) {
+        const match = (systemInfo!.chains as Array<{
+          id: string
+          token: string
+          label: string
+          rpcUrl: string
+        }>).find((c) => c.id.toLowerCase() === chainIdHex)
+        if (match?.token) PAYMENT_TOKEN = match.token as Address
+      } else if (systemInfo?.paymentTokens) {
+        const byDec = systemInfo.paymentTokens[String(chainId)]
+        const byHex = systemInfo.paymentTokens[chainIdHex]
+        const byHexNo0x = systemInfo.paymentTokens[chainId
+          .toString(16)
+          .toLowerCase()]
+        PAYMENT_TOKEN = (byDec || byHex || byHexNo0x || PAYMENT_TOKEN) as Address
+      }
       const EXPIRY_SECONDS = 3600 // 1 hour
 
       // Store the calls value in localStorage
@@ -349,7 +431,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
       // Generate permit if calls > 0
       let permit
       let permitSignature
-      if (calls > 0) {
+      if (calls > 0 && PAYMENT_TOKEN) {
         const deadline = Math.floor(Date.now() / 1000) + 3600
         try {
           const permitResult = await walletService.createPermitSignature(
@@ -380,9 +462,10 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
       setIsAuthenticated(true)
 
       return registerResponse.token
-    } catch (error: any) {
-      setError(error.message || "Failed to register")
-      throw error
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to register"
+      setError(message)
+      throw error as Error
     } finally {
       setIsLoading(false)
     }
@@ -403,9 +486,14 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
       const response = await apiClient.verifyToken(token)
       setVerifyData(response)
       return response
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Check if the error is a 404 (token expired or invalid)
-      if (error.response && error.response.status === 404) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "response" in error &&
+        (error as { response?: { status?: number } }).response?.status === 404
+      ) {
         console.log("Token expired or invalid, clearing authentication state")
         // Clear token and reset authentication state
         setIsAuthenticated(false)
@@ -415,9 +503,11 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
         localStorage.removeItem("unreal_token")
         setError("Token expired. Please reconnect your wallet.")
       } else {
-        setError(error.message || "Failed to verify token")
+        const message =
+          error instanceof Error ? error.message : "Failed to verify token"
+        setError(message)
       }
-      throw error
+      throw error as Error
     } finally {
       setIsLoading(false)
     }
@@ -443,9 +533,10 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
       await listApiKeys()
 
       return response
-    } catch (error: any) {
-      setError(error.message || "Failed to create API key")
-      throw error
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to create API key"
+      setError(message)
+      throw error as Error
     } finally {
       setIsLoading(false)
     }
@@ -459,8 +550,9 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
       const response = await apiClient.listApiKeys()
       setApiKeys(response.keys)
       return response.keys
-    } catch (error: any) {
-      setError(error.message || "Failed to list API keys")
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to list API keys"
+      setError(message)
       return []
     } finally {
       setIsLoadingApiKeys(false)
@@ -484,8 +576,10 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
       }
 
       return true
-    } catch (error: any) {
-      setError(error.message || `Failed to delete API key ${hash}`)
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : `Failed to delete API key ${hash}`
+      setError(message)
       return false
     } finally {
       setIsLoadingApiKeys(false)
