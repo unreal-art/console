@@ -294,25 +294,7 @@ console.log(response.choices[0].message.content);`,
         </div>
       </motion.section>
 
-      {/* Chat Completion Demo CTA (opens dedicated page) */}
-      <section className="py-16 px-4 md:px-8 max-w-6xl mx-auto">
-        <div className="text-center mb-6">
-          <h2 className="text-3xl font-bold mb-2">Chat Completion Demo</h2>
-          <p className="text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-            Open the interactive chat demo on a dedicated page.
-          </p>
-        </div>
-        <div className="flex justify-center">
-          <Button
-            size="lg"
-            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-            onClick={() => navigate("/chat")}
-          >
-            Open Chat Demo
-          </Button>
-        </div>
-      </section>
-
+      
       {/* Streaming Playground CTA (opens dedicated page) */}
       <section className="py-8 px-4 md:px-8 max-w-6xl mx-auto">
         <div className="text-center mb-6">

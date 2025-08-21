@@ -106,18 +106,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 Dashboard
               </Link>
               <Link 
-                to="/chat" 
-                className={`${location.pathname === '/chat' ? 'text-primary font-medium' : 'text-muted-foreground hover:text-primary'}`}
-              >
-                Chat
-              </Link>
-              <Link 
-                to="/marketing" 
-                className={`${location.pathname === '/marketing' ? 'text-primary font-medium' : 'text-muted-foreground hover:text-primary'}`}
-              >
-                Marketing
-              </Link>
-              <Link 
                 to="/playground" 
                 className={`${location.pathname === '/playground' ? 'text-primary font-medium' : 'text-muted-foreground hover:text-primary'}`}
               >

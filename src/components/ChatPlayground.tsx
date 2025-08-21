@@ -1,0 +1,309 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { createOpenAI } from "@ai-sdk/openai";
+import { streamText } from "ai";
+
+import { useApi } from "@/lib/ApiContext";
+import { OPENAI_URL } from "@/config/unreal";
+import { DEFAULT_MODEL, SUPPORTED_MODELS, isSupportedModel } from "@/config/models";
+import type { UnrealModelId } from "@/config/models";
+
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+
+import { AlertCircle, Loader2, Send, Trash2 } from "lucide-react";
+
+interface Message {
+  role: "user" | "assistant" | "system";
+  content: string;
+}
+
+interface ChatPlaygroundProps {
+  initialPrompt?: string;
+  autorun?: boolean;
+}
+
+const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ initialPrompt, autorun }) => {
+  const { isAuthenticated, apiKey } = useApi();
+  const navigate = useNavigate();
+
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [isStreaming, setIsStreaming] = useState(false);
+
+  const [model, setModel] = useState<UnrealModelId>(DEFAULT_MODEL);
+  const [availableModels, setAvailableModels] = useState<UnrealModelId[]>([...SUPPORTED_MODELS]);
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom when messages update
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [messages]);
+
+  // Dynamically fetch models from API and filter to allowlist
+  useEffect(() => {
+    const fetchModels = async () => {
+      if (!apiKey) return;
+      setIsLoadingModels(true);
+      try {
+        const response = await fetch(`${OPENAI_URL}/models`, {
+          method: "GET",
+          headers: { Authorization: `Bearer ${apiKey}` },
+        });
+        if (!response.ok) return; // fallback silently
+        const data: unknown = await response.json();
+
+        // Extract ids from multiple possible shapes
+        type ApiModelLike = { id?: unknown; model?: unknown; name?: unknown } | string | null | undefined;
+        const extractModelId = (m: ApiModelLike): string | undefined => {
+          if (typeof m === "string") return m;
+          if (m && typeof m === "object") {
+            const obj = m as { id?: unknown; model?: unknown; name?: unknown };
+            const candidate = [obj.id, obj.model, obj.name].find((v): v is string => typeof v === "string");
+            return candidate;
+          }
+          return undefined;
+        };
+
+        let ids: string[] = [];
+        if (data && typeof data === "object" && Array.isArray((data as Record<string, unknown>).data)) {
+          ids = ((data as Record<string, unknown>).data as unknown[])
+            .map((m) => extractModelId(m as ApiModelLike))
+            .filter((v): v is string => Boolean(v));
+        } else if (data && typeof data === "object" && Array.isArray((data as Record<string, unknown>).models)) {
+          ids = ((data as Record<string, unknown>).models as unknown[])
+            .map((m) => extractModelId(m as ApiModelLike))
+            .filter((v): v is string => Boolean(v));
+        } else if (Array.isArray(data)) {
+          ids = (data as unknown[])
+            .map((m) => extractModelId(m as ApiModelLike))
+            .filter((v): v is string => Boolean(v));
+        }
+
+        const filtered = ids.filter(isSupportedModel) as UnrealModelId[];
+        if (filtered.length > 0) {
+          setAvailableModels(filtered);
+          setModel((prev) => (filtered.includes(prev) ? prev : filtered[0] ?? DEFAULT_MODEL));
+        }
+      } catch (err) {
+        console.warn("Failed to fetch models, using static list", err);
+      } finally {
+        setIsLoadingModels(false);
+      }
+    };
+
+    fetchModels();
+  }, [apiKey]);
+
+  const openai = useMemo(() => {
+    if (!apiKey) return null;
+    return createOpenAI({ apiKey, baseURL: OPENAI_URL });
+  }, [apiKey]);
+
+  const sendMessage = useCallback(
+    async (text?: string) => {
+      const content = (text ?? input).trim();
+      if (!content) return;
+
+      if (!isAuthenticated || !apiKey) {
+        setError("You need to connect your wallet and create an API key in Settings.");
+        return;
+      }
+
+      setError(null);
+      setIsStreaming(true);
+
+      // Add user message
+      const userMessage: Message = { role: "user", content };
+      setMessages((prev) => [...prev, userMessage, { role: "assistant", content: "" }]);
+      setInput("");
+
+      try {
+        if (!openai) throw new Error("OpenAI provider not initialized");
+
+        // Retry with simple exponential backoff for transient errors
+        const isTransient = (err: unknown) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          return /unavailable|route to host|network|fetch failed|timeout|ECONNRESET|502|503|504/i.test(msg);
+        };
+        const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
+
+        const maxAttempts = 3;
+        let attempt = 0;
+        for (; attempt < maxAttempts; attempt++) {
+          try {
+            const { textStream } = await streamText({
+              model: openai(model),
+              messages: [...messages, userMessage],
+            });
+
+            for await (const chunk of textStream) {
+              setMessages((prev) => {
+                if (prev.length === 0) return prev;
+                const next = prev.slice();
+                const last = next[next.length - 1];
+                if (last.role === "assistant") {
+                  next[next.length - 1] = { ...last, content: last.content + chunk };
+                } else {
+                  // Edge case: ensure there's an assistant message
+                  next.push({ role: "assistant", content: String(chunk) });
+                }
+                return next;
+              });
+            }
+            // Success, break out of retry loop
+            break;
+          } catch (e) {
+            if (attempt < maxAttempts - 1 && isTransient(e)) {
+              // Backoff: 500ms, 1000ms, ...
+              await sleep(500 * Math.pow(2, attempt));
+              continue;
+            }
+            throw e;
+          }
+        }
+      } catch (err) {
+        console.error("Streaming chat error:", err);
+        const msg = err instanceof Error ? err.message : "Request failed. Please try again.";
+        setError(msg);
+      } finally {
+        setIsStreaming(false);
+      }
+    },
+    [apiKey, isAuthenticated, input, messages, model, openai]
+  );
+
+  // Autorun with initialPrompt if provided
+  useEffect(() => {
+    if (autorun && initialPrompt) {
+      const t = setTimeout(() => {
+        void sendMessage(initialPrompt);
+      }, 100);
+      return () => clearTimeout(t);
+    }
+  }, [autorun, initialPrompt, sendMessage]);
+
+  const handleClear = () => {
+    setMessages([]);
+    setError(null);
+  };
+
+  const retryLast = useCallback(() => {
+    const lastUser = [...messages].reverse().find((m) => m.role === "user");
+    if (lastUser) {
+      setError(null);
+      void sendMessage(lastUser.content);
+    }
+  }, [messages, sendMessage]);
+
+  return (
+    <Card className="w-full max-w-5xl mx-auto">
+      <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <CardTitle>Chat Playground</CardTitle>
+        <div className="flex items-center gap-2">
+          <Select value={model} onValueChange={(v) => setModel(v as UnrealModelId)}>
+            <SelectTrigger className="w-[260px]" disabled={isLoadingModels || availableModels.length === 0}>
+              <SelectValue placeholder="Select a model" />
+            </SelectTrigger>
+            <SelectContent>
+              {availableModels.map((m) => (
+                <SelectItem key={m} value={m}>
+                  {m}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Badge variant="secondary" className="hidden md:inline-flex">{model}</Badge>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="sm" onClick={handleClear} disabled={messages.length === 0 || isStreaming}>
+                <Trash2 className="w-4 h-4 mr-2" />
+                Clear
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Start a new conversation</TooltipContent>
+          </Tooltip>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {error && (
+          <Alert className="mb-4 border-red-500 bg-red-500/15">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription className="flex items-center justify-between gap-3">
+              <span className="truncate">{error}</span>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" onClick={retryLast} disabled={isStreaming}>Try again</Button>
+                <Button size="sm" variant="outline" onClick={() => navigate("/settings")}>Go to Settings</Button>
+                <Button size="sm" variant="outline" onClick={() => setError(null)} disabled={isStreaming}>
+                  Dismiss
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <div ref={scrollRef} className="space-y-3 mb-4 max-h-[60vh] overflow-y-auto p-2 border rounded bg-muted/20">
+          {messages.length === 0 && (
+            <div className="text-sm text-muted-foreground text-center py-10">Send a message to get started</div>
+          )}
+          {messages.map((m, idx) => (
+            <div
+              key={idx}
+              className={`p-3 rounded-lg ${
+                m.role === "user"
+                  ? "bg-blue-100 dark:bg-blue-900/30 ml-8"
+                  : "bg-gray-100 dark:bg-gray-800 mr-8"
+              }`}
+            >
+              <p className="text-xs font-semibold mb-1">{m.role === "user" ? "You" : "Assistant"}</p>
+              <p className="whitespace-pre-wrap break-words">{m.content}</p>
+            </div>
+          ))}
+          {isStreaming && (
+            <div className="flex justify-center py-3">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Textarea
+            placeholder="Message the model..."
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            className="resize-none min-h-[100px]"
+            disabled={isStreaming || !isAuthenticated}
+          />
+          <div className="flex items-center justify-end">
+            <Button onClick={() => void sendMessage()} disabled={isStreaming || !input.trim() || !isAuthenticated}>
+              {isStreaming ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  Send
+                  <Send className="ml-2 h-4 w-4" />
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+export default ChatPlayground;

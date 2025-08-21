@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test"
 
- test.describe("Chat page", () => {
-  test("unauthenticated users are redirected away from /chat", async ({ page }) => {
+test.describe("Removed Chat route", () => {
+  test("navigating to /chat shows 404 Not Found", async ({ page }) => {
     await page.context().clearCookies()
     await page.addInitScript(() => {
       localStorage.removeItem("unreal_token")
@@ -9,10 +9,9 @@ import { test, expect } from "@playwright/test"
 
     await page.goto("/chat")
 
-    // The Chat page redirects to /login, which immediately redirects to /sign-in.
-    await expect(page).toHaveURL(/\/sign-in$/)
-
-    // Basic sanity: should not be on /chat anymore
-    await expect(page).not.toHaveURL(/\/chat$/)
+    // Should remain on /chat but render the NotFound page
+    await expect(page).toHaveURL(/\/chat$/)
+    await expect(page.getByText("Page not found")).toBeVisible()
+    await expect(page.getByRole("link", { name: "Return to Home" })).toBeVisible()
   })
 })

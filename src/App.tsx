@@ -8,13 +8,11 @@ import { ApiProvider } from "./lib/ApiContext";
 // Import pages
 import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
-import Chat from "./pages/Chat";
 import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import SignIn from "./pages/SignIn";
 import NotFound from "./pages/NotFound";
 import Playground from "./pages/Playground";
-import Marketing from "./pages/Marketing";
 
 const queryClient = new QueryClient();
 
@@ -28,9 +26,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/chat" element={<Chat />} />
             <Route path="/playground" element={<Playground />} />
-            <Route path="/marketing" element={<Marketing />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/login" element={<Login />} />
             <Route path="/sign-in" element={<SignIn />} />

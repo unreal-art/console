@@ -1,6 +1,6 @@
 import React from "react"
 import Layout from "@/components/Layout"
-import OpenAIStreamingPlayground from "@/components/OpenAIStreamingPlayground"
+import ChatPlayground from "@/components/ChatPlayground"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { ArrowLeft } from "lucide-react"
 
@@ -20,8 +20,8 @@ const Playground: React.FC = () => {
             <ArrowLeft className="h-4 w-4" /> Back
           </button>
         </div>
-        <h1 className="text-3xl font-bold mb-6">Streaming Playground</h1>
-        <OpenAIStreamingPlayground initialPrompt={initialPrompt} autorun={autorun} />
+        <h1 className="text-3xl font-bold mb-6">Chat Playground</h1>
+        <ChatPlayground initialPrompt={initialPrompt} autorun={autorun} />
       </div>
     </Layout>
   )

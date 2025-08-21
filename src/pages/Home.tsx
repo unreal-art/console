@@ -23,14 +23,6 @@ const Home: React.FC = () => {
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button onClick={() => navigate("/chat")} className="px-6">
-                  Open Chat Demo
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Chat with the model using your API key</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
                 <Button onClick={() => navigate("/playground")} variant="outline" className="px-6">
                   Open Playground
                 </Button>
