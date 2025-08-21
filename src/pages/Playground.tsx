@@ -11,8 +11,8 @@ const Playground: React.FC = () => {
   const autorun = ["1", "true", "yes"].includes((searchParams.get("autorun") || "").toLowerCase())
   return (
     <Layout>
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-4">
+      <div className="w-full px-4 py-4 md:py-6">
+        <div className="mb-3">
           <button
             onClick={() => navigate(-1)}
             className="inline-flex items-center gap-2 text-sm px-3 py-2 border rounded hover:bg-muted"
@@ -20,7 +20,6 @@ const Playground: React.FC = () => {
             <ArrowLeft className="h-4 w-4" /> Back
           </button>
         </div>
-        <h1 className="text-3xl font-bold mb-6">Chat Playground</h1>
         <ChatPlayground initialPrompt={initialPrompt} autorun={autorun} />
       </div>
     </Layout>

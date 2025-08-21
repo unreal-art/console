@@ -8,7 +8,7 @@ import { OPENAI_URL } from "@/config/unreal";
 import { DEFAULT_MODEL, SUPPORTED_MODELS, isSupportedModel } from "@/config/models";
 import type { UnrealModelId } from "@/config/models";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+ 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -221,9 +221,8 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ initialPrompt, autorun 
   }, [messages, sendMessage]);
 
   return (
-    <Card className="w-full max-w-5xl mx-auto">
-      <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <CardTitle>Chat Playground</CardTitle>
+    <div className="w-full">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3">
         <div className="flex items-center gap-2">
           <Select value={model} onValueChange={(v) => setModel(v as UnrealModelId)}>
             <SelectTrigger className="w-[260px]" disabled={isLoadingModels || availableModels.length === 0}>
@@ -238,84 +237,83 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ initialPrompt, autorun 
             </SelectContent>
           </Select>
           <Badge variant="secondary" className="hidden md:inline-flex">{model}</Badge>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="outline" size="sm" onClick={handleClear} disabled={messages.length === 0 || isStreaming}>
-                <Trash2 className="w-4 h-4 mr-2" />
-                Clear
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Start a new conversation</TooltipContent>
-          </Tooltip>
         </div>
-      </CardHeader>
-      <CardContent>
-        {error && (
-          <Alert className="mb-4 border-red-500 bg-red-500/15">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription className="flex items-center justify-between gap-3">
-              <span className="truncate">{error}</span>
-              <div className="flex items-center gap-2">
-                <Button size="sm" variant="outline" onClick={retryLast} disabled={isStreaming}>Try again</Button>
-                <Button size="sm" variant="outline" onClick={() => navigate("/settings")}>Go to Settings</Button>
-                <Button size="sm" variant="outline" onClick={() => setError(null)} disabled={isStreaming}>
-                  Dismiss
-                </Button>
-              </div>
-            </AlertDescription>
-          </Alert>
-        )}
-
-        <div ref={scrollRef} className="space-y-3 mb-4 max-h-[60vh] overflow-y-auto p-2 border rounded bg-muted/20">
-          {messages.length === 0 && (
-            <div className="text-sm text-muted-foreground text-center py-10">Send a message to get started</div>
-          )}
-          {messages.map((m, idx) => (
-            <div
-              key={idx}
-              className={`p-3 rounded-lg ${
-                m.role === "user"
-                  ? "bg-blue-100 dark:bg-blue-900/30 ml-8"
-                  : "bg-gray-100 dark:bg-gray-800 mr-8"
-              }`}
-            >
-              <p className="text-xs font-semibold mb-1">{m.role === "user" ? "You" : "Assistant"}</p>
-              <p className="whitespace-pre-wrap break-words">{m.content}</p>
-            </div>
-          ))}
-          {isStreaming && (
-            <div className="flex justify-center py-3">
-              <Loader2 className="h-5 w-5 animate-spin text-primary" />
-            </div>
-          )}
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <Textarea
-            placeholder="Message the model..."
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            className="resize-none min-h-[100px]"
-            disabled={isStreaming}
-          />
-          <div className="flex items-center justify-end">
-            <Button onClick={() => void sendMessage()} disabled={isStreaming || !input.trim()}>
-              {isStreaming ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Sending...
-                </>
-              ) : (
-                <>
-                  Send
-                  <Send className="ml-2 h-4 w-4" />
-                </>
-              )}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="outline" size="sm" onClick={handleClear} disabled={messages.length === 0 || isStreaming}>
+              <Trash2 className="w-4 h-4 mr-2" />
+              Clear
             </Button>
+          </TooltipTrigger>
+          <TooltipContent>Start a new conversation</TooltipContent>
+        </Tooltip>
+      </div>
+
+      {error && (
+        <Alert className="mb-4 border-red-500 bg-red-500/15">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className="flex items-center justify-between gap-3">
+            <span className="truncate">{error}</span>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={retryLast} disabled={isStreaming}>Try again</Button>
+              <Button size="sm" variant="outline" onClick={() => navigate("/settings")}>Go to Settings</Button>
+              <Button size="sm" variant="outline" onClick={() => setError(null)} disabled={isStreaming}>
+                Dismiss
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <div ref={scrollRef} className="space-y-3 mb-4 h-[60vh] md:h-[70vh] overflow-y-auto p-2">
+        {messages.length === 0 && (
+          <div className="text-sm text-muted-foreground text-center py-10">Send a message to get started</div>
+        )}
+        {messages.map((m, idx) => (
+          <div
+            key={idx}
+            className={`p-3 rounded-lg ${
+              m.role === "user"
+                ? "bg-blue-100 dark:bg-blue-900/30 ml-8"
+                : "bg-gray-100 dark:bg-gray-800 mr-8"
+            }`}
+          >
+            <p className="text-xs font-semibold mb-1">{m.role === "user" ? "You" : "Assistant"}</p>
+            <p className="whitespace-pre-wrap break-words">{m.content}</p>
           </div>
+        ))}
+        {isStreaming && (
+          <div className="flex justify-center py-3">
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <Textarea
+          placeholder="Message the model..."
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          className="resize-none min-h-[100px]"
+          disabled={isStreaming}
+        />
+        <div className="flex items-center justify-end">
+          <Button onClick={() => void sendMessage()} disabled={isStreaming || !input.trim()}>
+            {isStreaming ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Sending...
+              </>
+            ) : (
+              <>
+                Send
+                <Send className="ml-2 h-4 w-4" />
+              </>
+            )}
+          </Button>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 };
 
