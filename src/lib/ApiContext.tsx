@@ -548,8 +548,31 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     setError(null)
     try {
       const response = await apiClient.listApiKeys()
-      setApiKeys(response.keys)
-      return response.keys
+      const rawKeys = (response as { keys: Array<ApiKey | string> | unknown }).keys as Array<ApiKey | string> | undefined
+      const normalized: ApiKey[] = Array.isArray(rawKeys)
+        ? rawKeys
+            .map((k: ApiKey | string): ApiKey => {
+              if (typeof k === "string") {
+                // Backend returns only a list of key names
+                return { name: k }
+              }
+              if (typeof k === "object" && k !== null) {
+                const name = typeof (k as { name?: unknown }).name === "string" ? ((k as { name?: unknown }).name as string) : ""
+                const hash = typeof (k as { hash?: unknown }).hash === "string" ? ((k as { hash?: unknown }).hash as string) : undefined
+                const created_at =
+                  typeof (k as { created_at?: unknown }).created_at === "string"
+                    ? (((k as { created_at?: unknown }).created_at as string))
+                    : typeof (k as { createdAt?: unknown }).createdAt === "string"
+                    ? (((k as { createdAt?: unknown }).createdAt as string))
+                    : undefined
+                return { name, hash, created_at }
+              }
+              return { name: "" }
+            })
+            .filter((k) => k.name && k.name.length > 0)
+        : []
+      setApiKeys(normalized)
+      return normalized
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Failed to list API keys"
       setError(message)

@@ -302,13 +302,15 @@ const Settings = () => {
               ) : apiKeys.length > 0 ? (
                 <div className="space-y-4">
                   {apiKeys.map((key) => {
-                    const displayHash = key.hash ?? ""
-                    const shortHash = displayHash
-                      ? `${displayHash.substring(0, 12)}...${displayHash.substring(Math.max(0, displayHash.length - 4))}`
-                      : "N/A"
+                    const identifier = key.hash ?? key.name
+                    const hasHash = Boolean(key.hash)
+                    const idLabel = hasHash ? 'Hash' : 'Key'
+                    const shortId = identifier
+                      ? `${identifier.substring(0, 12)}...${identifier.substring(Math.max(0, identifier.length - 4))}`
+                      : 'N/A'
                     const reactKey = `${key.hash ?? ''}:${key.name}:${key.created_at ?? ''}`
-                    const created = key.created_at ? new Date(key.created_at).toLocaleDateString() : "—"
-                    const isDeletingThis = isDeleting === displayHash
+                    const created = key.created_at ? new Date(key.created_at).toLocaleDateString() : '—'
+                    const isDeletingThis = isDeleting === identifier
                     return (
                       <div 
                         key={reactKey}
@@ -317,24 +319,24 @@ const Settings = () => {
                         <div>
                           <p className="font-medium">{key.name}</p>
                           <div className="flex items-center flex-wrap gap-2 mt-1">
-                            <span className="text-xs text-muted-foreground">Hash:</span>
+                            <span className="text-xs text-muted-foreground">{idLabel}:</span>
                             <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
-                              {shortHash}
+                              {shortId}
                             </code>
                             <Button
                               variant="outline"
                               size="sm"
                               className="h-7 px-2 text-xs"
-                              onClick={() => handleCopyHash(displayHash)}
-                              disabled={!displayHash}
+                              onClick={() => handleCopyHash(identifier)}
+                              disabled={!identifier}
                             >
-                              {copiedHash === displayHash ? (
+                              {copiedHash === identifier ? (
                                 <>
                                   <Check className="h-3 w-3 mr-1" /> Copied
                                 </>
                               ) : (
                                 <>
-                                  <Copy className="h-3 w-3 mr-1" /> Copy hash
+                                  <Copy className="h-3 w-3 mr-1" /> {hasHash ? 'Copy hash' : 'Copy name'}
                                 </>
                               )}
                             </Button>
@@ -348,7 +350,7 @@ const Settings = () => {
                             <Button 
                               variant="destructive" 
                               size="sm"
-                              disabled={isDeletingThis || !displayHash}
+                              disabled={isDeletingThis || !identifier}
                             >
                               {isDeletingThis ? (
                                 <>
@@ -369,7 +371,7 @@ const Settings = () => {
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                               <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDeleteApiKey(displayHash, key.name)} disabled={!displayHash}>
+                              <AlertDialogAction onClick={() => handleDeleteApiKey(identifier, key.name)} disabled={!identifier}>
                                 Delete
                               </AlertDialogAction>
                             </AlertDialogFooter>

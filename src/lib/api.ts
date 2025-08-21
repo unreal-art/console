@@ -62,9 +62,9 @@ export interface ApiKeyResponse {
 }
 
 export interface ApiKey {
-  hash: string
+  hash?: string
   name: string
-  created_at: string
+  created_at?: string
 }
 
 export interface ApiKeyListResponse {
