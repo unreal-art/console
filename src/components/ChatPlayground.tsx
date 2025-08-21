@@ -1,231 +1,290 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { createOpenAI } from "@ai-sdk/openai";
-import { streamText } from "ai";
+import React, { useCallback, useEffect, useRef, useState } from "react"
+import { useNavigate } from "react-router-dom"
 
-import { useApi } from "@/lib/ApiContext";
-import { OPENAI_URL } from "@/config/unreal";
-import { DEFAULT_MODEL, SUPPORTED_MODELS, isSupportedModel } from "@/config/models";
-import type { UnrealModelId } from "@/config/models";
+import { useApi } from "@/lib/ApiContext"
+import { OPENAI_URL } from "@/config/unreal"
+import {
+  DEFAULT_MODEL,
+  SUPPORTED_MODELS,
+  isSupportedModel,
+} from "@/config/models"
+import type { UnrealModelId } from "@/config/models"
 
- 
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
-import { AlertCircle, Loader2, Send, Trash2 } from "lucide-react";
+import { AlertCircle, Loader2, Send, Trash2 } from "lucide-react"
+import OpenAI from "openai"
 
 interface Message {
-  role: "user" | "assistant" | "system";
-  content: string;
+  role: "user" | "assistant" | "system"
+  content: string
 }
 
 interface ChatPlaygroundProps {
-  initialPrompt?: string;
-  autorun?: boolean;
+  initialPrompt?: string
+  autorun?: boolean
 }
 
-const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ initialPrompt, autorun }) => {
-  const { isAuthenticated, apiKey, token } = useApi();
-  const navigate = useNavigate();
+const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
+  initialPrompt,
+  autorun,
+}) => {
+  const { isAuthenticated, apiKey, token } = useApi()
+  const navigate = useNavigate()
 
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [isStreaming, setIsStreaming] = useState(false);
+  const [messages, setMessages] = useState<Message[]>([])
+  const [input, setInput] = useState("")
+  const [error, setError] = useState<string | null>(null)
+  const [isStreaming, setIsStreaming] = useState(false)
 
-  const [model, setModel] = useState<UnrealModelId>(DEFAULT_MODEL);
-  const [availableModels, setAvailableModels] = useState<UnrealModelId[]>([...SUPPORTED_MODELS]);
-  const [isLoadingModels, setIsLoadingModels] = useState(false);
+  const [model, setModel] = useState<UnrealModelId>(DEFAULT_MODEL)
+  const [availableModels, setAvailableModels] = useState<UnrealModelId[]>([
+    ...SUPPORTED_MODELS,
+  ])
+  const [isLoadingModels, setIsLoadingModels] = useState(false)
 
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   // Auto-scroll to bottom when messages update
   useEffect(() => {
-    const el = scrollRef.current;
+    const el = scrollRef.current
     if (el) {
-      el.scrollTop = el.scrollHeight;
+      el.scrollTop = el.scrollHeight
     }
-  }, [messages]);
+  }, [messages])
 
   // Dynamically fetch models from API and filter to allowlist
   useEffect(() => {
     const fetchModels = async () => {
-      setIsLoadingModels(true);
+      setIsLoadingModels(true)
       try {
-        const auth = apiKey || token || "";
+        const auth = apiKey || token || ""
         const headers: Record<string, string> = auth
           ? { Authorization: `Bearer ${auth}` }
-          : {};
+          : {}
         const response = await fetch(`${OPENAI_URL}/models`, {
           method: "GET",
           headers,
-        });
-        if (!response.ok) return; // fallback silently
-        const data: unknown = await response.json();
+        })
+        if (!response.ok) return // fallback silently
+        const data: unknown = await response.json()
 
         // Extract ids from multiple possible shapes
-        type ApiModelLike = { id?: unknown; model?: unknown; name?: unknown } | string | null | undefined;
+        type ApiModelLike =
+          | { id?: unknown; model?: unknown; name?: unknown }
+          | string
+          | null
+          | undefined
         const extractModelId = (m: ApiModelLike): string | undefined => {
-          if (typeof m === "string") return m;
+          if (typeof m === "string") return m
           if (m && typeof m === "object") {
-            const obj = m as { id?: unknown; model?: unknown; name?: unknown };
-            const candidate = [obj.id, obj.model, obj.name].find((v): v is string => typeof v === "string");
-            return candidate;
+            const obj = m as { id?: unknown; model?: unknown; name?: unknown }
+            const candidate = [obj.id, obj.model, obj.name].find(
+              (v): v is string => typeof v === "string"
+            )
+            return candidate
           }
-          return undefined;
-        };
+          return undefined
+        }
 
-        let ids: string[] = [];
-        if (data && typeof data === "object" && Array.isArray((data as Record<string, unknown>).data)) {
+        let ids: string[] = []
+        if (
+          data &&
+          typeof data === "object" &&
+          Array.isArray((data as Record<string, unknown>).data)
+        ) {
           ids = ((data as Record<string, unknown>).data as unknown[])
             .map((m) => extractModelId(m as ApiModelLike))
-            .filter((v): v is string => Boolean(v));
-        } else if (data && typeof data === "object" && Array.isArray((data as Record<string, unknown>).models)) {
+            .filter((v): v is string => Boolean(v))
+        } else if (
+          data &&
+          typeof data === "object" &&
+          Array.isArray((data as Record<string, unknown>).models)
+        ) {
           ids = ((data as Record<string, unknown>).models as unknown[])
             .map((m) => extractModelId(m as ApiModelLike))
-            .filter((v): v is string => Boolean(v));
+            .filter((v): v is string => Boolean(v))
         } else if (Array.isArray(data)) {
           ids = (data as unknown[])
             .map((m) => extractModelId(m as ApiModelLike))
-            .filter((v): v is string => Boolean(v));
+            .filter((v): v is string => Boolean(v))
         }
 
-        const filtered = ids.filter(isSupportedModel) as UnrealModelId[];
+        const filtered = ids.filter(isSupportedModel) as UnrealModelId[]
         if (filtered.length > 0) {
-          setAvailableModels(filtered);
-          setModel((prev) => (filtered.includes(prev) ? prev : filtered[0] ?? DEFAULT_MODEL));
+          setAvailableModels(filtered)
+          setModel((prev) =>
+            filtered.includes(prev) ? prev : filtered[0] ?? DEFAULT_MODEL
+          )
         }
       } catch (err) {
-        console.warn("Failed to fetch models, using static list", err);
+        console.warn("Failed to fetch models, using static list", err)
       } finally {
-        setIsLoadingModels(false);
+        setIsLoadingModels(false)
       }
-    };
+    }
 
-    fetchModels();
-  }, [apiKey, token]);
-
-  const openai = useMemo(() => {
-    const key = apiKey || token || "";
-    return createOpenAI({ apiKey: key, baseURL: OPENAI_URL });
-  }, [apiKey, token]);
+    fetchModels()
+  }, [apiKey, token])
 
   const sendMessage = useCallback(
     async (text?: string) => {
-      const content = (text ?? input).trim();
-      if (!content) return;
+      const content = (text ?? input).trim()
+      if (!content) return
 
-      setError(null);
-      setIsStreaming(true);
+      setError(null)
+      setIsStreaming(true)
 
       // Add user message
-      const userMessage: Message = { role: "user", content };
-      setMessages((prev) => [...prev, userMessage, { role: "assistant", content: "" }]);
-      setInput("");
+      const userMessage: Message = { role: "user", content }
+      setMessages((prev) => [
+        ...prev,
+        userMessage,
+        { role: "assistant", content: "" },
+      ])
+      setInput("")
 
       try {
-
         // Retry with simple exponential backoff for transient errors
         const isTransient = (err: unknown) => {
-          const msg = err instanceof Error ? err.message : String(err);
-          return /unavailable|route to host|network|fetch failed|timeout|ECONNRESET|502|503|504/i.test(msg);
-        };
-        const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
+          const msg = err instanceof Error ? err.message : String(err)
+          return /unavailable|route to host|network|fetch failed|timeout|ECONNRESET|502|503|504/i.test(
+            msg
+          )
+        }
+        const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms))
 
-        const maxAttempts = 3;
-        let attempt = 0;
+        const maxAttempts = 3
+        let attempt = 0
         for (; attempt < maxAttempts; attempt++) {
           try {
-            const { textStream } = await streamText({
-              model: openai(model),
-              messages: [...messages, userMessage],
-            });
+            // Use official OpenAI SDK with streaming
+            const auth = apiKey || token || ""
+            const client = new OpenAI({
+              apiKey: auth,
+              baseURL: OPENAI_URL,
+              dangerouslyAllowBrowser: true,
+            })
 
-            for await (const chunk of textStream) {
-              setMessages((prev) => {
-                if (prev.length === 0) return prev;
-                const next = prev.slice();
-                const last = next[next.length - 1];
-                if (last.role === "assistant") {
-                  next[next.length - 1] = { ...last, content: last.content + chunk };
-                } else {
-                  // Edge case: ensure there's an assistant message
-                  next.push({ role: "assistant", content: String(chunk) });
-                }
-                return next;
-              });
+            const stream = await client.chat.completions.create({
+              model,
+              messages: [...messages, userMessage].map((m) => ({
+                role: m.role,
+                content: m.content,
+              })),
+              stream: true,
+            })
+
+            for await (const chunk of stream) {
+              const delta = chunk?.choices?.[0]?.delta?.content
+              if (typeof delta === "string" && delta.length) {
+                setMessages((prev) => {
+                  if (prev.length === 0) return prev
+                  const next = prev.slice()
+                  const last = next[next.length - 1]
+                  if (last.role === "assistant") {
+                    next[next.length - 1] = {
+                      ...last,
+                      content: last.content + delta,
+                    }
+                  } else {
+                    next.push({ role: "assistant", content: String(delta) })
+                  }
+                  return next
+                })
+              }
             }
             // Success, break out of retry loop
-            break;
+            break
           } catch (e) {
             if (attempt < maxAttempts - 1 && isTransient(e)) {
               // Backoff: 500ms, 1000ms, ...
-              await sleep(500 * Math.pow(2, attempt));
-              continue;
+              await sleep(500 * Math.pow(2, attempt))
+              continue
             }
-            throw e;
+            throw e
           }
         }
       } catch (err) {
-        console.error("Streaming chat error:", err);
-        const msg = err instanceof Error ? err.message : "Request failed. Please try again.";
-        let status: number | undefined = undefined;
+        console.error("Streaming chat error:", err)
+        const msg =
+          err instanceof Error
+            ? err.message
+            : "Request failed. Please try again."
+        let status: number | undefined = undefined
         if (err && typeof err === "object") {
-          const maybe = err as { status?: unknown; response?: unknown };
+          const maybe = err as { status?: unknown; response?: unknown }
           if (typeof maybe.status === "number") {
-            status = maybe.status;
+            status = maybe.status
           } else if (maybe.response && typeof maybe.response === "object") {
-            const resp = maybe.response as { status?: unknown };
-            if (typeof resp.status === "number") status = resp.status;
+            const resp = maybe.response as { status?: unknown }
+            if (typeof resp.status === "number") status = resp.status
           }
         }
-        const text = String(msg || "");
-        const unauthorized = status === 401 || /401|unauthorized/i.test(text);
+        const text = String(msg || "")
+        const unauthorized = status === 401 || /401|unauthorized/i.test(text)
         setError(
           unauthorized
             ? "Unauthorized. Please sign in or create an API key in Settings."
             : msg
-        );
+        )
       } finally {
-        setIsStreaming(false);
+        setIsStreaming(false)
       }
     },
-    [input, messages, model, openai]
-  );
+    [input, messages, model, apiKey, token]
+  )
 
   // Autorun with initialPrompt if provided
   useEffect(() => {
     if (autorun && initialPrompt) {
       const t = setTimeout(() => {
-        void sendMessage(initialPrompt);
-      }, 100);
-      return () => clearTimeout(t);
+        void sendMessage(initialPrompt)
+      }, 100)
+      return () => clearTimeout(t)
     }
-  }, [autorun, initialPrompt, sendMessage]);
+  }, [autorun, initialPrompt, sendMessage])
 
   const handleClear = () => {
-    setMessages([]);
-    setError(null);
-  };
+    setMessages([])
+    setError(null)
+  }
 
   const retryLast = useCallback(() => {
-    const lastUser = [...messages].reverse().find((m) => m.role === "user");
+    const lastUser = [...messages].reverse().find((m) => m.role === "user")
     if (lastUser) {
-      setError(null);
-      void sendMessage(lastUser.content);
+      setError(null)
+      void sendMessage(lastUser.content)
     }
-  }, [messages, sendMessage]);
+  }, [messages, sendMessage])
 
   return (
     <div className="w-full">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3">
         <div className="flex items-center gap-2">
-          <Select value={model} onValueChange={(v) => setModel(v as UnrealModelId)}>
-            <SelectTrigger className="w-[260px]" disabled={isLoadingModels || availableModels.length === 0}>
+          <Select
+            value={model}
+            onValueChange={(v) => setModel(v as UnrealModelId)}
+          >
+            <SelectTrigger
+              className="w-[260px]"
+              disabled={isLoadingModels || availableModels.length === 0}
+            >
               <SelectValue placeholder="Select a model" />
             </SelectTrigger>
             <SelectContent>
@@ -236,11 +295,18 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ initialPrompt, autorun 
               ))}
             </SelectContent>
           </Select>
-          <Badge variant="secondary" className="hidden md:inline-flex">{model}</Badge>
+          <Badge variant="secondary" className="hidden md:inline-flex">
+            {model}
+          </Badge>
         </div>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="outline" size="sm" onClick={handleClear} disabled={messages.length === 0 || isStreaming}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleClear}
+              disabled={messages.length === 0 || isStreaming}
+            >
               <Trash2 className="w-4 h-4 mr-2" />
               Clear
             </Button>
@@ -255,9 +321,27 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ initialPrompt, autorun 
           <AlertDescription className="flex items-center justify-between gap-3">
             <span className="truncate">{error}</span>
             <div className="flex items-center gap-2">
-              <Button size="sm" variant="outline" onClick={retryLast} disabled={isStreaming}>Try again</Button>
-              <Button size="sm" variant="outline" onClick={() => navigate("/settings")}>Go to Settings</Button>
-              <Button size="sm" variant="outline" onClick={() => setError(null)} disabled={isStreaming}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={retryLast}
+                disabled={isStreaming}
+              >
+                Try again
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => navigate("/settings")}
+              >
+                Go to Settings
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setError(null)}
+                disabled={isStreaming}
+              >
                 Dismiss
               </Button>
             </div>
@@ -265,9 +349,14 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ initialPrompt, autorun 
         </Alert>
       )}
 
-      <div ref={scrollRef} className="space-y-3 mb-4 h-[60vh] md:h-[70vh] overflow-y-auto p-2">
+      <div
+        ref={scrollRef}
+        className="space-y-3 mb-4 h-[60vh] md:h-[70vh] overflow-y-auto p-2"
+      >
         {messages.length === 0 && (
-          <div className="text-sm text-muted-foreground text-center py-10">Send a message to get started</div>
+          <div className="text-sm text-muted-foreground text-center py-10">
+            Send a message to get started
+          </div>
         )}
         {messages.map((m, idx) => (
           <div
@@ -278,7 +367,9 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ initialPrompt, autorun 
                 : "bg-gray-100 dark:bg-gray-800 mr-8"
             }`}
           >
-            <p className="text-xs font-semibold mb-1">{m.role === "user" ? "You" : "Assistant"}</p>
+            <p className="text-xs font-semibold mb-1">
+              {m.role === "user" ? "You" : "Assistant"}
+            </p>
             <p className="whitespace-pre-wrap break-words">{m.content}</p>
           </div>
         ))}
@@ -298,7 +389,10 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ initialPrompt, autorun 
           disabled={isStreaming}
         />
         <div className="flex items-center justify-end">
-          <Button onClick={() => void sendMessage()} disabled={isStreaming || !input.trim()}>
+          <Button
+            onClick={() => void sendMessage()}
+            disabled={isStreaming || !input.trim()}
+          >
             {isStreaming ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -314,7 +408,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ initialPrompt, autorun 
         </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default ChatPlayground;
+export default ChatPlayground
