@@ -29,7 +29,7 @@ interface ChatPlaygroundProps {
 }
 
 const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ initialPrompt, autorun }) => {
-  const { isAuthenticated, apiKey } = useApi();
+  const { isAuthenticated, apiKey, token } = useApi();
   const navigate = useNavigate();
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -54,12 +54,15 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ initialPrompt, autorun 
   // Dynamically fetch models from API and filter to allowlist
   useEffect(() => {
     const fetchModels = async () => {
-      if (!apiKey) return;
       setIsLoadingModels(true);
       try {
+        const auth = apiKey || token || "";
+        const headers: Record<string, string> = auth
+          ? { Authorization: `Bearer ${auth}` }
+          : {};
         const response = await fetch(`${OPENAI_URL}/models`, {
           method: "GET",
-          headers: { Authorization: `Bearer ${apiKey}` },
+          headers,
         });
         if (!response.ok) return; // fallback silently
         const data: unknown = await response.json();
@@ -104,22 +107,17 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ initialPrompt, autorun 
     };
 
     fetchModels();
-  }, [apiKey]);
+  }, [apiKey, token]);
 
   const openai = useMemo(() => {
-    if (!apiKey) return null;
-    return createOpenAI({ apiKey, baseURL: OPENAI_URL });
-  }, [apiKey]);
+    const key = apiKey || token || "";
+    return createOpenAI({ apiKey: key, baseURL: OPENAI_URL });
+  }, [apiKey, token]);
 
   const sendMessage = useCallback(
     async (text?: string) => {
       const content = (text ?? input).trim();
       if (!content) return;
-
-      if (!isAuthenticated || !apiKey) {
-        setError("You need to connect your wallet and create an API key in Settings.");
-        return;
-      }
 
       setError(null);
       setIsStreaming(true);
@@ -130,7 +128,6 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ initialPrompt, autorun 
       setInput("");
 
       try {
-        if (!openai) throw new Error("OpenAI provider not initialized");
 
         // Retry with simple exponential backoff for transient errors
         const isTransient = (err: unknown) => {
@@ -176,12 +173,28 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ initialPrompt, autorun 
       } catch (err) {
         console.error("Streaming chat error:", err);
         const msg = err instanceof Error ? err.message : "Request failed. Please try again.";
-        setError(msg);
+        let status: number | undefined = undefined;
+        if (err && typeof err === "object") {
+          const maybe = err as { status?: unknown; response?: unknown };
+          if (typeof maybe.status === "number") {
+            status = maybe.status;
+          } else if (maybe.response && typeof maybe.response === "object") {
+            const resp = maybe.response as { status?: unknown };
+            if (typeof resp.status === "number") status = resp.status;
+          }
+        }
+        const text = String(msg || "");
+        const unauthorized = status === 401 || /401|unauthorized/i.test(text);
+        setError(
+          unauthorized
+            ? "Unauthorized. Please sign in or create an API key in Settings."
+            : msg
+        );
       } finally {
         setIsStreaming(false);
       }
     },
-    [apiKey, isAuthenticated, input, messages, model, openai]
+    [input, messages, model, openai]
   );
 
   // Autorun with initialPrompt if provided
@@ -283,10 +296,10 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({ initialPrompt, autorun 
             value={input}
             onChange={(e) => setInput(e.target.value)}
             className="resize-none min-h-[100px]"
-            disabled={isStreaming || !isAuthenticated}
+            disabled={isStreaming}
           />
           <div className="flex items-center justify-end">
-            <Button onClick={() => void sendMessage()} disabled={isStreaming || !input.trim() || !isAuthenticated}>
+            <Button onClick={() => void sendMessage()} disabled={isStreaming || !input.trim()}>
               {isStreaming ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
