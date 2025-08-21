@@ -1,5 +1,6 @@
 import injectedWallets from '@web3-onboard/injected-wallets'
 import Onboard, { type OnboardAPI, type WalletState } from '@web3-onboard/core'
+import type { EIP1193Provider } from 'viem'
 import { TORUS_RPC } from '@/config/wallet'
 
 // Minimal chain type for web3-onboard
@@ -52,15 +53,72 @@ export async function switchChain(chainIdHex: string): Promise<void> {
   const onboard = getOnboard()
   try {
     await onboard.setChain({ chainId: chainIdHex })
+    // Persist last successful chain selection
+    try {
+      localStorage.setItem('unreal_last_chain', chainIdHex.toLowerCase())
+    } catch (_) {
+      // ignore persistence errors
+    }
   } catch (e) {
     // If setChain is not available or fails, fall back to EIP-3326 via provider if connected
     try {
       const wallets = (onboard.state.get().wallets || []) as WalletState[]
-      if (wallets && wallets[0] && (wallets[0] as any).provider?.request) {
-        await (wallets[0] as any).provider.request({
-          method: 'wallet_switchEthereumChain',
-          params: [{ chainId: chainIdHex }]
-        })
+      const first = wallets && wallets[0]
+      const provider = (first?.provider as unknown as EIP1193Provider | undefined)
+      if (provider?.request) {
+        try {
+          await provider.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: chainIdHex }]
+          })
+          try {
+            localStorage.setItem('unreal_last_chain', chainIdHex.toLowerCase())
+          } catch (_) {
+            // ignore
+          }
+          return
+        } catch (switchErr: unknown) {
+          // If the chain has not been added to the wallet, attempt to add it
+          const errObj = switchErr as { code?: number; data?: { originalError?: { code?: number } }; message?: string }
+          const code = errObj?.code ?? errObj?.data?.originalError?.code
+          const msg: string = (errObj?.message || '').toLowerCase()
+          const needsAdd = code === 4902 || msg.includes('unrecognized chain') || msg.includes('add ethereum chain')
+          if (needsAdd) {
+            const target = (configuredChains || []).find(c => c.id.toLowerCase() === chainIdHex.toLowerCase())
+            if (target) {
+              try {
+                await provider.request({
+                  method: 'wallet_addEthereumChain',
+                  params: [{
+                    chainId: target.id,
+                    chainName: target.label,
+                    nativeCurrency: { name: target.token, symbol: target.token, decimals: 18 },
+                    rpcUrls: [target.rpcUrl],
+                    // Block explorer optional; omit if unknown
+                    blockExplorerUrls: []
+                  }]
+                })
+                // Try switching again after adding
+                await provider.request({
+                  method: 'wallet_switchEthereumChain',
+                  params: [{ chainId: chainIdHex }]
+                })
+                try {
+                  localStorage.setItem('unreal_last_chain', chainIdHex.toLowerCase())
+                } catch (_) {
+                  // ignore
+                }
+                return
+              } catch (addErr) {
+                console.warn('wallet_addEthereumChain failed:', addErr)
+              }
+            } else {
+              console.warn('Target chain details not found in configuredChains for', chainIdHex)
+            }
+          }
+          // If we get here, rethrow the original switch error
+          throw errObj
+        }
       }
     } catch (err) {
       console.warn('switchChain fallback error:', err)

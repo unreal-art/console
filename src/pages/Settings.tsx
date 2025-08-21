@@ -26,7 +26,8 @@ const Settings = () => {
     listApiKeys,
     deleteApiKey,
     clearApiKey, 
-    clearError 
+    clearError,
+    connectWallet,
   } = useApi();
   
   const [apiKeyName, setApiKeyName] = useState('');
@@ -36,19 +37,14 @@ const Settings = () => {
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [operationError, setOperationError] = useState<string | null>(null);
 
-  // Redirect to login if not authenticated and fetch API keys when authenticated
+  // Fetch API keys when authenticated; do not redirect away to avoid flicker/disappearing UI
   useEffect(() => {
-    if (!isLoading) {
-      if (!isAuthenticated) {
-        navigate('/login');
-      } else {
-        // Fetch API keys when authenticated
-        listApiKeys().catch((err: unknown) => {
-          console.error('Error fetching API keys:', err);
-        });
-      }
+    if (!isLoading && isAuthenticated) {
+      listApiKeys().catch((err: unknown) => {
+        console.error('Error fetching API keys:', err);
+      });
     }
-  }, [isAuthenticated, isLoading, navigate, listApiKeys]);
+  }, [isAuthenticated, isLoading, listApiKeys]);
 
   // Handle API key creation
   const handleCreateApiKey = async () => {
@@ -109,6 +105,32 @@ const Settings = () => {
         <div className="container mx-auto px-4 py-8">
           <div className="flex justify-center items-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  // Show an inline auth-required panel instead of redirecting, to prevent the page from vanishing
+  if (!isAuthenticated) {
+    return (
+      <Layout>
+        <div className="container mx-auto px-4 py-8">
+          <h1 className="text-3xl font-bold mb-6">Settings</h1>
+          <Alert className="mb-6 border-amber-500 bg-amber-50 text-amber-900">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Wallet connection required</AlertTitle>
+            <AlertDescription>
+              Please connect your wallet and register to obtain a session token before managing API keys.
+            </AlertDescription>
+          </Alert>
+          <div className="flex gap-3">
+            <Button onClick={() => connectWallet?.()}>
+              Connect Wallet
+            </Button>
+            <Button variant="outline" onClick={() => navigate('/sign-in')}>
+              Go to Sign In
+            </Button>
           </div>
         </div>
       </Layout>

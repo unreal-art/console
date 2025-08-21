@@ -26,6 +26,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           const id = await walletService.getChainId();
           const hex = `0x${id.toString(16)}`.toLowerCase();
           setChainId(hex);
+          // Attempt to restore last selected chain if different
+          try {
+            const stored = localStorage.getItem('unreal_last_chain');
+            if (stored && stored.toLowerCase() !== hex) {
+              await switchChain(stored);
+              setChainId(stored.toLowerCase());
+            }
+          } catch (_) {
+            // ignore restore errors
+          }
         } else {
           setChainId(null);
         }
@@ -55,6 +65,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         const id = await walletService.getChainId();
         const hex = `0x${id.toString(16)}`.toLowerCase();
         setChainId(hex);
+        // After connect, restore last chain if needed
+        const stored = localStorage.getItem('unreal_last_chain');
+        if (stored && stored.toLowerCase() !== hex) {
+          try {
+            await switchChain(stored);
+            setChainId(stored.toLowerCase());
+          } catch (e) {
+            console.debug('Failed to restore last chain after connect', e);
+          }
+        }
       } catch (e) {
         console.debug('Failed to get chainId after connect', e);
       }
