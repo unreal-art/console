@@ -27,13 +27,9 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 
-import { AlertCircle, Loader2, Send, Trash2 } from "lucide-react"
-import OpenAI from "openai"
-
-interface Message {
-  role: "user" | "assistant" | "system"
-  content: string
-}
+import { AlertCircle, Loader2, Send, Trash2, Square, RotateCcw } from "lucide-react"
+import { createOpenAI } from "@ai-sdk/openai"
+import { streamText, type UIMessage } from "ai"
 
 interface ChatPlaygroundProps {
   initialPrompt?: string
@@ -44,10 +40,10 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
   initialPrompt,
   autorun,
 }) => {
-  const { isAuthenticated, apiKey, token } = useApi()
+  const { apiKey, token } = useApi()
   const navigate = useNavigate()
 
-  const [messages, setMessages] = useState<Message[]>([])
+  const [messages, setMessages] = useState<UIMessage[]>([])
   const [input, setInput] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isStreaming, setIsStreaming] = useState(false)
@@ -59,6 +55,9 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
   const [isLoadingModels, setIsLoadingModels] = useState(false)
 
   const scrollRef = useRef<HTMLDivElement>(null)
+  const abortRef = useRef<AbortController | null>(null)
+
+  type TextPart = { type: "text"; text?: string }
 
   // Auto-scroll to bottom when messages update
   useEffect(() => {
@@ -142,25 +141,29 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
     fetchModels()
   }, [apiKey, token])
 
-  const sendMessage = useCallback(
-    async (text?: string) => {
-      const content = (text ?? input).trim()
-      if (!content) return
+  // Helper to extract plain text from a UI message (only text parts for now)
+  const getTextFromMessage = useCallback((m: UIMessage): string => {
+    const parts = (m as unknown as { parts?: TextPart[] }).parts
+    if (!Array.isArray(parts)) return ""
+    return parts
+      .filter((p): p is TextPart => Boolean(p) && p.type === "text")
+      .map((p) => p.text ?? "")
+      .join("")
+  }, [])
 
+  // Stream assistant response for the given history (messages already include last user)
+  const streamAssistantResponse = useCallback(
+    async (history: UIMessage[]) => {
       setError(null)
       setIsStreaming(true)
 
-      // Add user message
-      const userMessage: Message = { role: "user", content }
-      setMessages((prev) => [
-        ...prev,
-        userMessage,
-        { role: "assistant", content: "" },
+      // Append assistant placeholder
+      setMessages(() => [
+        ...history,
+        { role: "assistant", parts: [{ type: "text", text: "" }] } as UIMessage,
       ])
-      setInput("")
 
       try {
-        // Retry with simple exponential backoff for transient errors
         const isTransient = (err: unknown) => {
           const msg = err instanceof Error ? err.message : String(err)
           return /unavailable|route to host|network|fetch failed|timeout|ECONNRESET|502|503|504/i.test(
@@ -173,47 +176,68 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
         let attempt = 0
         for (; attempt < maxAttempts; attempt++) {
           try {
-            // Use official OpenAI SDK with streaming
+            // Set up abort controller for this attempt
+            const controller = new AbortController()
+            // Abort any ongoing stream first
+            try {
+              abortRef.current?.abort()
+            } catch (_e) {
+              // ignore if nothing to abort
+            }
+            abortRef.current = controller
+
             const auth = apiKey || token || ""
-            const client = new OpenAI({
+            const openai = createOpenAI({
               apiKey: auth,
               baseURL: OPENAI_URL,
-              dangerouslyAllowBrowser: true,
             })
 
-            const stream = await client.chat.completions.create({
-              model,
-              messages: [...messages, userMessage].map((m) => ({
-                role: m.role,
-                content: m.content,
-              })),
-              stream: true,
+            // Convert UI messages to provider messages (text-only)
+            const providerMessages = history.map((m) => ({
+              role: m.role as "system" | "user" | "assistant",
+              content: getTextFromMessage(m),
+            }))
+
+            const { textStream } = await streamText({
+              model: openai(model),
+              messages: providerMessages,
+              // @ts-expect-error abortSignal is supported in ai@5
+              abortSignal: controller.signal,
             })
 
-            for await (const chunk of stream) {
-              const delta = chunk?.choices?.[0]?.delta?.content
-              if (typeof delta === "string" && delta.length) {
+            for await (const chunk of textStream) {
+              if (typeof chunk === "string" && chunk.length) {
                 setMessages((prev) => {
                   if (prev.length === 0) return prev
                   const next = prev.slice()
                   const last = next[next.length - 1]
-                  if (last.role === "assistant") {
-                    next[next.length - 1] = {
-                      ...last,
-                      content: last.content + delta,
+                  const lastParts = (last as unknown as { parts?: TextPart[] }).parts
+                  if (last.role === "assistant" && Array.isArray(lastParts) && lastParts.length) {
+                    const updated: TextPart[] = [...lastParts]
+                    updated[0] = {
+                      ...updated[0],
+                      text: String((updated[0]?.text || "") + chunk),
                     }
+                    next[next.length - 1] = { ...last, parts: updated } as UIMessage
                   } else {
-                    next.push({ role: "assistant", content: String(delta) })
+                    next.push({
+                      role: "assistant",
+                      parts: [{ type: "text", text: String(chunk) } as TextPart],
+                    } as UIMessage)
                   }
                   return next
                 })
               }
             }
-            // Success, break out of retry loop
+            // Success
             break
           } catch (e) {
+            const err = e as { name?: string }
+            if (err?.name === "AbortError") {
+              // Aborted by user; do not set error
+              return
+            }
             if (attempt < maxAttempts - 1 && isTransient(e)) {
-              // Backoff: 500ms, 1000ms, ...
               await sleep(500 * Math.pow(2, attempt))
               continue
             }
@@ -222,10 +246,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
         }
       } catch (err) {
         console.error("Streaming chat error:", err)
-        const msg =
-          err instanceof Error
-            ? err.message
-            : "Request failed. Please try again."
+        const msg = err instanceof Error ? err.message : "Request failed. Please try again."
         let status: number | undefined = undefined
         if (err && typeof err === "object") {
           const maybe = err as { status?: unknown; response?: unknown }
@@ -247,7 +268,25 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
         setIsStreaming(false)
       }
     },
-    [input, messages, model, apiKey, token]
+    [apiKey, token, model, getTextFromMessage]
+  )
+
+  const sendMessage = useCallback(
+    async (text?: string) => {
+      const content = (text ?? input).trim()
+      if (!content) return
+
+      // Add user message to history, then stream assistant response
+      const userMessage: UIMessage = {
+        role: "user",
+        parts: [{ type: "text", text: content }],
+      }
+      setInput("")
+      const history = [...messages, userMessage]
+      setMessages(history)
+      void streamAssistantResponse(history)
+    },
+    [input, messages, streamAssistantResponse]
   )
 
   // Autorun with initialPrompt if provided
@@ -265,13 +304,42 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
     setError(null)
   }
 
+  const stopStreaming = useCallback(() => {
+    try {
+      abortRef.current?.abort()
+    } catch (_e) {
+      // ignore if nothing to abort
+    }
+    setIsStreaming(false)
+  }, [])
+
+  const regenerateLast = useCallback(() => {
+    // Find last assistant message and remove it, keep history up to last user
+    const lastAssistantIndex = [...messages]
+      .map((m, i) => ({ role: m.role, i }))
+      .reduce((acc, cur) => (cur.role === "assistant" ? cur.i : acc), -1)
+    if (lastAssistantIndex === -1) {
+      // Fallback: retry using the last user message
+      const lastUser = [...messages].reverse().find((m) => m.role === "user")
+      if (lastUser) {
+        setError(null)
+        void sendMessage(getTextFromMessage(lastUser))
+      }
+      return
+    }
+    const history = messages.slice(0, lastAssistantIndex)
+    setError(null)
+    setMessages(history)
+    void streamAssistantResponse(history)
+  }, [messages, getTextFromMessage, sendMessage, streamAssistantResponse])
+
   const retryLast = useCallback(() => {
     const lastUser = [...messages].reverse().find((m) => m.role === "user")
     if (lastUser) {
       setError(null)
-      void sendMessage(lastUser.content)
+      void sendMessage(getTextFromMessage(lastUser))
     }
-  }, [messages, sendMessage])
+  }, [messages, sendMessage, getTextFromMessage])
 
   return (
     <div className="w-full">
@@ -313,6 +381,35 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
           </TooltipTrigger>
           <TooltipContent>Start a new conversation</TooltipContent>
         </Tooltip>
+        <div className="flex items-center gap-2">
+          {isStreaming && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="sm" onClick={stopStreaming}>
+                  <Square className="w-4 h-4 mr-2" />
+                  Stop
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Stop the current response</TooltipContent>
+            </Tooltip>
+          )}
+          {!isStreaming && messages.some((m) => m.role === "assistant") && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={regenerateLast}
+                  disabled={messages.length === 0}
+                >
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  Regenerate
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Regenerate the last response</TooltipContent>
+            </Tooltip>
+          )}
+        </div>
       </div>
 
       {error && (
@@ -370,7 +467,12 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
             <p className="text-xs font-semibold mb-1">
               {m.role === "user" ? "You" : "Assistant"}
             </p>
-            <p className="whitespace-pre-wrap break-words">{m.content}</p>
+            <p className="whitespace-pre-wrap break-words">
+              {(m as unknown as { parts?: TextPart[] }).parts
+                ?.filter((p): p is TextPart => Boolean(p) && p.type === "text")
+                .map((p) => p.text ?? "")
+                .join("")}
+            </p>
           </div>
         ))}
         {isStreaming && (
