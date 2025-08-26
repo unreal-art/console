@@ -28,8 +28,8 @@ import {
 } from "@/components/ui/tooltip"
 
 import { AlertCircle, Loader2, Send, Trash2, Square, RotateCcw } from "lucide-react"
-import { createOpenAI } from "@ai-sdk/openai"
-import { streamText, type UIMessage } from "ai"
+import OpenAI from "openai"
+import type { UIMessage } from "ai"
 
 interface ChatPlaygroundProps {
   initialPrompt?: string
@@ -56,6 +56,12 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
+
+  // Simple id generator for UIMessage ids
+  const makeId = () =>
+    (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function")
+      ? crypto.randomUUID()
+      : Math.random().toString(36).slice(2)
 
   type TextPart = { type: "text"; text?: string }
 
@@ -160,7 +166,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
       // Append assistant placeholder
       setMessages(() => [
         ...history,
-        { role: "assistant", parts: [{ type: "text", text: "" }] } as UIMessage,
+        { id: makeId(), role: "assistant", parts: [{ type: "text", text: "" }] } as UIMessage,
       ])
 
       try {
@@ -187,9 +193,11 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
             abortRef.current = controller
 
             const auth = apiKey || token || ""
-            const openai = createOpenAI({
+            const client = new OpenAI({
               apiKey: auth,
               baseURL: OPENAI_URL,
+              // We intentionally allow browser usage here because the user provides their own key/token
+              dangerouslyAllowBrowser: true,
             })
 
             // Convert UI messages to provider messages (text-only)
@@ -198,36 +206,39 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
               content: getTextFromMessage(m),
             }))
 
-            const { textStream } = await streamText({
-              model: openai(model),
-              messages: providerMessages,
-              // @ts-expect-error abortSignal is supported in ai@5
-              abortSignal: controller.signal,
-            })
+            const stream = await client.chat.completions.create(
+              {
+                model,
+                messages: providerMessages,
+                stream: true,
+              },
+              { signal: controller.signal }
+            )
 
-            for await (const chunk of textStream) {
-              if (typeof chunk === "string" && chunk.length) {
-                setMessages((prev) => {
-                  if (prev.length === 0) return prev
-                  const next = prev.slice()
-                  const last = next[next.length - 1]
-                  const lastParts = (last as unknown as { parts?: TextPart[] }).parts
-                  if (last.role === "assistant" && Array.isArray(lastParts) && lastParts.length) {
-                    const updated: TextPart[] = [...lastParts]
-                    updated[0] = {
-                      ...updated[0],
-                      text: String((updated[0]?.text || "") + chunk),
-                    }
-                    next[next.length - 1] = { ...last, parts: updated } as UIMessage
-                  } else {
-                    next.push({
-                      role: "assistant",
-                      parts: [{ type: "text", text: String(chunk) } as TextPart],
-                    } as UIMessage)
+            for await (const chunk of stream) {
+              const delta = chunk.choices?.[0]?.delta?.content
+              if (!delta) continue
+              setMessages((prev) => {
+                if (prev.length === 0) return prev
+                const next = prev.slice()
+                const last = next[next.length - 1]
+                const lastParts = (last as unknown as { parts?: TextPart[] }).parts
+                if (last.role === "assistant" && Array.isArray(lastParts) && lastParts.length) {
+                  const updated: TextPart[] = [...lastParts]
+                  updated[0] = {
+                    ...updated[0],
+                    text: String((updated[0]?.text || "") + delta),
                   }
-                  return next
-                })
-              }
+                  next[next.length - 1] = { ...last, parts: updated } as UIMessage
+                } else {
+                  next.push({
+                    id: makeId(),
+                    role: "assistant",
+                    parts: [{ type: "text", text: String(delta) } as TextPart],
+                  } as UIMessage)
+                }
+                return next
+              })
             }
             // Success
             break
@@ -278,6 +289,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
 
       // Add user message to history, then stream assistant response
       const userMessage: UIMessage = {
+        id: makeId(),
         role: "user",
         parts: [{ type: "text", text: content }],
       }

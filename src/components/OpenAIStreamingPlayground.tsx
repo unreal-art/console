@@ -9,8 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useApi } from "@/lib/ApiContext"
 import { CODING_MODEL } from "@/config/models"
 import { OPENAI_URL } from "@/config/unreal"
-import { createOpenAI } from "@ai-sdk/openai"
-import { streamText } from "ai"
+import OpenAI from "openai"
 import { useNavigate } from "react-router-dom"
 
 interface OpenAIStreamingPlaygroundProps {
@@ -53,35 +52,41 @@ const OpenAIStreamingPlayground: React.FC<OpenAIStreamingPlaygroundProps> = ({ i
 
     setIsRunning(true)
     try {
-      // Create OpenAI provider with custom base URL
-      const openai = createOpenAI({
+      // Create OpenAI client with custom base URL
+      const client = new OpenAI({
         apiKey: effectiveKey,
         baseURL: OPENAI_URL,
+        // We intentionally allow browser usage here because the user provides their own key
+        dangerouslyAllowBrowser: true,
       })
 
-      console.log("Starting stream with AI SDK...")
+      console.log("Starting stream with OpenAI SDK...")
       
-      // Stream text using the AI SDK
+      // Prepare prompt
       const userPrompt = (initialPrompt && initialPrompt.trim().length > 0)
         ? initialPrompt
         : "Write a concise TypeScript function called `toTitleCase` that converts a string to Title Case, followed by a short usage example."
 
-      const { textStream } = await streamText({
-        model: openai(CODING_MODEL),
+      // Start a streaming chat completion
+      const stream = await client.chat.completions.create({
+        model: CODING_MODEL,
         messages: [
           { role: "system", content: "You are a helpful coding assistant." },
           { role: "user", content: userPrompt },
         ],
+        stream: true,
       })
 
       console.log("Stream created, reading chunks...")
-      
-      // Read from the stream
-      for await (const chunk of textStream) {
-        console.log("Chunk received:", chunk)
-        setResponse((prev) => prev + chunk)
+
+      // Read incremental deltas and append to response
+      for await (const chunk of stream) {
+        const delta = chunk.choices?.[0]?.delta?.content
+        if (delta) {
+          setResponse((prev) => prev + delta)
+        }
       }
-      
+
       console.log("Stream completed")
     } catch (error) {
       console.error("Streaming error:", error)
