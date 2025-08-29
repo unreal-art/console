@@ -27,14 +27,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 
-import {
-  AlertCircle,
-  Loader2,
-  Send,
-  Trash2,
-  Square,
-  RotateCcw,
-} from "lucide-react"
+import { AlertCircle, Loader2, Send, Trash2, Square, RotateCcw } from "lucide-react"
 import OpenAI from "openai"
 import type { UIMessage } from "ai"
 
@@ -66,7 +59,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
 
   // Simple id generator for UIMessage ids
   const makeId = () =>
-    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function")
       ? crypto.randomUUID()
       : Math.random().toString(36).slice(2)
 
@@ -173,11 +166,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
       // Append assistant placeholder
       setMessages(() => [
         ...history,
-        {
-          id: makeId(),
-          role: "assistant",
-          parts: [{ type: "text", text: "" }],
-        } as UIMessage,
+        { id: makeId(), role: "assistant", parts: [{ type: "text", text: "" }] } as UIMessage,
       ])
 
       try {
@@ -217,40 +206,40 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
               content: getTextFromMessage(m),
             }))
 
-            // Non-streamed request for now
-            const completion = await client.chat.completions.create(
+            const stream = await client.chat.completions.create(
               {
                 model,
                 messages: providerMessages,
+                stream: true,
               },
               { signal: controller.signal }
             )
 
-            const finalText =
-              (completion as unknown as { choices?: Array<{ message?: { content?: string } }> })
-                ?.choices?.[0]?.message?.content ?? ""
-
-            setMessages((prev) => {
-              if (prev.length === 0) return prev
-              const next = prev.slice()
-              const last = next[next.length - 1]
-              const lastParts = (last as unknown as { parts?: TextPart[] }).parts
-              if (last.role === "assistant" && Array.isArray(lastParts) && lastParts.length) {
-                const updated: TextPart[] = [...lastParts]
-                updated[0] = {
-                  ...updated[0],
-                  text: String(finalText),
+            for await (const chunk of stream) {
+              const delta = chunk.choices?.[0]?.delta?.content
+              if (!delta) continue
+              setMessages((prev) => {
+                if (prev.length === 0) return prev
+                const next = prev.slice()
+                const last = next[next.length - 1]
+                const lastParts = (last as unknown as { parts?: TextPart[] }).parts
+                if (last.role === "assistant" && Array.isArray(lastParts) && lastParts.length) {
+                  const updated: TextPart[] = [...lastParts]
+                  updated[0] = {
+                    ...updated[0],
+                    text: String((updated[0]?.text || "") + delta),
+                  }
+                  next[next.length - 1] = { ...last, parts: updated } as UIMessage
+                } else {
+                  next.push({
+                    id: makeId(),
+                    role: "assistant",
+                    parts: [{ type: "text", text: String(delta) } as TextPart],
+                  } as UIMessage)
                 }
-                next[next.length - 1] = { ...last, parts: updated } as UIMessage
-              } else {
-                next.push({
-                  id: makeId(),
-                  role: "assistant",
-                  parts: [{ type: "text", text: String(finalText) } as TextPart],
-                } as UIMessage)
-              }
-              return next
-            })
+                return next
+              })
+            }
             // Success
             break
           } catch (e) {
@@ -268,10 +257,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
         }
       } catch (err) {
         console.error("Streaming chat error:", err)
-        const msg =
-          err instanceof Error
-            ? err.message
-            : "Request failed. Please try again."
+        const msg = err instanceof Error ? err.message : "Request failed. Please try again."
         let status: number | undefined = undefined
         if (err && typeof err === "object") {
           const maybe = err as { status?: unknown; response?: unknown }
