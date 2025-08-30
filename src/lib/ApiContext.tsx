@@ -36,6 +36,7 @@ interface ApiContextType {
   isLoadingApiKeys: boolean
   error: string | null
   connectWallet: (selectedAddress?: string) => Promise<string>
+  switchAccount: (address: string) => Promise<void>
   getAvailableAddresses: () => Promise<string[]>
   registerWithWallet: (calls: number) => Promise<string>
   verifyToken: () => Promise<VerifyResponse>
@@ -373,6 +374,28 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     }
   }
 
+  // Switch to a different account from the available addresses
+  const switchAccount = async (address: string): Promise<void> => {
+    setError(null)
+
+    try {
+      // Switch the account in WalletService
+      await walletService.switchAccount(address)
+      
+      // Update the context state to reflect the new address
+      setWalletAddress(address)
+      console.debug("[ApiContext] Switched to account:", address)
+      
+      // Note: This doesn't automatically re-register or change authentication
+      // The user will need to re-register if they want to use this account for API calls
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : "Failed to switch account"
+      setError(message)
+      throw error as Error
+    }
+  }
+
   // Register with wallet
   const registerWithWallet = async (calls: number): Promise<string> => {
     setIsLoading(true)
@@ -661,6 +684,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     isLoadingApiKeys,
     error,
     connectWallet,
+    switchAccount,
     getAvailableAddresses,
     registerWithWallet,
     verifyToken,

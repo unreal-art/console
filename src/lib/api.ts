@@ -288,6 +288,24 @@ export class WalletService {
     }
   }
 
+  // Switch to a different account from the available addresses
+  async switchAccount(address: string): Promise<void> {
+    try {
+      // Verify the address is available in the connected wallet
+      const availableAddresses = await this.getAvailableAddresses()
+      if (!availableAddresses.includes(address as `0x${string}`)) {
+        throw new Error(`Address ${address} is not available in the connected wallet`)
+      }
+
+      // Update the current account
+      this.account = address as `0x${string}`
+      console.debug(`[WalletService] Switched to account: ${address}`)
+    } catch (error) {
+      console.error("Error switching account:", error)
+      throw new Error("Failed to switch account")
+    }
+  }
+
   /**
    * Disconnect the wallet.
    * Note: For injected wallets like MetaMask, there is no programmatic disconnect.
@@ -363,8 +381,8 @@ export class WalletService {
         current = this.account
       } else if (first && first.accounts && first.accounts[0]?.address) {
         current = first.accounts[0].address as `0x${string}`
-      } else if (window.ethereum?.request) {
-        const accounts = (await window.ethereum.request({
+      } else if (this.ethereum?.request) {
+        const accounts = (await this.ethereum.request({
           method: "eth_accounts",
           params: [],
         })) as `0x${string}`[]
