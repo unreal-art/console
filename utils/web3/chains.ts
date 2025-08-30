@@ -75,14 +75,6 @@ export const amoyTestnet = defineChain({
   rpcUrls: {
     default: {
       http: [
-        "https://polygon-amoy.api.onfinality.io/rpc?apikey=1bd40958-ada5-4b09-8cbc-542bc44f0360",
-        "https://polygon-amoy.api.onfinality.io/rpc?apikey=5a8fe9ad-d9aa-463e-8ad8-c6a4687d6cfa",
-        "https://polygon-amoy.api.onfinality.io/rpc?apikey=855d2f36-8ddf-453f-a06e-5e7722fb460e",
-        "https://polygon-amoy.api.onfinality.io/rpc?apikey=2c5aa595-0e05-4e6f-886d-328ecf686e9a",
-        "https://polygon-amoy.api.onfinality.io/rpc?apikey=8eed9a83-a2d9-47ce-8a16-93484169061f",
-        "https://polygon-amoy.api.onfinality.io/rpc?apikey=4b0f6579-9a73-4d9f-8183-c3bddf7d969d",
-        "https://80002.rpc.thirdweb.com/1c7f56d370cac48d0c58616135e23ea5",
-        "https://polygon-amoy.g.alchemy.com/v2/3GiG3I2-Yr9IAplzdUPuI",
         "https://rpc-amoy.polygon.technology",
         "https://polygon-amoy.drpc.org",
         "https://polygon-amoy-bor-rpc.publicnode.com",
