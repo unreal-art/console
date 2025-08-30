@@ -60,6 +60,7 @@ const SignIn = () => {
     registerWithWallet,
     connectWallet,
     clearError,
+    getCurrentChainId,
   } = useApi()
 
   const [walletAddresses, setWalletAddresses] = useState<string[]>([])
@@ -77,7 +78,9 @@ const SignIn = () => {
 
     setIsLoadingBalance(true)
     try {
-      const publicClient = getPublicClient()
+      // Get current chain ID from wallet
+      const chainId = await getCurrentChainId()
+      const publicClient = getPublicClient(chainId)
       const balance = await publicClient.readContract({
         address: UNREAL_TOKEN_ADDRESS,
         abi: UNREAL_TOKEN_ABI,
@@ -95,7 +98,7 @@ const SignIn = () => {
     } finally {
       setIsLoadingBalance(false)
     }
-  }, [])
+  }, [getCurrentChainId])
 
   // Redirect to dashboard if already authenticated
   useEffect(() => {

@@ -7,6 +7,7 @@ import {
 import { OPENAI_URL } from "@/config/unreal"
 import { getOnboard } from "@/lib/onboard"
 import type { OnboardAPI, WalletState } from "@web3-onboard/core"
+import { getDefaultChain } from "@/config/wallet"
 
 // API base URL
 const API_BASE_URL = OPENAI_URL
@@ -374,6 +375,25 @@ export class WalletService {
   async getChainId(): Promise<number> {
     const client = this.getPublicClient()
     return client.getChainId()
+  }
+
+  // Get the current chain ID from the connected wallet state
+  async getCurrentChainId(): Promise<number> {
+    const onboard = this.onboard || getOnboard()
+    const wallets = onboard?.state?.get?.().wallets || []
+    
+    if (wallets.length > 0 && wallets[0].chains.length > 0) {
+      // The first chain in the first wallet is the currently selected chain
+      const chainId = wallets[0].chains[0].id
+      // Convert hex string to number if needed
+      if (typeof chainId === 'string' && chainId.startsWith('0x')) {
+        return parseInt(chainId, 16)
+      }
+      return Number(chainId)
+    }
+    
+    // Fallback to default chain if no wallet is connected
+    return getDefaultChain().id
   }
 
   async setChain(chainIdHex: string): Promise<void> {

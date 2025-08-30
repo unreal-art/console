@@ -19,6 +19,7 @@ import { initOnboard, type OnboardChain } from "@/lib/onboard"
 import { formatEther } from "viem"
 import { performRegistration } from "./registration"
 import { getChainById } from "@utils/web3/chains"
+import { getPublicClient } from "@/config/wallet"
 
 interface ApiContextType {
   isAuthenticated: boolean
@@ -44,6 +45,7 @@ interface ApiContextType {
   registerWalletDisconnector: (fn: (() => Promise<void> | void) | null) => void
   clearApiKey: () => void
   clearError: () => void
+  getCurrentChainId: () => Promise<number>
 }
 
 const ApiContext = createContext<ApiContextType | undefined>(undefined)
@@ -158,7 +160,8 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
                   let calls = 0
                   try {
                     const walletAddr = address as `0x${string}`
-                    const client = walletService.getPublicClient()
+                    const chainId = await walletService.getCurrentChainId()
+                    const client = getPublicClient(chainId)
                     const balance = await getUnrealBalance(
                       paymentToken,
                       walletAddr,
@@ -557,33 +560,45 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     setError(null)
   }
 
-  const value = {
-    isAuthenticated,
-    isLoading,
-    walletAddress,
-    availableAddresses,
-    openaiAddress,
-    token,
-    verifyData,
-    apiKey,
-    apiKeyHash,
-    apiKeys,
-    isLoadingApiKeys,
-    error,
-    connectWallet,
-    getAvailableAddresses,
-    registerWithWallet,
-    verifyToken,
-    createApiKey,
-    listApiKeys,
-    deleteApiKey,
-    logout,
-    registerWalletDisconnector,
-    clearApiKey,
-    clearError,
+  // Get current chain ID from wallet
+  const getCurrentChainId = async (): Promise<number> => {
+    try {
+      return await walletService.getCurrentChainId()
+    } catch (error) {
+      console.error("Error getting current chain ID:", error)
+      // Return default chain ID if error
+      return 1 // Default to mainnet
+    }
   }
 
-  return <ApiContext.Provider value={value}>{children}</ApiContext.Provider>
+  const value = {
+  isAuthenticated,
+  isLoading,
+  walletAddress,
+  availableAddresses,
+  openaiAddress,
+  token,
+  verifyData,
+  apiKey,
+  apiKeyHash,
+  apiKeys,
+  isLoadingApiKeys,
+  error,
+  connectWallet,
+  getAvailableAddresses,
+  registerWithWallet,
+  verifyToken,
+  createApiKey,
+  listApiKeys,
+  deleteApiKey,
+  logout,
+  registerWalletDisconnector,
+  clearApiKey,
+  clearError,
+  getCurrentChainId,
+}
+
+return <ApiContext.Provider value={value}>{children}</ApiContext.Provider>
 }
 
 export const useApi = (): ApiContextType => {

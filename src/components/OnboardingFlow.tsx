@@ -62,6 +62,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
     clearApiKey,
     apiKey,
     apiKeyHash,
+    getCurrentChainId,
   } = useApi()
 
   // State for calls amount (number of API calls user can make based on UNREAL balance)
@@ -376,7 +377,8 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
 
           try {
             // Wait for transaction confirmation with getPublicClient
-            const publicClient = getPublicClient()
+            const chainId = await getCurrentChainId()
+            const publicClient = getPublicClient(chainId)
             const receipt = await publicClient.waitForTransactionReceipt({
               hash: response.txHash as `0x${string}`,
               confirmations: 1, // Wait for 1 confirmation
