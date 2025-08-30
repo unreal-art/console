@@ -70,7 +70,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
       ? crypto.randomUUID()
       : Math.random().toString(36).slice(2)
 
-  type TextPart = { type: "text"; text?: string }
+  type TextPart = { type: "text"; text: string }
 
   // Auto-scroll to bottom when messages update
   useEffect(() => {
@@ -165,7 +165,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
   }, [])
 
   // Stream assistant response for the given history (messages already include last user)
-  const streamAssistantResponse = useCallback(
+  const generateAssistantResponse = useCallback(
     async (history: UIMessage[]) => {
       setError(null)
       setIsStreaming(true)
@@ -181,6 +181,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
       ])
 
       try {
+        // Helper functions for retry logic
         const isTransient = (err: unknown) => {
           const msg = err instanceof Error ? err.message : String(err)
           return /unavailable|route to host|network|fetch failed|timeout|ECONNRESET|502|503|504/i.test(
@@ -191,11 +192,13 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
 
         const maxAttempts = 3
         let attempt = 0
+        let response: OpenAI.Chat.ChatCompletion | null = null
+
         for (; attempt < maxAttempts; attempt++) {
           try {
             // Set up abort controller for this attempt
             const controller = new AbortController()
-            // Abort any ongoing stream first
+            // Abort any ongoing request first
             try {
               abortRef.current?.abort()
             } catch (_e) {
@@ -211,74 +214,23 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
               dangerouslyAllowBrowser: true,
             })
 
-            // Convert UI messages to provider messages (text-only)
-            const providerMessages = history.map((m) => ({
+            // Convert UI messages to OpenAI messages (text-only)
+            const openaiMessages = history.map((m) => ({
               role: m.role as "system" | "user" | "assistant",
               content: getTextFromMessage(m),
             }))
 
-            const stream = await client.responses.stream(
+            // Use non-streamed chat completions
+            response = await client.chat.completions.create(
               {
                 model,
-                messages: providerMessages,
-                stream: true,
+                messages: openaiMessages,
+                stream: false,
               },
               { signal: controller.signal }
             )
 
-            for await (const chunk of stream) {
-              // Support both Chat Completions-style and Responses API streaming events
-              let delta: string | undefined
-              const c: any = chunk as any
-              if (c?.choices?.[0]?.delta?.content) {
-                delta = c.choices[0].delta.content
-              } else if (typeof c === "string") {
-                delta = c
-              } else if (typeof c?.delta === "string") {
-                delta = c.delta
-              } else if (
-                c?.type === "response.output_text.delta" &&
-                typeof c?.delta === "string"
-              ) {
-                delta = c.delta
-              } else if (
-                c?.type === "response.delta" &&
-                typeof c?.delta?.output_text === "string"
-              ) {
-                delta = c.delta.output_text
-              }
-              if (!delta) continue
-              setMessages((prev) => {
-                if (prev.length === 0) return prev
-                const next = prev.slice()
-                const last = next[next.length - 1]
-                const lastParts = (last as unknown as { parts?: TextPart[] })
-                  .parts
-                if (
-                  last.role === "assistant" &&
-                  Array.isArray(lastParts) &&
-                  lastParts.length
-                ) {
-                  const updated: TextPart[] = [...lastParts]
-                  updated[0] = {
-                    ...updated[0],
-                    text: String((updated[0]?.text || "") + delta),
-                  }
-                  next[next.length - 1] = {
-                    ...last,
-                    parts: updated,
-                  } as UIMessage
-                } else {
-                  next.push({
-                    id: makeId(),
-                    role: "assistant",
-                    parts: [{ type: "text", text: String(delta) } as TextPart],
-                  } as UIMessage)
-                }
-                return next
-              })
-            }
-            // Success
+            // Success - break out of retry loop
             break
           } catch (e) {
             const err = e as { name?: string }
@@ -293,8 +245,21 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
             throw e
           }
         }
+
+        // Process the response
+        if (response && response.choices && response.choices.length > 0) {
+          const assistantMessage = response.choices[0].message
+          if (assistantMessage && assistantMessage.content) {
+            const newMessage: UIMessage = {
+              id: makeId(),
+              role: "assistant",
+              parts: [{ type: "text", text: assistantMessage.content }],
+            }
+            setMessages((prev) => [...prev, newMessage])
+          }
+        }
       } catch (err) {
-        console.error("Streaming chat error:", err)
+        console.error("Chat completion error:", err)
         const msg =
           err instanceof Error
             ? err.message
@@ -337,9 +302,9 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
       setInput("")
       const history = [...messages, userMessage]
       setMessages(history)
-      void streamAssistantResponse(history)
+      void generateAssistantResponse(history)
     },
-    [input, messages, streamAssistantResponse]
+    [input, messages, generateAssistantResponse]
   )
 
   // Autorun with initialPrompt if provided
@@ -383,8 +348,8 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
     const history = messages.slice(0, lastAssistantIndex)
     setError(null)
     setMessages(history)
-    void streamAssistantResponse(history)
-  }, [messages, getTextFromMessage, sendMessage, streamAssistantResponse])
+    void generateAssistantResponse(history)
+  }, [messages, getTextFromMessage, sendMessage, generateAssistantResponse])
 
   const retryLast = useCallback(() => {
     const lastUser = [...messages].reverse().find((m) => m.role === "user")
