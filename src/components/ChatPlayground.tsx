@@ -227,7 +227,26 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
             )
 
             for await (const chunk of stream) {
-              const delta = chunk.choices?.[0]?.delta?.content
+              // Support both Chat Completions-style and Responses API streaming events
+              let delta: string | undefined
+              const c: any = chunk as any
+              if (c?.choices?.[0]?.delta?.content) {
+                delta = c.choices[0].delta.content
+              } else if (typeof c === "string") {
+                delta = c
+              } else if (typeof c?.delta === "string") {
+                delta = c.delta
+              } else if (
+                c?.type === "response.output_text.delta" &&
+                typeof c?.delta === "string"
+              ) {
+                delta = c.delta
+              } else if (
+                c?.type === "response.delta" &&
+                typeof c?.delta?.output_text === "string"
+              ) {
+                delta = c.delta.output_text
+              }
               if (!delta) continue
               setMessages((prev) => {
                 if (prev.length === 0) return prev

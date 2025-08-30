@@ -3,6 +3,7 @@ import {
   custom,
   createPublicClient,
   type EIP1193Provider,
+  type WalletClient,
 } from "viem"
 import { OPENAI_URL } from "@/config/unreal"
 import { getOnboard } from "@/lib/onboard"
@@ -198,7 +199,7 @@ export class ApiClient {
 
 // Wallet utilities
 export class WalletService {
-  private walletClient: any | null = null
+  private walletClient: WalletClient | null = null
   private account: `0x${string}` | null = null
   private provider: EIP1193Provider | null = null
   private onboard: OnboardAPI | null = null
@@ -250,9 +251,10 @@ export class WalletService {
       this.provider = primary.provider
 
       // Create a viem wallet client from the connected provider
-      this.walletClient = createWalletClient({
+      // Explicitly cast to WalletClient to avoid excessive generic instantiation errors
+      this.walletClient = (createWalletClient({
         transport: custom(this.provider),
-      })
+      }) as unknown) as WalletClient
 
       const addresses = (primary.accounts || []).map(
         (a) => a.address as `0x${string}`
@@ -307,7 +309,6 @@ export class WalletService {
     this.connectedWallet = null
     // Optionally clear any cached wallet info in localStorage/sessionStorage
     localStorage.removeItem("unreal_wallet_address")
-    localStorage.removeItem("unreal_openai_address")
     return
   }
 
@@ -333,32 +334,45 @@ export class WalletService {
     }
   }
 
-  // Get connected wallet address
+  // Get the current connected wallet address (always fetch fresh from state)
   async getAddress(): Promise<string | null> {
-    if (!window.ethereum) return null
-
     try {
-      if (!this.account) {
-        const onboard = this.onboard || getOnboard()
-        const wallets = onboard?.state?.get?.().wallets || []
-        const first = wallets[0]
-        if (first && first.accounts && first.accounts[0]?.address) {
-          this.account = first.accounts[0].address as `0x${string}`
-        } else if (window.ethereum?.request) {
-          const accounts = (await window.ethereum.request({
-            method: "eth_accounts",
-            params: [],
-          })) as string[]
-          if (accounts.length > 0) {
-            this.account = accounts[0] as `0x${string}`
+      const onboard = this.onboard || getOnboard()
+      const wallets = onboard?.state?.get?.().wallets || []
+      const first = wallets[0]
+
+      let current: `0x${string}` | null = null
+
+      // Aggregate all known addresses from onboard state
+      const allAddresses: `0x${string}`[] = Array.isArray(wallets)
+        ? wallets
+            .flatMap((w: WalletState) => w?.accounts || [])
+            .map((a) => a.address as `0x${string}`)
+        : []
+
+      // Prefer an explicit account set during connect(selectedAddress)
+      if (this.account && allAddresses.includes(this.account)) {
+        current = this.account
+      } else if (first && first.accounts && first.accounts[0]?.address) {
+        current = first.accounts[0].address as `0x${string}`
+      } else if (window.ethereum?.request) {
+        const accounts = (await window.ethereum.request({
+          method: "eth_accounts",
+          params: [],
+        })) as `0x${string}`[]
+        if (Array.isArray(accounts) && accounts.length > 0) {
+          // If an explicit account was set and is available via provider, prefer it
+          if (this.account && accounts.includes(this.account)) {
+            current = this.account
           } else {
-            return null
+            current = accounts[0] as `0x${string}`
           }
-        } else {
-          return null
         }
       }
-      return this.account
+
+      // Update cached account for convenience, but always prefer fresh state on next call
+      this.account = current
+      return current
     } catch (error) {
       return null
     }
@@ -369,7 +383,7 @@ export class WalletService {
     if (!this.provider) {
       throw new Error("No provider available - connect a wallet first")
     }
-    return createPublicClient({ transport: custom(this.provider) })
+    return createPublicClient({ transport: custom(this.provider) }) as any
   }
 
   async getChainId(): Promise<number> {
@@ -447,13 +461,15 @@ export class WalletService {
 
   // Sign message for registration
   async signMessage(message: string): Promise<string> {
-    if (!this.walletClient || !this.account) {
+    if (!this.walletClient) {
       throw new Error("Wallet not connected")
     }
 
     try {
+      const addr = await this.getAddress()
+      if (!addr) throw new Error("No wallet address available")
       return await this.walletClient.signMessage({
-        account: this.account,
+        account: addr,
         message,
       })
     } catch (error) {
@@ -469,7 +485,7 @@ export class WalletService {
     amount: bigint,
     deadline: number
   ): Promise<{ permit: PermitMessage; signature: string }> {
-    if (!this.walletClient || !this.account) {
+    if (!this.walletClient) {
       throw new Error("Wallet not connected")
     }
 
@@ -545,7 +561,7 @@ export class WalletService {
 
       // Sign the permit
       const signature = await this.walletClient.signTypedData({
-        account: this.account,
+        account: ownerAddress as `0x${string}`,
         domain,
         types,
         primaryType: "Permit",

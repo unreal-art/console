@@ -15,7 +15,8 @@ import {
   ApiKeyListResponse,
 } from "./api"
 import { getUnrealBalance } from "@utils/unreal"
-import { initOnboard, type OnboardChain } from "@/lib/onboard"
+import { initOnboard, getOnboard, type OnboardChain } from "@/lib/onboard"
+import type { WalletState } from "@web3-onboard/core"
 import { formatEther } from "viem"
 import { performRegistration } from "./registration"
 import { getChainById } from "@utils/web3/chains"
@@ -214,6 +215,72 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     checkWalletConnection()
   }, [])
 
+  // React to wallet account changes from Web3-Onboard state
+  useEffect(() => {
+    const onboard = getOnboard()
+    // Prefer subscribing to the wallets slice if available
+    type WalletsSubscription = {
+      subscribe: (
+        fn: (wallets: WalletState[]) => void
+      ) => { unsubscribe: () => void }
+    }
+    const selector = (onboard as unknown as {
+      state?: { select?: (key: "wallets") => WalletsSubscription }
+    }).state?.select?.("wallets")
+
+    if (selector && typeof selector.subscribe === "function") {
+      const sub = selector.subscribe((wallets: WalletState[]) => {
+        try {
+          const first = wallets && wallets[0]
+          const nextAddr: string | null = first?.accounts?.[0]?.address || null
+
+          // Update available addresses list
+          const addrs = Array.isArray(wallets)
+            ? wallets
+                .flatMap((w: WalletState) => w?.accounts || [])
+                .map((a) => String(a?.address || ""))
+                .filter((v) => v.length > 0)
+            : []
+          setAvailableAddresses(addrs)
+
+          // Update current wallet address if changed
+          if (nextAddr !== walletAddress) {
+            setWalletAddress(nextAddr)
+            console.debug("[ApiContext] Wallet account changed:", nextAddr)
+          }
+        } catch (e) {
+          console.warn("[ApiContext] Wallets subscription parse error", e)
+        }
+      })
+      return () => {
+        try {
+          sub?.unsubscribe?.()
+        } catch (_) {
+          // ignore
+        }
+      }
+    }
+
+    // Fallback polling if select/subscribe is not available
+    let cancelled = false
+    const interval = setInterval(async () => {
+      if (cancelled) return
+      try {
+        const addr = await walletService.getAddress()
+        if (addr !== walletAddress) {
+          setWalletAddress(addr)
+          console.debug("[ApiContext] Wallet account polled change:", addr)
+        }
+      } catch {
+        // ignore
+      }
+    }, 1500)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [walletAddress])
+
   // Helper function for auto-registration
   const autoRegisterWithWallet = async (
     walletAddr: string,
@@ -309,12 +376,19 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     setIsLoading(true)
     setError(null)
 
-    // Ensure we have wallet address and fetch OpenAI address if missing
-    if (!walletAddress) {
+    // Always fetch the active wallet address from WalletService to avoid stale state
+    const currentAddress = await walletService.getAddress()
+    if (!currentAddress) {
       setError("Wallet not connected")
       setIsLoading(false)
       throw new Error("Wallet not connected")
     }
+    // Keep context state in sync
+    if (currentAddress !== walletAddress) {
+      setWalletAddress(currentAddress)
+    }
+
+    // Ensure we have the OpenAI address
     let openaiAddr = openaiAddress
     if (!openaiAddr) {
       try {
@@ -332,13 +406,13 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
 
     try {
       console.debug("[ApiContext] Register with wallet", {
-        walletAddress,
+        walletAddress: currentAddress,
         openaiAddr,
         calls,
       })
       const result = await performRegistration(
         calls,
-        walletAddress,
+        currentAddress,
         openaiAddr!
       )
 
