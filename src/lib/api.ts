@@ -365,6 +365,50 @@ export class WalletService {
     await onboard.setChain({ chainId: chainIdHex })
   }
 
+  // Check ERC20 token allowance
+  async checkAllowance(
+    tokenAddress: string,
+    owner: string,
+    spender: string
+  ): Promise<bigint> {
+    if (!this.provider) {
+      throw new Error("Wallet not connected")
+    }
+
+    try {
+      const client = createPublicClient({
+        transport: custom(this.provider),
+      })
+
+      // Define ERC20 allowance ABI
+      const erc20Abi = [
+        {
+          inputs: [
+            { name: "owner", type: "address" },
+            { name: "spender", type: "address" },
+          ],
+          name: "allowance",
+          outputs: [{ name: "", type: "uint256" }],
+          stateMutability: "view",
+          type: "function",
+        },
+      ] as const
+
+      // Check current allowance
+      const allowance = await client.readContract({
+        abi: erc20Abi,
+        address: tokenAddress as `0x${string}`,
+        functionName: "allowance",
+        args: [owner as `0x${string}`, spender as `0x${string}`],
+      })
+
+      return BigInt(allowance)
+    } catch (error) {
+      console.error("Error checking allowance:", error)
+      throw new Error("Failed to check token allowance")
+    }
+  }
+
   // Sign message for registration
   async signMessage(message: string): Promise<string> {
     if (!this.walletClient || !this.account) {

@@ -298,7 +298,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
       let permit
       let permitSignature
       if (calls > 0 && PAYMENT_TOKEN) {
-        const deadline = Math.floor(Date.now() / 1000) + 3600 // 1h
+        const deadline = Math.floor(Date.now() / 1000) + 3600 // 1 hour
         try {
           const permitResult = await walletService.createPermitSignature(
             PAYMENT_TOKEN,
@@ -454,7 +454,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
       let permit
       let permitSignature
       if (calls > 0 && PAYMENT_TOKEN) {
-        const deadline = Math.floor(Date.now() / 1000) + 3600
+        const deadline = Math.floor(Date.now() / 1000) + 3600 // 1 hour
         try {
           const permitResult = await walletService.createPermitSignature(
             PAYMENT_TOKEN,
@@ -464,6 +464,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
           )
           permit = permitResult.permit
           permitSignature = permitResult.signature
+          console.log("permitResult", permitResult)
         } catch (err) {
           console.error("Failed to create permit signature:", err)
         }
