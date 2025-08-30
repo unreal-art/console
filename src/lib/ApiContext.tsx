@@ -659,16 +659,21 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     setError(null)
   }
 
-  // Get current chain ID from wallet
-  const getCurrentChainId = async (): Promise<number> => {
-    try {
-      return await walletService.getCurrentChainId()
-    } catch (error) {
-      console.error("Error getting current chain ID:", error)
-      // Return default chain ID if error
-      return 1 // Default to mainnet
-    }
+// At top of file, update import to include getDefaultChain
+import { getPublicClient, getDefaultChain } from "@/config/wallet"
+
+// ...
+
+// Get current chain ID from wallet
+const getCurrentChainId = async (): Promise<number> => {
+  try {
+    return await walletService.getCurrentChainId()
+  } catch (error) {
+    console.error("Error getting current chain ID:", error)
+    // Return configured default chain ID if error
+    return getDefaultChain().id
   }
+}
 
   const value = {
     isAuthenticated,
