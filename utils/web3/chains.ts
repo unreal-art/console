@@ -148,14 +148,14 @@ export function isChainSupported(chainId: number): boolean {
 export function getUnrealTokenAddress(chainId: number): `0x${string}` {
   const chain = getChainById(chainId)
   const tokenAddress = chain.custom?.tokens?.UnrealToken?.address
-  
+
   if (!tokenAddress) {
     throw new ChainError(
       `Unreal token not configured for chain ${chain.name}`,
       chainId
     )
   }
-  
+
   return tokenAddress as `0x${string}`
 }
 

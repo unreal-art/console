@@ -1,6 +1,6 @@
 import injectedWallets from "@web3-onboard/injected-wallets"
 import Onboard, { type OnboardAPI, type WalletState } from "@web3-onboard/core"
-import type { EIP1193Provider } from "viem"
+import { toHex, type EIP1193Provider } from "viem"
 import { torusMainnet, amoyTestnet, titanAITestnet } from "@/config/wallet"
 
 // Minimal chain type for web3-onboard
@@ -13,19 +13,19 @@ export type OnboardChain = {
 
 export const DEFAULT_CHAINS: OnboardChain[] = [
   {
-    id: torusMainnet.id.toString(16), // 8192
+    id: toHex(torusMainnet.id), // 8192
     token: torusMainnet.nativeCurrency.symbol,
     label: torusMainnet.name,
     rpcUrl: torusMainnet.rpcUrls.default.http[0],
   },
   {
-    id: amoyTestnet.id.toString(16), // 8192
+    id: toHex(amoyTestnet.id), // 8192
     token: amoyTestnet.nativeCurrency.symbol,
     label: amoyTestnet.name,
     rpcUrl: amoyTestnet.rpcUrls.default.http[0],
   },
   {
-    id: titanAITestnet.id.toString(16), // 8192
+    id: toHex(titanAITestnet.id), // 8192
     token: titanAITestnet.nativeCurrency.symbol,
     label: titanAITestnet.name,
     rpcUrl: titanAITestnet.rpcUrls.default.http[0],
