@@ -192,13 +192,17 @@ const SignIn = () => {
 
     setIsRegistering(true)
     try {
-      // Ensure WalletService is connected for message and permit signing
+      // Connect wallet only if needed, but avoid showing onboarding modal
+      // Check if wallet is already connected in ApiContext
+      console.debug("[SignIn] Registering with wallet:", selectedAddress)
+      
+      // Ensure wallet is connected in ApiContext before registration
       await connectWallet(selectedAddress)
-
+      
       // Use the actual UNREAL balance for the calls value
       const callsValue = unrealBalance > 0 ? Math.floor(unrealBalance) : 0
 
-      // registerWithWallet only expects the calls value - wallet address is handled in the API context
+      // Now register with the connected wallet
       await registerWithWallet(callsValue)
       setShowOnboarding(true)
     } catch (error) {
