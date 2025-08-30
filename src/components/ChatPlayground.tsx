@@ -170,15 +170,6 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
       setError(null)
       setIsStreaming(true)
 
-      // Append assistant placeholder
-      setMessages(() => [
-        ...history,
-        {
-          id: makeId(),
-          role: "assistant",
-          parts: [{ type: "text", text: "" }],
-        } as UIMessage,
-      ])
 
       try {
         // Helper functions for retry logic
