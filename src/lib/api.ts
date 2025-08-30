@@ -229,9 +229,8 @@ export class WalletService {
       }
       
       // Fallback to injected provider if available
-      // Check both window existence and ethereum.request method
-      if (typeof window !== "undefined" && window.ethereum?.request) {
-        const addresses = (await window.ethereum.request({
+      if (this.ethereum?.request) {
+        const addresses = (await this.ethereum.request({
           method: "eth_accounts",
           params: [],
         })) as `0x${string}`[]
