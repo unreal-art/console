@@ -11,7 +11,7 @@ async function getPaymentTokenForCurrentChain(): Promise<Address | null> {
 
     const chainIn = systemInfo!.chains[chainId]
 
-    const paymentToken = chainIn?.custom.tokens.UnrealToken
+    const paymentToken = chainIn?.custom.tokens.UnrealToken.address
     return paymentToken || null
   } catch (e) {
     console.error("Failed to resolve payment token:", e)
@@ -54,6 +54,8 @@ export async function performRegistration(
   // Check allowance and create permit only if needed
   let permit: PermitMessage | undefined
   let permitSignature: string | undefined
+
+  console.log({ paymentToken, calls })
   if (paymentToken && calls > 0) {
     try {
       // Check current allowance for the paymaster (spender = openaiAddr)
@@ -95,6 +97,8 @@ export async function performRegistration(
       console.error("Failed to check allowance or create permit:", err)
       // Continue without permit - let backend handle the error
     }
+  } else {
+    console.debug("skipping permit")
   }
 
   const registerResponse = await apiClient.register({
