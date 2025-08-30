@@ -213,6 +213,11 @@ export class WalletService {
   // Get all available wallet addresses
   async getAvailableAddresses(): Promise<`0x${string}`[]> {
     try {
+      // Check for SSR context first
+      if (typeof window === "undefined") {
+        return []
+      }
+
       const onboard = getOnboard()
       const state = onboard?.state?.get?.()
       const wallets: WalletState[] = (state?.wallets || []) as WalletState[]
@@ -222,14 +227,18 @@ export class WalletService {
           .map((a) => a.address as `0x${string}`)
         return addresses
       }
+      
       // Fallback to injected provider if available
-      if (window.ethereum?.request) {
+      // Check both window existence and ethereum.request method
+      if (typeof window !== "undefined" && window.ethereum?.request) {
         const addresses = (await window.ethereum.request({
           method: "eth_accounts",
           params: [],
         })) as `0x${string}`[]
         return addresses
       }
+      
+      // No wallet available, return empty array
       return []
     } catch (error) {
       console.error("Error getting wallet addresses:", error)
