@@ -20,7 +20,7 @@ import { AlertCircle, Loader2, CheckCircle, AlertTriangle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import Layout from "@/components/Layout"
 import { useApi } from "@/lib/ApiContext"
-import { publicClient } from "@/config/wallet"
+import { getPublicClient } from "@/config/wallet"
 import { getAddress } from "viem"
 
 // Define the minimal ABI for the UNREAL token to fetch balance
@@ -77,6 +77,7 @@ const SignIn = () => {
 
     setIsLoadingBalance(true)
     try {
+      const publicClient = getPublicClient()
       const balance = await publicClient.readContract({
         address: UNREAL_TOKEN_ADDRESS,
         abi: UNREAL_TOKEN_ABI,

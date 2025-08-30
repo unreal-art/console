@@ -4,7 +4,7 @@ import { getUnrealBalance } from "../../utils/unreal"
 import { formatEther, type Address } from "viem"
 import { useApi } from "@/lib/ApiContext"
 import { toast, useToast } from "@/components/ui/use-toast"
-import { publicClient } from "@/config/wallet"
+import { getPublicClient } from "@/config/wallet"
 import { motion } from "framer-motion"
 import {
   Check,
@@ -375,7 +375,8 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
           })
 
           try {
-            // Wait for transaction confirmation with publicClient
+            // Wait for transaction confirmation with getPublicClient
+            const publicClient = getPublicClient()
             const receipt = await publicClient.waitForTransactionReceipt({
               hash: response.txHash as `0x${string}`,
               confirmations: 1, // Wait for 1 confirmation
