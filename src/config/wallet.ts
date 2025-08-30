@@ -1,4 +1,13 @@
-import { Chain, createNonceManager, createPublicClient, createWalletClient, defineChain, http, erc20Abi, WalletClient } from "viem"
+import {
+  Chain,
+  createNonceManager,
+  createPublicClient,
+  createWalletClient,
+  defineChain,
+  http,
+  erc20Abi,
+  WalletClient,
+} from "viem"
 import { privateKeyToAccount } from "viem/accounts"
 
 /**
@@ -107,7 +116,7 @@ export const amoyTestnet = defineChain({
         "https://polygon-amoy.api.onfinality.io/rpc?apikey=2c5aa595-0e05-4e6f-886d-328ecf686e9a",
         "https://polygon-amoy.api.onfinality.io/rpc?apikey=8eed9a83-a2d9-47ce-8a16-93484169061f",
         "https://polygon-amoy.api.onfinality.io/rpc?apikey=4b0f6579-9a73-4d9f-8183-c3bddf7d969d",
-        "https://80002.rpc.thirdweb.com/1c7f56d370cac48d0c58616135e23ea5",
+        // "https://80002.rpc.thirdweb.com/1c7f56d370cac48d0c58616135e23ea5",
         // "https://polygon-amoy.api.onfinality.io/public",
         // 'https://polygon-amoy.public.blastapi.io/',
 

@@ -175,12 +175,9 @@ const SignIn = () => {
 
   // Handle wallet selection from modal
   const handleSelectWallet = async (address: string) => {
-    try {
-      // Ensure WalletService is connected to the selected address for signing
-      await connectWallet(address)
-    } catch (err) {
-      console.error("Error connecting selected wallet:", err)
-    }
+    // Just update the selected address and fetch balance
+    // No need to call connectWallet since wallet is already connected
+    console.debug("[SignIn] Switching to wallet address:", address)
     setSelectedAddress(address)
     await fetchUnrealBalance(address)
     setShowWalletModal(false)
