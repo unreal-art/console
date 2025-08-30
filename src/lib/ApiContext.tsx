@@ -73,8 +73,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     walletDisconnectRef.current = fn
   }
 
-  // Prevent auto-reconnect after a deliberate logout
-  const SIGNED_OUT_KEY = "unreal_signed_out"
+  // Avoid persisting sign-out state; minimize localStorage usage to session token only
 
   // Initialize state from localStorage and handle auto-registration
   useEffect(() => {
@@ -102,8 +101,6 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
       }
     })()
     const storedToken = localStorage.getItem("unreal_token")
-    const storedWalletAddress = localStorage.getItem("unreal_wallet_address")
-    const signedOut = localStorage.getItem(SIGNED_OUT_KEY) === "1"
 
     if (storedToken) {
       setToken(storedToken)
@@ -111,26 +108,26 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
       setIsAuthenticated(true)
     }
 
-    if (storedWalletAddress && !signedOut) {
-      setWalletAddress(storedWalletAddress)
-    }
+    // Do not restore wallet address from storage; rely on wallet provider state
     
 
     // Check if wallet is already connected and handle auto-registration
     const checkWalletConnection = async () => {
       try {
         const isConnected = await walletService.isConnected()
+        console.debug("[ApiContext] Wallet connected?", isConnected)
         if (isConnected) {
           const address = await walletService.getAddress()
           if (address) {
             setWalletAddress(address)
-            localStorage.setItem("unreal_wallet_address", address)
+            console.debug("[ApiContext] Using wallet address", address)
 
             // If we have a wallet address but no token, fetch the OpenAI address
             if (!storedToken) {
               try {
                 const authAddressResponse = await apiClient.getAuthAddress()
                 setOpenaiAddress(authAddressResponse.address)
+                console.debug("[ApiContext] Fetched OpenAI address", authAddressResponse.address)
 
                 try {
                   // Get system info and chain-aware token address
@@ -187,17 +184,15 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
                     )
                     const balanceInEther = formatEther(balance)
                     calls = parseInt(balanceInEther)
-                    console.log(
-                      `Token balance: ${balanceInEther} (${calls} calls)`
+                    console.debug(
+                      "[ApiContext] UNREAL balance:", balanceInEther, "=> calls:", calls
                     )
                   } catch (balanceError) {
                     console.error("Unable to get balance:", balanceError)
                     // Continue with zero calls if balance check fails
                   }
 
-                  // Store values in localStorage
-                  localStorage.setItem("unreal_calls_value", calls.toString())
-                  localStorage.setItem("unreal_payment_token", paymentToken)
+                  // Do not persist calls/payment token; use in-memory only
 
                   // Auto-register with the wallet
                   await autoRegisterWithWallet(
@@ -227,11 +222,8 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
       }
     }
 
-    if (!signedOut) {
-      checkWalletConnection()
-    } else {
-      setIsLoading(false)
-    }
+    // Always check connection on mount; no persistent signed-out gating
+    checkWalletConnection()
   }, [])
 
   // Helper function for auto-registration
@@ -241,6 +233,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     calls: number
   ): Promise<string | null> => {
     try {
+      console.debug("[ApiContext] Auto-register start", { walletAddr, openaiAddr, calls })
       const result = await performRegistration(calls, walletAddr, openaiAddr)
 
       // Set token and auth state
@@ -249,10 +242,9 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
       apiClient.setToken(result.token)
       setIsAuthenticated(true)
 
-      // Persist resolved payment token if available
-      if (result.paymentToken) {
-        localStorage.setItem("unreal_payment_token", result.paymentToken)
-      }
+      // Do not persist payment token; use in-memory flow only
+
+      console.debug("[ApiContext] Auto-register success; token set")
 
       return result.token
     } catch (error: unknown) {
@@ -299,13 +291,12 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
       // Ensure we're using the selected address if provided
       const finalAddress = selectedAddress || address
       setWalletAddress(finalAddress)
-      localStorage.setItem("unreal_wallet_address", finalAddress)
-      // Clear signed-out flag upon a successful manual connect
-      localStorage.removeItem(SIGNED_OUT_KEY)
+      console.debug("[ApiContext] Connected wallet address", finalAddress)
 
       // Get OpenAI address
       const authAddressResponse = await apiClient.getAuthAddress()
       setOpenaiAddress(authAddressResponse.address)
+      console.debug("[ApiContext] Fetched OpenAI address", authAddressResponse.address)
 
       return finalAddress
     } catch (error: unknown) {
@@ -345,8 +336,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     }
 
     try {
-      // Store the calls value in localStorage
-      localStorage.setItem("unreal_calls_value", calls.toString())
+      console.debug("[ApiContext] Register with wallet", { walletAddress, openaiAddr, calls })
       const result = await performRegistration(calls, walletAddress, openaiAddr!)
 
       // Set token
@@ -355,10 +345,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
       apiClient.setToken(result.token)
       setIsAuthenticated(true)
 
-      // Persist resolved payment token if available
-      if (result.paymentToken) {
-        localStorage.setItem("unreal_payment_token", result.paymentToken)
-      }
+      // Do not persist payment token
 
       return result.token
     } catch (error: unknown) {
@@ -535,16 +522,12 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
 
     // Remove all related items from localStorage
     localStorage.removeItem("unreal_token")
-    localStorage.removeItem("unreal_wallet_address")
-    localStorage.removeItem("unreal_openai_address")
-    localStorage.removeItem("unreal_calls_value")
-    localStorage.removeItem("unreal_payment_token")
 
     // Reset wallet address state
     setWalletAddress(null)
     setOpenaiAddress(null)
 
-    console.log("Wallet disconnected and refresh")
+    console.debug("[ApiContext] Logout complete; refreshing app")
 
     // Disconnect local WalletService state
     try {
@@ -561,8 +544,6 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     } catch (e) {
       console.warn("thirdweb disconnect warning:", e)
     }
-    // Mark that the user intentionally signed out to prevent auto-reconnect on next mount
-    localStorage.setItem(SIGNED_OUT_KEY, "1")
     window.location.reload()
   }
 

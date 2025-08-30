@@ -114,8 +114,8 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
       // Only show airdrop step if balance is 0
       setShowAirdropStep(calls === 0)
 
-      // Store for other components if needed
-      localStorage.setItem("unreal_calls_value", calls.toString())
+      // Do not persist calls to localStorage; keep in-memory only per app policy
+      console.debug("OnboardingFlow: callsAmount computed (not persisted)", calls)
     } catch (err) {
       console.error("Unable to fetch calls amount:", err)
     }
