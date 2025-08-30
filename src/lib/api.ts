@@ -1,4 +1,9 @@
-import { createWalletClient, custom, createPublicClient, type EIP1193Provider } from "viem"
+import {
+  createWalletClient,
+  custom,
+  createPublicClient,
+  type EIP1193Provider,
+} from "viem"
 import { OPENAI_URL } from "@/config/unreal"
 import { getOnboard } from "@/lib/onboard"
 import type { OnboardAPI, WalletState } from "@web3-onboard/core"
@@ -149,10 +154,10 @@ export class ApiClient {
         typeof error === "object" &&
         error !== null &&
         "response" in error &&
-        typeof (error as { response?: { status?: number } }).response?.status ===
-          "number" &&
-        (((error as { response: { status: number } }).response.status === 401 ||
-          (error as { response: { status: number } }).response.status === 403))
+        typeof (error as { response?: { status?: number } }).response
+          ?.status === "number" &&
+        ((error as { response: { status: number } }).response.status === 401 ||
+          (error as { response: { status: number } }).response.status === 403)
       ) {
         const status = (error as { response: { status: number } }).response
           .status
@@ -257,7 +262,10 @@ export class WalletService {
 
       // Use the selected address if provided and valid, otherwise the first address
       let address: `0x${string}` = addresses[0]
-      if (selectedAddress && addresses.includes(selectedAddress as `0x${string}`)) {
+      if (
+        selectedAddress &&
+        addresses.includes(selectedAddress as `0x${string}`)
+      ) {
         address = selectedAddress as `0x${string}`
       }
 
@@ -314,7 +322,10 @@ export class WalletService {
     }
     if (!window.ethereum) return false
     try {
-      const accounts = (await window.ethereum.request({ method: "eth_accounts", params: [] })) as string[]
+      const accounts = (await window.ethereum.request({
+        method: "eth_accounts",
+        params: [],
+      })) as string[]
       return accounts.length > 0
     } catch (error) {
       return false
@@ -333,7 +344,10 @@ export class WalletService {
         if (first && first.accounts && first.accounts[0]?.address) {
           this.account = first.accounts[0].address as `0x${string}`
         } else if (window.ethereum?.request) {
-          const accounts = (await window.ethereum.request({ method: "eth_accounts", params: [] })) as string[]
+          const accounts = (await window.ethereum.request({
+            method: "eth_accounts",
+            params: [],
+          })) as string[]
           if (accounts.length > 0) {
             this.account = accounts[0] as `0x${string}`
           } else {

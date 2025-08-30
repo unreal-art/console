@@ -14,10 +14,11 @@ import {
   ApiKey,
   ApiKeyListResponse,
 } from "./api"
-import { getUnrealBalance } from "../../utils/unreal"
+import { getUnrealBalance } from "@utils/unreal"
 import { initOnboard, type OnboardChain } from "@/lib/onboard"
-import { formatEther, type Address } from "viem"
+import { formatEther } from "viem"
 import { performRegistration } from "./registration"
+import { getChainById } from "@utils/web3/chains"
 
 interface ApiContextType {
   isAuthenticated: boolean
@@ -109,7 +110,6 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     }
 
     // Do not restore wallet address from storage; rely on wallet provider state
-    
 
     // Check if wallet is already connected and handle auto-registration
     const checkWalletConnection = async () => {
@@ -127,37 +127,19 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
               try {
                 const authAddressResponse = await apiClient.getAuthAddress()
                 setOpenaiAddress(authAddressResponse.address)
-                console.debug("[ApiContext] Fetched OpenAI address", authAddressResponse.address)
+                console.debug(
+                  "[ApiContext] Fetched OpenAI address",
+                  authAddressResponse.address
+                )
 
                 try {
                   // Get system info and chain-aware token address
                   const systemInfo = await apiClient.getSystemInfo()
                   const chainId = await walletService.getChainId()
-                  const chainIdHex = `0x${chainId.toString(16)}`.toLowerCase()
 
-                  let paymentToken = (systemInfo?.paymentToken || "") as Address
-                  if (Array.isArray(systemInfo?.chains)) {
-                    const match = (
-                      systemInfo!.chains as Array<{
-                        id: string
-                        token: string
-                        label: string
-                        rpcUrl: string
-                      }>
-                    ).find((c) => c.id.toLowerCase() === chainIdHex)
-                    if (match?.token) paymentToken = match.token as Address
-                  } else if (systemInfo?.paymentTokens) {
-                    const byDec = systemInfo.paymentTokens[String(chainId)]
-                    const byHex = systemInfo.paymentTokens[chainIdHex]
-                    const byHexNo0x =
-                      systemInfo.paymentTokens[
-                        chainId.toString(16).toLowerCase()
-                      ]
-                    paymentToken = (byDec ||
-                      byHex ||
-                      byHexNo0x ||
-                      paymentToken) as Address
-                  }
+                  const chain = getChainById(chainId)
+
+                  const paymentToken = chain.custom.tokens.UnrealToken.address
 
                   if (!paymentToken) {
                     console.error(
@@ -185,7 +167,10 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
                     const balanceInEther = formatEther(balance)
                     calls = parseInt(balanceInEther)
                     console.debug(
-                      "[ApiContext] UNREAL balance:", balanceInEther, "=> calls:", calls
+                      "[ApiContext] UNREAL balance:",
+                      balanceInEther,
+                      "=> calls:",
+                      calls
                     )
                   } catch (balanceError) {
                     console.error("Unable to get balance:", balanceError)
@@ -233,7 +218,11 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     calls: number
   ): Promise<string | null> => {
     try {
-      console.debug("[ApiContext] Auto-register start", { walletAddr, openaiAddr, calls })
+      console.debug("[ApiContext] Auto-register start", {
+        walletAddr,
+        openaiAddr,
+        calls,
+      })
       const result = await performRegistration(calls, walletAddr, openaiAddr)
 
       // Set token and auth state
@@ -296,7 +285,10 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
       // Get OpenAI address
       const authAddressResponse = await apiClient.getAuthAddress()
       setOpenaiAddress(authAddressResponse.address)
-      console.debug("[ApiContext] Fetched OpenAI address", authAddressResponse.address)
+      console.debug(
+        "[ApiContext] Fetched OpenAI address",
+        authAddressResponse.address
+      )
 
       return finalAddress
     } catch (error: unknown) {
@@ -336,8 +328,16 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     }
 
     try {
-      console.debug("[ApiContext] Register with wallet", { walletAddress, openaiAddr, calls })
-      const result = await performRegistration(calls, walletAddress, openaiAddr!)
+      console.debug("[ApiContext] Register with wallet", {
+        walletAddress,
+        openaiAddr,
+        calls,
+      })
+      const result = await performRegistration(
+        calls,
+        walletAddress,
+        openaiAddr!
+      )
 
       // Set token
       setToken(result.token)
