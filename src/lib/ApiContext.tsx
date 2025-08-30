@@ -16,7 +16,8 @@ import {
 } from "./api"
 import { getUnrealBalance } from "../../utils/unreal"
 import { initOnboard, type OnboardChain } from "@/lib/onboard"
-import { formatEther, parseEther, type Address } from "viem"
+import { formatEther, type Address } from "viem"
+import { performRegistration } from "./registration"
 
 interface ApiContextType {
   isAuthenticated: boolean
@@ -248,87 +249,20 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     calls: number
   ): Promise<string | null> => {
     try {
-      // Resolve payment token per current chain from system info
-      const systemInfo = await apiClient.getSystemInfo()
-      const chainId = await walletService.getChainId()
-      const chainIdHex = `0x${chainId.toString(16)}`.toLowerCase()
-      let PAYMENT_TOKEN = (systemInfo?.paymentToken || "") as Address
-      if (Array.isArray(systemInfo?.chains)) {
-        const match = (
-          systemInfo!.chains as Array<{
-            id: string
-            token: string
-            label: string
-            rpcUrl: string
-          }>
-        ).find((c) => c.id.toLowerCase() === chainIdHex)
-        if (match?.token) PAYMENT_TOKEN = match.token as Address
-      } else if (systemInfo?.paymentTokens) {
-        const byDec = systemInfo.paymentTokens[String(chainId)]
-        const byHex = systemInfo.paymentTokens[chainIdHex]
-        const byHexNo0x =
-          systemInfo.paymentTokens[chainId.toString(16).toLowerCase()]
-        PAYMENT_TOKEN = (byDec ||
-          byHex ||
-          byHexNo0x ||
-          PAYMENT_TOKEN) as Address
-      }
+      const result = await performRegistration(calls, walletAddr, openaiAddr)
 
-      if (!PAYMENT_TOKEN) {
-        console.error("Payment token not found; cannot register with calls")
-      }
-      const EXPIRY_SECONDS = 3600 // 1 hour
-
-      // Prepare payload with current timestamps
-      const currentTime = Math.floor(Date.now() / 1000)
-      const payload = {
-        iss: walletAddr,
-        iat: currentTime,
-        sub: openaiAddr,
-        exp: currentTime + EXPIRY_SECONDS,
-        calls: calls,
-        paymentToken: PAYMENT_TOKEN,
-      }
-
-      // Sign the payload
-      const message = JSON.stringify(payload)
-      const signature = await walletService.signMessage(message)
-
-      // Generate permit if calls > 0
-      let permit
-      let permitSignature
-      if (calls > 0 && PAYMENT_TOKEN) {
-        const deadline = Math.floor(Date.now() / 1000) + 3600 // 1 hour
-        try {
-          const permitResult = await walletService.createPermitSignature(
-            PAYMENT_TOKEN,
-            openaiAddr,
-            parseEther(calls.toString()),
-            deadline
-          )
-          permit = permitResult.permit
-          permitSignature = permitResult.signature
-          console.log("permitResult", permitResult)
-        } catch (err) {
-          console.error("Failed to create permit signature:", err)
-        }
-      }
-
-      // Register with API
-      const registerResponse = await apiClient.register({
-        payload,
-        signature,
-        address: walletAddr,
-        ...(permit && permitSignature ? { permit, permitSignature } : {}),
-      })
-
-      // Set token
-      setToken(registerResponse.token)
-      localStorage.setItem("unreal_token", registerResponse.token)
-      apiClient.setToken(registerResponse.token)
+      // Set token and auth state
+      setToken(result.token)
+      localStorage.setItem("unreal_token", result.token)
+      apiClient.setToken(result.token)
       setIsAuthenticated(true)
 
-      return registerResponse.token
+      // Persist resolved payment token if available
+      if (result.paymentToken) {
+        localStorage.setItem("unreal_payment_token", result.paymentToken)
+      }
+
+      return result.token
     } catch (error: unknown) {
       console.error("Auto-registration failed:", error)
       return null
@@ -405,86 +339,26 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     }
 
     try {
-      // Resolve payment token per current chain
-      const systemInfo = await apiClient.getSystemInfo()
-      const chainId = await walletService.getChainId()
-      const chainIdHex = `0x${chainId.toString(16)}`.toLowerCase()
-      let PAYMENT_TOKEN = (systemInfo?.paymentToken || "") as Address
-      if (Array.isArray(systemInfo?.chains)) {
-        const match = (
-          systemInfo!.chains as Array<{
-            id: string
-            token: string
-            label: string
-            rpcUrl: string
-          }>
-        ).find((c) => c.id.toLowerCase() === chainIdHex)
-        if (match?.token) PAYMENT_TOKEN = match.token as Address
-      } else if (systemInfo?.paymentTokens) {
-        const byDec = systemInfo.paymentTokens[String(chainId)]
-        const byHex = systemInfo.paymentTokens[chainIdHex]
-        const byHexNo0x =
-          systemInfo.paymentTokens[chainId.toString(16).toLowerCase()]
-        PAYMENT_TOKEN = (byDec ||
-          byHex ||
-          byHexNo0x ||
-          PAYMENT_TOKEN) as Address
-      }
-      const EXPIRY_SECONDS = 3600 // 1 hour
-
       // Store the calls value in localStorage
       localStorage.setItem("unreal_calls_value", calls.toString())
-
-      // Prepare payload with current timestamps
-      const currentTime = Math.floor(Date.now() / 1000)
-      const payload = {
-        iss: walletAddress,
-        iat: currentTime,
-        sub: openaiAddress,
-        exp: currentTime + EXPIRY_SECONDS,
-        calls: calls,
-        paymentToken: PAYMENT_TOKEN,
-      }
-
-      // Sign the payload
-      const message = JSON.stringify(payload)
-      const signature = await walletService.signMessage(message)
-
-      // Generate permit if calls > 0
-      let permit
-      let permitSignature
-      if (calls > 0 && PAYMENT_TOKEN) {
-        const deadline = Math.floor(Date.now() / 1000) + 3600 // 1 hour
-        try {
-          const permitResult = await walletService.createPermitSignature(
-            PAYMENT_TOKEN,
-            openaiAddress,
-            parseEther(calls.toString()),
-            deadline
-          )
-          permit = permitResult.permit
-          permitSignature = permitResult.signature
-          console.log("permitResult", permitResult)
-        } catch (err) {
-          console.error("Failed to create permit signature:", err)
-        }
-      }
-
-      // Register with API
-      const registerResponse = await apiClient.register({
-        payload,
-        signature,
-        address: walletAddress,
-        ...(permit && permitSignature ? { permit, permitSignature } : {}),
-      })
+      const result = await performRegistration(
+        calls,
+        walletAddress,
+        openaiAddress
+      )
 
       // Set token
-      setToken(registerResponse.token)
-      localStorage.setItem("unreal_token", registerResponse.token)
-      apiClient.setToken(registerResponse.token)
+      setToken(result.token)
+      localStorage.setItem("unreal_token", result.token)
+      apiClient.setToken(result.token)
       setIsAuthenticated(true)
 
-      return registerResponse.token
+      // Persist resolved payment token if available
+      if (result.paymentToken) {
+        localStorage.setItem("unreal_payment_token", result.paymentToken)
+      }
+
+      return result.token
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : "Failed to register"

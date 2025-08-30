@@ -46,11 +46,10 @@ const UNREAL_TOKEN_ABI = [
   },
 ] as const
 
-// Use a known valid ERC20 token address (DAI on Mainnet) until we get the real UNREAL token address
-// Using getAddress ensures proper checksumming
+// UNREAL payment token on Torus Mainnet (checksummed)
 const UNREAL_TOKEN_ADDRESS = getAddress(
   "0xA409B5E5D34928a0F1165c7a73c8aC572D1aBCDB"
-) // DAI on Ethereum mainnet
+)
 
 const SignIn = () => {
   const navigate = useNavigate()
@@ -59,6 +58,7 @@ const SignIn = () => {
     isLoading: apiLoading,
     error: apiError,
     registerWithWallet,
+    connectWallet,
     clearError,
   } = useApi()
 
@@ -108,16 +108,17 @@ const SignIn = () => {
     try {
       // Check if window.ethereum exists
       if (window.ethereum) {
-        const accounts = await window.ethereum.request({
+        const accounts = (await window.ethereum.request({
           method: "eth_accounts",
-        })
+          params: [],
+        })) as string[]
         if (accounts && accounts.length > 0) {
-          setWalletAddresses(accounts)
+          setWalletAddresses(accounts as string[])
           // If we have a wallet address but no selected address, set the first one
           if (!selectedAddress && accounts.length > 0) {
-            setSelectedAddress(accounts[0])
+            setSelectedAddress(accounts[0] as string)
             // Fetch unreal balance for the first account
-            fetchUnrealBalance(accounts[0])
+            fetchUnrealBalance(accounts[0] as string)
           }
         }
       }
@@ -159,7 +160,7 @@ const SignIn = () => {
     setIsConnecting(true)
     try {
       if (window.ethereum) {
-        await window.ethereum.request({ method: "eth_requestAccounts" })
+        await window.ethereum.request({ method: "eth_requestAccounts", params: [] })
         await getConnectedWallets()
         setShowWalletModal(true)
       } else {
@@ -173,9 +174,15 @@ const SignIn = () => {
   }
 
   // Handle wallet selection from modal
-  const handleSelectWallet = (address: string) => {
+  const handleSelectWallet = async (address: string) => {
+    try {
+      // Ensure WalletService is connected to the selected address for signing
+      await connectWallet(address)
+    } catch (err) {
+      console.error("Error connecting selected wallet:", err)
+    }
     setSelectedAddress(address)
-    fetchUnrealBalance(address)
+    await fetchUnrealBalance(address)
     setShowWalletModal(false)
   }
 
@@ -185,6 +192,9 @@ const SignIn = () => {
 
     setIsRegistering(true)
     try {
+      // Ensure WalletService is connected for message and permit signing
+      await connectWallet(selectedAddress)
+
       // Use the actual UNREAL balance for the calls value
       const callsValue = unrealBalance > 0 ? Math.floor(unrealBalance) : 0
 

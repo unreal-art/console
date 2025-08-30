@@ -1,14 +1,4 @@
-import {
-  Chain,
-  createNonceManager,
-  createPublicClient,
-  createWalletClient,
-  defineChain,
-  http,
-  erc20Abi,
-  WalletClient,
-  PublicClient,
-} from "viem"
+import { Chain, createNonceManager, createPublicClient, createWalletClient, defineChain, http, erc20Abi, WalletClient } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
 
 /**
@@ -194,7 +184,7 @@ export const CHAINS = Array.from(CHAIN_MAP.values())
 
 // -------- Public Client Management --------
 // Cache for public clients per chain
-const publicClientCache = new Map<number, PublicClient>()
+const publicClientCache = new Map<number, any>()
 
 export function pickRpc(rpcs: readonly string[]) {
   return rpcs[Math.floor(Math.random() * rpcs.length)]
@@ -202,7 +192,7 @@ export function pickRpc(rpcs: readonly string[]) {
 /**
  * Get or create a public client for the specified chain
  */
-export function getPublicClient(chainId?: number): PublicClient {
+export function getPublicClient(chainId?: number): any {
   const targetChainId = chainId || getDefaultChain().id
 
   // Return cached client if exists
@@ -231,7 +221,7 @@ export function getPublicClient(chainId?: number): PublicClient {
 /**
  * Get the default public client (Torus Mainnet)
  */
-export function getDefaultPublicClient(): PublicClient {
+export function getDefaultPublicClient(): any {
   return getPublicClient(getDefaultChain().id)
 }
 

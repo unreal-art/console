@@ -2,6 +2,7 @@ import injectedWallets from "@web3-onboard/injected-wallets"
 import Onboard, { type OnboardAPI, type WalletState } from "@web3-onboard/core"
 import { toHex, type EIP1193Provider } from "viem"
 import { torusMainnet, amoyTestnet, titanAITestnet } from "@/config/wallet"
+import { getUnrealTokenAddress } from "../../utils/web3/chains"
 
 // Minimal chain type for web3-onboard
 export type OnboardChain = {
@@ -9,6 +10,9 @@ export type OnboardChain = {
   token: string // native token symbol
   label: string // human-readable name
   rpcUrl: string
+  // Optional list of ERC-20 tokens to show alongside native token
+  // Matches Web3-Onboard Chain.secondaryTokens shape
+  secondaryTokens?: { address: string; icon?: string }[]
 }
 
 export const DEFAULT_CHAINS: OnboardChain[] = [
@@ -17,18 +21,27 @@ export const DEFAULT_CHAINS: OnboardChain[] = [
     token: torusMainnet.nativeCurrency.symbol,
     label: torusMainnet.name,
     rpcUrl: torusMainnet.rpcUrls.default.http[0],
+    secondaryTokens: [
+      { address: getUnrealTokenAddress(torusMainnet.id) },
+    ],
   },
   {
     id: toHex(amoyTestnet.id), // 8192
     token: amoyTestnet.nativeCurrency.symbol,
     label: amoyTestnet.name,
     rpcUrl: amoyTestnet.rpcUrls.default.http[0],
+    secondaryTokens: [
+      { address: getUnrealTokenAddress(amoyTestnet.id) },
+    ],
   },
   {
     id: toHex(titanAITestnet.id), // 8192
     token: titanAITestnet.nativeCurrency.symbol,
     label: titanAITestnet.name,
     rpcUrl: titanAITestnet.rpcUrls.default.http[0],
+    secondaryTokens: [
+      { address: getUnrealTokenAddress(titanAITestnet.id) },
+    ],
   },
   // Add more defaults here if desired, e.g. Ethereum mainnet
   // { id: '0x1', token: 'ETH', label: 'Ethereum Mainnet', rpcUrl: 'https://rpc.ankr.com/eth' }

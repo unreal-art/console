@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react"
 import { apiClient } from "@/lib/api"
-import { getUnrealBalance } from "@/utils/web3/unreal"
+import { getUnrealBalance } from "../../utils/unreal"
 import { formatEther, type Address } from "viem"
 import { useApi } from "@/lib/ApiContext"
 import { toast, useToast } from "@/components/ui/use-toast"

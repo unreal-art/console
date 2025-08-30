@@ -1,4 +1,4 @@
-import { createWalletClient, custom, createPublicClient, type EIP1193Provider, type PublicClient } from "viem"
+import { createWalletClient, custom, createPublicClient, type EIP1193Provider } from "viem"
 import { OPENAI_URL } from "@/config/unreal"
 import { getOnboard } from "@/lib/onboard"
 import type { OnboardAPI, WalletState } from "@web3-onboard/core"
@@ -26,15 +26,15 @@ export interface RegisterPayload {
   sub: string // openai address
   exp: number // expiry timestamp
   calls: number // number of API calls
-  paymentToken: string // token address
+  paymentToken?: string // token address (optional)
 }
 
 export interface PermitMessage {
   owner: `0x${string}`
   spender: `0x${string}`
-  value: bigint
-  nonce: bigint
-  deadline: bigint
+  value: string
+  nonce: string
+  deadline: string
 }
 
 export interface RegisterRequest {
@@ -192,7 +192,7 @@ export class ApiClient {
 
 // Wallet utilities
 export class WalletService {
-  private walletClient: ReturnType<typeof createWalletClient> | null = null
+  private walletClient: any | null = null
   private account: `0x${string}` | null = null
   private provider: EIP1193Provider | null = null
   private onboard: OnboardAPI | null = null
@@ -219,6 +219,7 @@ export class WalletService {
       if (window.ethereum?.request) {
         const addresses = (await window.ethereum.request({
           method: "eth_accounts",
+          params: [],
         })) as `0x${string}`[]
         return addresses
       }
@@ -281,7 +282,8 @@ export class WalletService {
       const wallets = onboard?.state?.get?.().wallets || []
       for (const w of wallets) {
         try {
-          await onboard.disconnect(w)
+          // web3-onboard v2 API
+          await onboard.disconnectWallet({ label: w.label })
         } catch (e) {
           // ignore
         }
@@ -312,7 +314,7 @@ export class WalletService {
     }
     if (!window.ethereum) return false
     try {
-      const accounts = (await window.ethereum.request({ method: "eth_accounts" })) as string[]
+      const accounts = (await window.ethereum.request({ method: "eth_accounts", params: [] })) as string[]
       return accounts.length > 0
     } catch (error) {
       return false
@@ -331,7 +333,7 @@ export class WalletService {
         if (first && first.accounts && first.accounts[0]?.address) {
           this.account = first.accounts[0].address as `0x${string}`
         } else if (window.ethereum?.request) {
-          const accounts = (await window.ethereum.request({ method: "eth_accounts" })) as string[]
+          const accounts = (await window.ethereum.request({ method: "eth_accounts", params: [] })) as string[]
           if (accounts.length > 0) {
             this.account = accounts[0] as `0x${string}`
           } else {
@@ -348,7 +350,7 @@ export class WalletService {
   }
 
   // Expose a dynamic public client based on the connected provider
-  getPublicClient(): PublicClient {
+  getPublicClient(): any {
     if (!this.provider) {
       throw new Error("No provider available - connect a wallet first")
     }
@@ -523,7 +525,7 @@ export class WalletService {
         deadline: deadline.toString(),
       }
 
-      console.log("pemrit", permitMsg)
+      console.log("permit", permitMsg)
 
       return { permit: permitMsg, signature }
     } catch (error) {
