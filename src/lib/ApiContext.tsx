@@ -14,7 +14,7 @@ import {
   ApiKey,
   ApiKeyListResponse,
 } from "./api"
-import { getUnrealBalance } from "@utils/unreal"
+import { getUnrealBalance } from "@utils/web3/unreal"
 import { initOnboard, getOnboard, type OnboardChain } from "@/lib/onboard"
 import type { WalletState } from "@web3-onboard/core"
 import { formatEther } from "viem"
@@ -220,13 +220,15 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     const onboard = getOnboard()
     // Prefer subscribing to the wallets slice if available
     type WalletsSubscription = {
-      subscribe: (
-        fn: (wallets: WalletState[]) => void
-      ) => { unsubscribe: () => void }
+      subscribe: (fn: (wallets: WalletState[]) => void) => {
+        unsubscribe: () => void
+      }
     }
-    const selector = (onboard as unknown as {
-      state?: { select?: (key: "wallets") => WalletsSubscription }
-    }).state?.select?.("wallets")
+    const selector = (
+      onboard as unknown as {
+        state?: { select?: (key: "wallets") => WalletsSubscription }
+      }
+    ).state?.select?.("wallets")
 
     if (selector && typeof selector.subscribe === "function") {
       const sub = selector.subscribe((wallets: WalletState[]) => {
@@ -646,33 +648,33 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
   }
 
   const value = {
-  isAuthenticated,
-  isLoading,
-  walletAddress,
-  availableAddresses,
-  openaiAddress,
-  token,
-  verifyData,
-  apiKey,
-  apiKeyHash,
-  apiKeys,
-  isLoadingApiKeys,
-  error,
-  connectWallet,
-  getAvailableAddresses,
-  registerWithWallet,
-  verifyToken,
-  createApiKey,
-  listApiKeys,
-  deleteApiKey,
-  logout,
-  registerWalletDisconnector,
-  clearApiKey,
-  clearError,
-  getCurrentChainId,
-}
+    isAuthenticated,
+    isLoading,
+    walletAddress,
+    availableAddresses,
+    openaiAddress,
+    token,
+    verifyData,
+    apiKey,
+    apiKeyHash,
+    apiKeys,
+    isLoadingApiKeys,
+    error,
+    connectWallet,
+    getAvailableAddresses,
+    registerWithWallet,
+    verifyToken,
+    createApiKey,
+    listApiKeys,
+    deleteApiKey,
+    logout,
+    registerWalletDisconnector,
+    clearApiKey,
+    clearError,
+    getCurrentChainId,
+  }
 
-return <ApiContext.Provider value={value}>{children}</ApiContext.Provider>
+  return <ApiContext.Provider value={value}>{children}</ApiContext.Provider>
 }
 
 export const useApi = (): ApiContextType => {
