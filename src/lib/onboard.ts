@@ -2,7 +2,7 @@ import injectedWallets from "@web3-onboard/injected-wallets"
 import Onboard, { type OnboardAPI, type WalletState } from "@web3-onboard/core"
 import { toHex, type EIP1193Provider } from "viem"
 import { torusMainnet, amoyTestnet, titanAITestnet } from "@/config/wallet"
-import { getUnrealTokenAddress } from "../../utils/web3/chains"
+import { getUnrealTokenAddress } from "@/utils/web3/chains"
 
 // Minimal chain type for web3-onboard
 export type OnboardChain = {
