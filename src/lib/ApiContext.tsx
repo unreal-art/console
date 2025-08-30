@@ -103,7 +103,6 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     })()
     const storedToken = localStorage.getItem("unreal_token")
     const storedWalletAddress = localStorage.getItem("unreal_wallet_address")
-    const storedOpenaiAddress = localStorage.getItem("unreal_openai_address")
     const signedOut = localStorage.getItem(SIGNED_OUT_KEY) === "1"
 
     if (storedToken) {
@@ -115,10 +114,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     if (storedWalletAddress && !signedOut) {
       setWalletAddress(storedWalletAddress)
     }
-
-    if (storedOpenaiAddress && !signedOut) {
-      setOpenaiAddress(storedOpenaiAddress)
-    }
+    
 
     // Check if wallet is already connected and handle auto-registration
     const checkWalletConnection = async () => {
@@ -130,15 +126,11 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
             setWalletAddress(address)
             localStorage.setItem("unreal_wallet_address", address)
 
-            // If we have a wallet address but no token, try to get the OpenAI address
-            if (!storedToken && !storedOpenaiAddress) {
+            // If we have a wallet address but no token, fetch the OpenAI address
+            if (!storedToken) {
               try {
                 const authAddressResponse = await apiClient.getAuthAddress()
                 setOpenaiAddress(authAddressResponse.address)
-                localStorage.setItem(
-                  "unreal_openai_address",
-                  authAddressResponse.address
-                )
 
                 try {
                   // Get system info and chain-aware token address
@@ -314,7 +306,6 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
       // Get OpenAI address
       const authAddressResponse = await apiClient.getAuthAddress()
       setOpenaiAddress(authAddressResponse.address)
-      localStorage.setItem("unreal_openai_address", authAddressResponse.address)
 
       return finalAddress
     } catch (error: unknown) {
@@ -332,20 +323,31 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     setIsLoading(true)
     setError(null)
 
-    if (!walletAddress || !openaiAddress) {
+    // Ensure we have wallet address and fetch OpenAI address if missing
+    if (!walletAddress) {
       setError("Wallet not connected")
       setIsLoading(false)
       throw new Error("Wallet not connected")
+    }
+    let openaiAddr = openaiAddress
+    if (!openaiAddr) {
+      try {
+        const authAddressResponse = await apiClient.getAuthAddress()
+        openaiAddr = authAddressResponse.address
+        setOpenaiAddress(openaiAddr)
+      } catch (e) {
+        const message =
+          e instanceof Error ? e.message : "Failed to fetch OpenAI address"
+        setError(message)
+        setIsLoading(false)
+        throw e as Error
+      }
     }
 
     try {
       // Store the calls value in localStorage
       localStorage.setItem("unreal_calls_value", calls.toString())
-      const result = await performRegistration(
-        calls,
-        walletAddress,
-        openaiAddress
-      )
+      const result = await performRegistration(calls, walletAddress, openaiAddr!)
 
       // Set token
       setToken(result.token)
