@@ -13,6 +13,7 @@ import Login from "./pages/Login";
 import SignIn from "./pages/SignIn";
 import NotFound from "./pages/NotFound";
 import Playground from "./pages/Playground";
+import Airdrop from "./pages/Airdrop";
 
 const queryClient = new QueryClient();
 
@@ -27,6 +28,7 @@ const App = () => (
             <Route path="/" element={<Home />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/playground" element={<Playground />} />
+            <Route path="/airdrop" element={<Airdrop />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/login" element={<Login />} />
             <Route path="/sign-in" element={<SignIn />} />
