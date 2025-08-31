@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react"
+import React, { useState, useEffect, useRef, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
 import {
   Card,
@@ -74,6 +74,7 @@ const Settings = () => {
   const [copiedHash, setCopiedHash] = useState<string | null>(null)
   const fetchedKeysRef = useRef(false)
   const listApiKeysRef = useRef(listApiKeys)
+  const nameInputRef = useRef<HTMLInputElement>(null)
 
   // Keep a stable ref to the latest listApiKeys from context
   useEffect(() => {
@@ -97,6 +98,55 @@ const Settings = () => {
       fetchedKeysRef.current = false
     }
   }, [isAuthenticated])
+
+  // Page-level keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null
+      const tag = target?.tagName?.toLowerCase()
+      const isTyping = tag === "input" || tag === "textarea" || (target?.isContentEditable ?? false)
+      const key = e.key?.toLowerCase?.() ?? ""
+
+      // Focus API key name input
+      if ((e.metaKey || e.ctrlKey) && key === "n") {
+        e.preventDefault()
+        nameInputRef.current?.focus()
+        return
+      }
+
+      // Quick focus when not typing
+      if (!isTyping && key === "/") {
+        e.preventDefault()
+        nameInputRef.current?.focus()
+        return
+      }
+
+      // Esc to close dialog or clear errors
+      if (key === "escape") {
+        if (showNewApiKey) {
+          e.preventDefault()
+          setShowNewApiKey(false)
+          return
+        }
+        if (error || operationError) {
+          e.preventDefault()
+          if (error) clearError()
+          if (operationError) setOperationError(null)
+          return
+        }
+      }
+
+      // Copy new API key in dialog
+      if ((e.metaKey || e.ctrlKey) && key === "c") {
+        if (showNewApiKey && apiKey) {
+          e.preventDefault()
+          handleCopy()
+        }
+      }
+    }
+    window.addEventListener("keydown", handler)
+    return () => window.removeEventListener("keydown", handler)
+  }, [showNewApiKey, apiKey, error, operationError, clearError, handleCopy])
 
   // Handle API key creation
   const handleCreateApiKey = async () => {
@@ -143,13 +193,13 @@ const Settings = () => {
   }
 
   // Handle copy to clipboard
-  const handleCopy = () => {
+  const handleCopy = useCallback(() => {
     if (apiKey) {
       navigator.clipboard.writeText(apiKey)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     }
-  }
+  }, [apiKey])
 
   // Handle dialog close
   const handleCloseDialog = () => {
@@ -230,7 +280,7 @@ const Settings = () => {
             <AlertTitle>Error</AlertTitle>
             <AlertDescription>
               {error}
-              <button className="ml-2 underline text-sm" onClick={clearError}>
+              <button title="Dismiss (Esc)" className="ml-2 underline text-sm" onClick={clearError}>
                 Dismiss
               </button>
             </AlertDescription>
@@ -244,6 +294,7 @@ const Settings = () => {
             <AlertDescription>
               {operationError}
               <button
+                title="Dismiss (Esc)"
                 className="ml-2 underline text-sm"
                 onClick={() => setOperationError(null)}
               >
@@ -279,6 +330,18 @@ const Settings = () => {
                     placeholder="My API Key"
                     value={apiKeyName}
                     onChange={(e) => setApiKeyName(e.target.value)}
+                    ref={nameInputRef}
+                    onKeyDown={(e) => {
+                      if (
+                        e.key === "Enter" &&
+                        apiKeyName.trim() &&
+                        !isCreating &&
+                        apiKeys.length < MAX_KEYS
+                      ) {
+                        e.preventDefault()
+                        void handleCreateApiKey()
+                      }
+                    }}
                     disabled={apiKeys.length >= MAX_KEYS}
                   />
                 </div>
@@ -302,6 +365,7 @@ const Settings = () => {
                 <TooltipTrigger asChild>
                   <Button
                     onClick={handleCreateApiKey}
+                    title="Create (Enter in name) • Focus with Cmd/Ctrl+N"
                     disabled={
                       !apiKeyName.trim() ||
                       isCreating ||
@@ -318,7 +382,7 @@ const Settings = () => {
                     )}
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Step 3/3: Generate your API key</TooltipContent>
+                <TooltipContent>Step 3/3: Generate your API key • Enter (in name) • Cmd/Ctrl+N (focus)</TooltipContent>
               </Tooltip>
             </div>
 
@@ -478,6 +542,7 @@ const Settings = () => {
                 type="button"
                 variant="secondary"
                 onClick={handleCloseDialog}
+                title="Close (Esc)"
               >
                 Close
               </Button>

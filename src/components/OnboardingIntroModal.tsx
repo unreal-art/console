@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useApi } from "@/lib/ApiContext"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
@@ -17,6 +17,12 @@ const OnboardingIntroModal: React.FC<OnboardingIntroModalProps> = ({ onStart, fo
   const [open, setOpen] = useState(false)
   const [verifying, setVerifying] = useState(false)
 
+  // Keyboard navigation state and refs for action buttons
+  const skipRef = useRef<HTMLButtonElement>(null)
+  const guidedRef = useRef<HTMLButtonElement>(null)
+  const tryRef = useRef<HTMLButtonElement>(null)
+  const [activeIndex, setActiveIndex] = useState<number>(1) // 0: Skip, 1: Guided, 2: Try sample
+
   // Show only on first visit
   useEffect(() => {
     const seen = localStorage.getItem("unreal_onboarding_seen")
@@ -32,6 +38,15 @@ const OnboardingIntroModal: React.FC<OnboardingIntroModalProps> = ({ onStart, fo
       setOpen(true)
     }
   }, [forceOpen])
+
+  // Default focus when modal opens
+  useEffect(() => {
+    if (open) {
+      setActiveIndex(1)
+      // Delay to ensure elements are rendered
+      setTimeout(() => guidedRef.current?.focus(), 0)
+    }
+  }, [open])
 
   const hasApiKey = useMemo(() => Boolean(apiKeyHash || apiKey), [apiKey, apiKeyHash])
 
@@ -51,11 +66,11 @@ const OnboardingIntroModal: React.FC<OnboardingIntroModalProps> = ({ onStart, fo
     </div>
   )
 
-  const handleTrySample = () => {
+  const handleTrySample = useCallback(() => {
     const sample = encodeURIComponent("Write a concise TypeScript function called `toTitleCase` that converts a string to Title Case, followed by a short usage example.")
     navigate(`/playground?prompt=${sample}&autorun=1`)
     setOpen(false)
-  }
+  }, [navigate])
 
   const handleVerify = async () => {
     try {
@@ -67,6 +82,82 @@ const OnboardingIntroModal: React.FC<OnboardingIntroModalProps> = ({ onStart, fo
       setVerifying(false)
     }
   }
+
+  // Modal keyboard shortcuts
+  useEffect(() => {
+    if (!open) return
+
+    const buttons = [skipRef, guidedRef, tryRef]
+    const focusIdx = (idx: number) => {
+      setActiveIndex(idx)
+      setTimeout(() => buttons[idx]?.current?.focus(), 0)
+    }
+
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null
+      const tag = target?.tagName?.toLowerCase()
+      const isTyping = tag === "input" || tag === "textarea" || (target?.isContentEditable ?? false)
+      const key = e.key?.toLowerCase?.() ?? ""
+
+      // Esc always closes
+      if (key === "escape") {
+        e.preventDefault()
+        setOpen(false)
+        return
+      }
+
+      if (isTyping) return
+
+      // Quick actions
+      if (key === "s") {
+        e.preventDefault()
+        setOpen(false)
+        return
+      }
+      if (key === "t") {
+        e.preventDefault()
+        // Try sample
+        tryRef.current?.focus()
+        setActiveIndex(2)
+        // Small delay to ensure focus-visible, then run
+        setTimeout(() => {
+          // Use the existing handler to navigate
+          handleTrySample()
+        }, 0)
+        return
+      }
+
+      // Selection confirm
+      if (key === "enter") {
+        e.preventDefault()
+        if (activeIndex === 0) {
+          setOpen(false)
+        } else if (activeIndex === 1) {
+          setOpen(false)
+          onStart()
+        } else {
+          // Try sample
+          handleTrySample()
+        }
+        return
+      }
+
+      // Roving focus
+      if (key === "arrowleft") {
+        e.preventDefault()
+        focusIdx((activeIndex + 2) % 3)
+        return
+      }
+      if (key === "arrowright") {
+        e.preventDefault()
+        focusIdx((activeIndex + 1) % 3)
+        return
+      }
+    }
+
+    window.addEventListener("keydown", handler)
+    return () => window.removeEventListener("keydown", handler)
+  }, [open, activeIndex, onStart, handleTrySample])
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -95,13 +186,33 @@ const OnboardingIntroModal: React.FC<OnboardingIntroModalProps> = ({ onStart, fo
 
         <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:justify-between mt-4">
           <div className="flex gap-2 order-2 sm:order-1">
-            <Button variant="ghost" onClick={() => setOpen(false)}>Skip for now</Button>
-            <Button variant="outline" onClick={() => { setOpen(false); onStart(); }}>
+            <Button
+              ref={skipRef}
+              title="Skip (S or Esc)"
+              variant="ghost"
+              onClick={() => setOpen(false)}
+            >
+              Skip for now
+            </Button>
+            <Button
+              ref={guidedRef}
+              title="Start guided onboarding (Enter)"
+              variant="outline"
+              onClick={() => {
+                setOpen(false)
+                onStart()
+              }}
+            >
               Start guided onboarding
               <ArrowRight className="h-4 w-4 ml-2" />
             </Button>
           </div>
-          <Button className="order-1 sm:order-2" onClick={handleTrySample}>
+          <Button
+            ref={tryRef}
+            title="Try a sample prompt (T)"
+            className="order-1 sm:order-2"
+            onClick={handleTrySample}
+          >
             Try a sample prompt
           </Button>
         </DialogFooter>
