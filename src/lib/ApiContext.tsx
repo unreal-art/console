@@ -20,7 +20,7 @@ import type { WalletState } from "@web3-onboard/core"
 import { formatEther } from "viem"
 import { performRegistration } from "./registration"
 import { getChainById } from "@utils/web3/chains"
-import { getPublicClient } from "@/config/wallet"
+import { getPublicClient, getDefaultChain } from "@/config/wallet"
 
 interface ApiContextType {
   isAuthenticated: boolean
@@ -658,11 +658,6 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
   const clearError = () => {
     setError(null)
   }
-
-// At top of file, update import to include getDefaultChain
-import { getPublicClient, getDefaultChain } from "@/config/wallet"
-
-// ...
 
 // Get current chain ID from wallet
 const getCurrentChainId = async (): Promise<number> => {
