@@ -14,8 +14,13 @@ import {
   ApiKey,
   ApiKeyListResponse,
 } from "./api"
-import { getUnrealBalance } from "@/utils/web3/unreal"
-import { formatEther, parseEther, type Address } from "viem"
+import { getUnrealBalance } from "@utils/web3/unreal"
+import { initOnboard, getOnboard, type OnboardChain } from "@/lib/onboard"
+import type { WalletState } from "@web3-onboard/core"
+import { formatEther } from "viem"
+import { performRegistration } from "./registration"
+import { getChainById } from "@utils/web3/chains"
+import { getPublicClient, getDefaultChain } from "@/config/wallet"
 
 interface ApiContextType {
   isAuthenticated: boolean
@@ -31,6 +36,7 @@ interface ApiContextType {
   isLoadingApiKeys: boolean
   error: string | null
   connectWallet: (selectedAddress?: string) => Promise<string>
+  switchAccount: (address: string) => Promise<void>
   getAvailableAddresses: () => Promise<string[]>
   registerWithWallet: (calls: number) => Promise<string>
   verifyToken: () => Promise<VerifyResponse>
@@ -38,11 +44,10 @@ interface ApiContextType {
   listApiKeys: () => Promise<ApiKey[]>
   deleteApiKey: (hash: string) => Promise<boolean>
   logout: () => Promise<void>
-  registerWalletDisconnector: (
-    fn: (() => Promise<void> | void) | null
-  ) => void
+  registerWalletDisconnector: (fn: (() => Promise<void> | void) | null) => void
   clearApiKey: () => void
   clearError: () => void
+  getCurrentChainId: () => Promise<number>
 }
 
 const ApiContext = createContext<ApiContextType | undefined>(undefined)
@@ -73,15 +78,34 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     walletDisconnectRef.current = fn
   }
 
-  // Prevent auto-reconnect after a deliberate logout
-  const SIGNED_OUT_KEY = "unreal_signed_out"
+  // Avoid persisting sign-out state; minimize localStorage usage to session token only
 
   // Initialize state from localStorage and handle auto-registration
   useEffect(() => {
+    // Initialize web3-onboard chains from backend system info if available
+    ;(async () => {
+      try {
+        const si = await apiClient.getSystemInfo()
+        const chainsRaw = si?.chains
+        if (Array.isArray(chainsRaw) && chainsRaw.length > 0) {
+          const chains: OnboardChain[] = chainsRaw.map((c) => {
+            const idHex = c.id.startsWith("0x")
+              ? c.id.toLowerCase()
+              : `0x${parseInt(c.id, 10).toString(16)}`
+            return {
+              id: idHex,
+              token: c.token,
+              label: c.label,
+              rpcUrl: c.rpcUrl,
+            }
+          })
+          initOnboard(chains)
+        }
+      } catch (e) {
+        console.warn("Failed to init chains from system info", e)
+      }
+    })()
     const storedToken = localStorage.getItem("unreal_token")
-    const storedWalletAddress = localStorage.getItem("unreal_wallet_address")
-    const storedOpenaiAddress = localStorage.getItem("unreal_openai_address")
-    const signedOut = localStorage.getItem(SIGNED_OUT_KEY) === "1"
 
     if (storedToken) {
       setToken(storedToken)
@@ -89,38 +113,37 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
       setIsAuthenticated(true)
     }
 
-    if (storedWalletAddress && !signedOut) {
-      setWalletAddress(storedWalletAddress)
-    }
-
-    if (storedOpenaiAddress && !signedOut) {
-      setOpenaiAddress(storedOpenaiAddress)
-    }
+    // Do not restore wallet address from storage; rely on wallet provider state
 
     // Check if wallet is already connected and handle auto-registration
     const checkWalletConnection = async () => {
       try {
         const isConnected = await walletService.isConnected()
+        console.debug("[ApiContext] Wallet connected?", isConnected)
         if (isConnected) {
           const address = await walletService.getAddress()
           if (address) {
             setWalletAddress(address)
-            localStorage.setItem("unreal_wallet_address", address)
+            console.debug("[ApiContext] Using wallet address", address)
 
-            // If we have a wallet address but no token, try to get the OpenAI address
-            if (!storedToken && !storedOpenaiAddress) {
+            // If we have a wallet address but no token, fetch the OpenAI address
+            if (!storedToken) {
               try {
                 const authAddressResponse = await apiClient.getAuthAddress()
                 setOpenaiAddress(authAddressResponse.address)
-                localStorage.setItem(
-                  "unreal_openai_address",
+                console.debug(
+                  "[ApiContext] Fetched OpenAI address",
                   authAddressResponse.address
                 )
 
                 try {
-                  // Get system info to get the token address
+                  // Get system info and chain-aware token address
                   const systemInfo = await apiClient.getSystemInfo()
-                  const paymentToken = systemInfo?.paymentToken as Address
+                  const chainId = await walletService.getChainId()
+
+                  const chain = getChainById(chainId)
+
+                  const paymentToken = chain.custom.tokens.UnrealToken.address
 
                   if (!paymentToken) {
                     console.error(
@@ -135,28 +158,31 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
                     return
                   }
 
-                  // Get actual token balance
+                  // Get actual token balance via dynamic public client
                   let calls = 0
                   try {
-                    // Convert address to correct type for viem
-                    const walletAddress = address as `0x${string}`
+                    const walletAddr = address as `0x${string}`
+                    const chainId = await walletService.getCurrentChainId()
+                    const client = getPublicClient(chainId)
                     const balance = await getUnrealBalance(
                       paymentToken,
-                      walletAddress
+                      walletAddr,
+                      client
                     )
                     const balanceInEther = formatEther(balance)
                     calls = parseInt(balanceInEther)
-                    console.log(
-                      `Token balance: ${balanceInEther} (${calls} calls)`
+                    console.debug(
+                      "[ApiContext] UNREAL balance:",
+                      balanceInEther,
+                      "=> calls:",
+                      calls
                     )
                   } catch (balanceError) {
                     console.error("Unable to get balance:", balanceError)
                     // Continue with zero calls if balance check fails
                   }
 
-                  // Store the calls value in localStorage
-                  localStorage.setItem("unreal_calls_value", calls.toString())
-                  localStorage.setItem("unreal_payment_token", paymentToken)
+                  // Do not persist calls/payment token; use in-memory only
 
                   // Auto-register with the wallet
                   await autoRegisterWithWallet(
@@ -179,19 +205,84 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
             }
           }
         }
-      } catch (error) {
+      } catch (error: unknown) {
         console.error("Error checking wallet connection:", error)
       } finally {
         setIsLoading(false)
       }
     }
 
-    if (!signedOut) {
-      checkWalletConnection()
-    } else {
-      setIsLoading(false)
-    }
+    // Always check connection on mount; no persistent signed-out gating
+    checkWalletConnection()
   }, [])
+
+  // React to wallet account changes from Web3-Onboard state
+  useEffect(() => {
+    const onboard = getOnboard()
+    // Prefer subscribing to the wallets slice if available
+    type WalletsSubscription = {
+      subscribe: (fn: (wallets: WalletState[]) => void) => {
+        unsubscribe: () => void
+      }
+    }
+    const selector = (
+      onboard as unknown as {
+        state?: { select?: (key: "wallets") => WalletsSubscription }
+      }
+    ).state?.select?.("wallets")
+
+    if (selector && typeof selector.subscribe === "function") {
+      const sub = selector.subscribe((wallets: WalletState[]) => {
+        try {
+          const first = wallets && wallets[0]
+          const nextAddr: string | null = first?.accounts?.[0]?.address || null
+
+          // Update available addresses list
+          const addrs = Array.isArray(wallets)
+            ? wallets
+                .flatMap((w: WalletState) => w?.accounts || [])
+                .map((a) => String(a?.address || ""))
+                .filter((v) => v.length > 0)
+            : []
+          setAvailableAddresses(addrs)
+
+          // Update current wallet address if changed
+          if (nextAddr !== walletAddress) {
+            setWalletAddress(nextAddr)
+            console.debug("[ApiContext] Wallet account changed:", nextAddr)
+          }
+        } catch (e) {
+          console.warn("[ApiContext] Wallets subscription parse error", e)
+        }
+      })
+      return () => {
+        try {
+          sub?.unsubscribe?.()
+        } catch (_) {
+          // ignore
+        }
+      }
+    }
+
+    // Fallback polling if select/subscribe is not available
+    let cancelled = false
+    const interval = setInterval(async () => {
+      if (cancelled) return
+      try {
+        const addr = await walletService.getAddress()
+        if (addr !== walletAddress) {
+          setWalletAddress(addr)
+          console.debug("[ApiContext] Wallet account polled change:", addr)
+        }
+      } catch {
+        // ignore
+      }
+    }, 1500)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [walletAddress])
 
   // Helper function for auto-registration
   const autoRegisterWithWallet = async (
@@ -200,61 +291,25 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     calls: number
   ): Promise<string | null> => {
     try {
-      // Constants
-      const PAYMENT_TOKEN = "0xA409B5E5D34928a0F1165c7a73c8aC572D1aBCDB"
-      const EXPIRY_SECONDS = 3600 // 1 hour
-
-      // Prepare payload with current timestamps
-      const currentTime = Math.floor(Date.now() / 1000)
-      const payload = {
-        iss: walletAddr,
-        iat: currentTime,
-        sub: openaiAddr,
-        exp: currentTime + EXPIRY_SECONDS,
-        calls: calls,
-        paymentToken: PAYMENT_TOKEN,
-      }
-
-      // Sign the payload
-      const message = JSON.stringify(payload)
-      const signature = await walletService.signMessage(message)
-
-      // Generate permit if calls > 0
-      let permit
-      let permitSignature
-      if (calls > 0) {
-        const deadline = Math.floor(Date.now() / 1000) + 3600 // 1h
-        try {
-          const permitResult = await walletService.createPermitSignature(
-            PAYMENT_TOKEN,
-            openaiAddr,
-            parseEther(calls.toString()),
-            deadline
-          )
-          permit = permitResult.permit
-          permitSignature = permitResult.signature
-          console.log("permitResult", permitResult)
-        } catch (err) {
-          console.error("Failed to create permit signature:", err)
-        }
-      }
-
-      // Register with API
-      const registerResponse = await apiClient.register({
-        payload,
-        signature,
-        address: walletAddr,
-        ...(permit && permitSignature ? { permit, permitSignature } : {}),
+      console.debug("[ApiContext] Auto-register start", {
+        walletAddr,
+        openaiAddr,
+        calls,
       })
+      const result = await performRegistration(calls, walletAddr, openaiAddr)
 
-      // Set token
-      setToken(registerResponse.token)
-      localStorage.setItem("unreal_token", registerResponse.token)
-      apiClient.setToken(registerResponse.token)
+      // Set token and auth state
+      setToken(result.token)
+      localStorage.setItem("unreal_token", result.token)
+      apiClient.setToken(result.token)
       setIsAuthenticated(true)
 
-      return registerResponse.token
-    } catch (error) {
+      // Do not persist payment token; use in-memory flow only
+
+      console.debug("[ApiContext] Auto-register success; token set")
+
+      return result.token
+    } catch (error: unknown) {
       console.error("Auto-registration failed:", error)
       return null
     }
@@ -269,9 +324,13 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
       const addresses = await walletService.getAvailableAddresses()
       setAvailableAddresses(addresses)
       return addresses
-    } catch (error: any) {
-      setError(error.message || "Failed to get wallet addresses")
-      throw error
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to get wallet addresses"
+      setError(message)
+      throw error as Error
     } finally {
       setIsLoading(false)
     }
@@ -287,28 +346,53 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
       if (availableAddresses.length === 0) {
         await getAvailableAddresses()
       }
-      
+
       // Connect wallet with selected address
       const address = await walletService.connect(selectedAddress)
-      
+
       // Ensure we're using the selected address if provided
       const finalAddress = selectedAddress || address
       setWalletAddress(finalAddress)
-      localStorage.setItem("unreal_wallet_address", finalAddress)
-      // Clear signed-out flag upon a successful manual connect
-      localStorage.removeItem(SIGNED_OUT_KEY)
+      console.debug("[ApiContext] Connected wallet address", finalAddress)
 
       // Get OpenAI address
       const authAddressResponse = await apiClient.getAuthAddress()
       setOpenaiAddress(authAddressResponse.address)
-      localStorage.setItem("unreal_openai_address", authAddressResponse.address)
+      console.debug(
+        "[ApiContext] Fetched OpenAI address",
+        authAddressResponse.address
+      )
 
       return finalAddress
-    } catch (error: any) {
-      setError(error.message || "Failed to connect wallet")
-      throw error
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : "Failed to connect wallet"
+      setError(message)
+      throw error as Error
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  // Switch to a different account from the available addresses
+  const switchAccount = async (address: string): Promise<void> => {
+    setError(null)
+
+    try {
+      // Switch the account in WalletService
+      await walletService.switchAccount(address)
+      
+      // Update the context state to reflect the new address
+      setWalletAddress(address)
+      console.debug("[ApiContext] Switched to account:", address)
+      
+      // Note: This doesn't automatically re-register or change authentication
+      // The user will need to re-register if they want to use this account for API calls
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : "Failed to switch account"
+      setError(message)
+      throw error as Error
     }
   }
 
@@ -317,72 +401,60 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     setIsLoading(true)
     setError(null)
 
-    if (!walletAddress || !openaiAddress) {
+    // Always fetch the active wallet address from WalletService to avoid stale state
+    const currentAddress = await walletService.getAddress()
+    if (!currentAddress) {
       setError("Wallet not connected")
       setIsLoading(false)
       throw new Error("Wallet not connected")
     }
+    // Keep context state in sync
+    if (currentAddress !== walletAddress) {
+      setWalletAddress(currentAddress)
+    }
+
+    // Ensure we have the OpenAI address
+    let openaiAddr = openaiAddress
+    if (!openaiAddr) {
+      try {
+        const authAddressResponse = await apiClient.getAuthAddress()
+        openaiAddr = authAddressResponse.address
+        setOpenaiAddress(openaiAddr)
+      } catch (e) {
+        const message =
+          e instanceof Error ? e.message : "Failed to fetch OpenAI address"
+        setError(message)
+        setIsLoading(false)
+        throw e as Error
+      }
+    }
 
     try {
-      // Constants
-      const PAYMENT_TOKEN = "0xA409B5E5D34928a0F1165c7a73c8aC572D1aBCDB"
-      const EXPIRY_SECONDS = 3600 // 1 hour
-
-      // Store the calls value in localStorage
-      localStorage.setItem("unreal_calls_value", calls.toString())
-
-      // Prepare payload with current timestamps
-      const currentTime = Math.floor(Date.now() / 1000)
-      const payload = {
-        iss: walletAddress,
-        iat: currentTime,
-        sub: openaiAddress,
-        exp: currentTime + EXPIRY_SECONDS,
-        calls: calls,
-        paymentToken: PAYMENT_TOKEN,
-      }
-
-      // Sign the payload
-      const message = JSON.stringify(payload)
-      const signature = await walletService.signMessage(message)
-
-      // Generate permit if calls > 0
-      let permit
-      let permitSignature
-      if (calls > 0) {
-        const deadline = Math.floor(Date.now() / 1000) + 3600
-        try {
-          const permitResult = await walletService.createPermitSignature(
-            PAYMENT_TOKEN,
-            openaiAddress,
-            parseEther(calls.toString()),
-            deadline
-          )
-          permit = permitResult.permit
-          permitSignature = permitResult.signature
-        } catch (err) {
-          console.error("Failed to create permit signature:", err)
-        }
-      }
-
-      // Register with API
-      const registerResponse = await apiClient.register({
-        payload,
-        signature,
-        address: walletAddress,
-        ...(permit && permitSignature ? { permit, permitSignature } : {}),
+      console.debug("[ApiContext] Register with wallet", {
+        walletAddress: currentAddress,
+        openaiAddr,
+        calls,
       })
+      const result = await performRegistration(
+        calls,
+        currentAddress,
+        openaiAddr!
+      )
 
       // Set token
-      setToken(registerResponse.token)
-      localStorage.setItem("unreal_token", registerResponse.token)
-      apiClient.setToken(registerResponse.token)
+      setToken(result.token)
+      localStorage.setItem("unreal_token", result.token)
+      apiClient.setToken(result.token)
       setIsAuthenticated(true)
 
-      return registerResponse.token
-    } catch (error: any) {
-      setError(error.message || "Failed to register")
-      throw error
+      // Do not persist payment token
+
+      return result.token
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : "Failed to register"
+      setError(message)
+      throw error as Error
     } finally {
       setIsLoading(false)
     }
@@ -403,9 +475,14 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
       const response = await apiClient.verifyToken(token)
       setVerifyData(response)
       return response
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Check if the error is a 404 (token expired or invalid)
-      if (error.response && error.response.status === 404) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "response" in error &&
+        (error as { response?: { status?: number } }).response?.status === 404
+      ) {
         console.log("Token expired or invalid, clearing authentication state")
         // Clear token and reset authentication state
         setIsAuthenticated(false)
@@ -415,9 +492,11 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
         localStorage.removeItem("unreal_token")
         setError("Token expired. Please reconnect your wallet.")
       } else {
-        setError(error.message || "Failed to verify token")
+        const message =
+          error instanceof Error ? error.message : "Failed to verify token"
+        setError(message)
       }
-      throw error
+      throw error as Error
     } finally {
       setIsLoading(false)
     }
@@ -443,9 +522,11 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
       await listApiKeys()
 
       return response
-    } catch (error: any) {
-      setError(error.message || "Failed to create API key")
-      throw error
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : "Failed to create API key"
+      setError(message)
+      throw error as Error
     } finally {
       setIsLoading(false)
     }
@@ -457,10 +538,43 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     setError(null)
     try {
       const response = await apiClient.listApiKeys()
-      setApiKeys(response.keys)
-      return response.keys
-    } catch (error: any) {
-      setError(error.message || "Failed to list API keys")
+      const rawKeys = (response as { keys: Array<ApiKey | string> | unknown })
+        .keys as Array<ApiKey | string> | undefined
+      const normalized: ApiKey[] = Array.isArray(rawKeys)
+        ? rawKeys
+            .map((k: ApiKey | string): ApiKey => {
+              if (typeof k === "string") {
+                // Backend returns only a list of key names
+                return { name: k }
+              }
+              if (typeof k === "object" && k !== null) {
+                const name =
+                  typeof (k as { name?: unknown }).name === "string"
+                    ? ((k as { name?: unknown }).name as string)
+                    : ""
+                const hash =
+                  typeof (k as { hash?: unknown }).hash === "string"
+                    ? ((k as { hash?: unknown }).hash as string)
+                    : undefined
+                const created_at =
+                  typeof (k as { created_at?: unknown }).created_at === "string"
+                    ? ((k as { created_at?: unknown }).created_at as string)
+                    : typeof (k as { createdAt?: unknown }).createdAt ===
+                      "string"
+                    ? ((k as { createdAt?: unknown }).createdAt as string)
+                    : undefined
+                return { name, hash, created_at }
+              }
+              return { name: "" }
+            })
+            .filter((k) => k.name && k.name.length > 0)
+        : []
+      setApiKeys(normalized)
+      return normalized
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : "Failed to list API keys"
+      setError(message)
       return []
     } finally {
       setIsLoadingApiKeys(false)
@@ -484,8 +598,12 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
       }
 
       return true
-    } catch (error: any) {
-      setError(error.message || `Failed to delete API key ${hash}`)
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : `Failed to delete API key ${hash}`
+      setError(message)
       return false
     } finally {
       setIsLoadingApiKeys(false)
@@ -506,16 +624,12 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
 
     // Remove all related items from localStorage
     localStorage.removeItem("unreal_token")
-    localStorage.removeItem("unreal_wallet_address")
-    localStorage.removeItem("unreal_openai_address")
-    localStorage.removeItem("unreal_calls_value")
-    localStorage.removeItem("unreal_payment_token")
 
     // Reset wallet address state
     setWalletAddress(null)
     setOpenaiAddress(null)
 
-    console.log("Wallet disconnected and refresh")
+    console.debug("[ApiContext] Logout complete; refreshing app")
 
     // Disconnect local WalletService state
     try {
@@ -532,8 +646,6 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     } catch (e) {
       console.warn("thirdweb disconnect warning:", e)
     }
-    // Mark that the user intentionally signed out to prevent auto-reconnect on next mount
-    localStorage.setItem(SIGNED_OUT_KEY, "1")
     window.location.reload()
   }
 
@@ -546,6 +658,17 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
   const clearError = () => {
     setError(null)
   }
+
+// Get current chain ID from wallet
+const getCurrentChainId = async (): Promise<number> => {
+  try {
+    return await walletService.getCurrentChainId()
+  } catch (error) {
+    console.error("Error getting current chain ID:", error)
+    // Return configured default chain ID if error
+    return getDefaultChain().id
+  }
+}
 
   const value = {
     isAuthenticated,
@@ -561,6 +684,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     isLoadingApiKeys,
     error,
     connectWallet,
+    switchAccount,
     getAvailableAddresses,
     registerWithWallet,
     verifyToken,
@@ -571,6 +695,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     registerWalletDisconnector,
     clearApiKey,
     clearError,
+    getCurrentChainId,
   }
 
   return <ApiContext.Provider value={value}>{children}</ApiContext.Provider>

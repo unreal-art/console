@@ -33,8 +33,8 @@ export type UnrealModelId =
   | "unreal::playground-v2-5-1024px-aesthetic"
 
 export const SUPPORTED_MODELS: Readonly<UnrealModelId[]> = [
-  "unreal::reel",
-  "unreal::reel-v1",
+  // "unreal::reel",
+  // "unreal::reel-v1",
   "unreal::r1-1776",
   "unreal::flux-1-dev-fp8",
   "unreal::llama4-scout-instruct-basic",
@@ -61,7 +61,7 @@ export const SUPPORTED_MODELS: Readonly<UnrealModelId[]> = [
   "unreal::qwen3-235b-a22b",
   "unreal::kimi-k2-instruct",
   "unreal::qwen2p5-vl-32b-instruct",
-  "unreal::playground-v2-5-1024px-aesthetic",
+  // "unreal::playground-v2-5-1024px-aesthetic", //FIXME: later after UI support for image
 ] as const
 
 export const DEFAULT_MODEL: UnrealModelId = "unreal::mixtral-8x22b-instruct"

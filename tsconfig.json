@@ -1,22 +1,25 @@
 {
-  "files": [],
-  "references": [
-    { "path": "./tsconfig.app.json" },
-    { "path": "./tsconfig.node.json" }
-  ],
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
       "@config/*": ["./src/config/*"],
-      "@abis/*": ["./src/abis/*"]
+      "@abis/*": ["./src/abis/*"],
+      "@utils/*": ["./utils/*"]
     },
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "types": ["vite/client"],
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "noImplicitAny": false,
     "noUnusedParameters": false,
     "skipLibCheck": true,
     "allowJs": true,
     "noUnusedLocals": false,
-    "strictNullChecks": false,
-    "include": ["src", "vite-env.d.ts"]
-  }
+    "strictNullChecks": false
+  },
+  "include": ["src", "vite-env.d.ts"]
 }

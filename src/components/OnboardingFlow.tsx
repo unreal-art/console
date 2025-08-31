@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from "react"
 import { apiClient } from "@/lib/api"
-import { getUnrealBalance } from "@/utils/web3/unreal"
+import { getUnrealBalance } from "../../utils/unreal"
 import { formatEther, type Address } from "viem"
 import { useApi } from "@/lib/ApiContext"
 import { toast, useToast } from "@/components/ui/use-toast"
-import { publicClient } from "@/config/wallet"
+import { getPublicClient } from "@/config/wallet"
 import { motion } from "framer-motion"
 import {
   Check,
@@ -62,6 +62,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
     clearApiKey,
     apiKey,
     apiKeyHash,
+    getCurrentChainId,
   } = useApi()
 
   // State for calls amount (number of API calls user can make based on UNREAL balance)
@@ -114,8 +115,8 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
       // Only show airdrop step if balance is 0
       setShowAirdropStep(calls === 0)
 
-      // Store for other components if needed
-      localStorage.setItem("unreal_calls_value", calls.toString())
+      // Do not persist calls to localStorage; keep in-memory only per app policy
+      console.debug("OnboardingFlow: callsAmount computed (not persisted)", calls)
     } catch (err) {
       console.error("Unable to fetch calls amount:", err)
     }
@@ -375,7 +376,9 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
           })
 
           try {
-            // Wait for transaction confirmation with publicClient
+            // Wait for transaction confirmation with getPublicClient
+            const chainId = await getCurrentChainId()
+            const publicClient = getPublicClient(chainId)
             const receipt = await publicClient.waitForTransactionReceipt({
               hash: response.txHash as `0x${string}`,
               confirmations: 1, // Wait for 1 confirmation

@@ -1,5 +1,13 @@
-import { publicClient } from "@/config/wallet"
-import { type Address, type WalletClient, parseSignature } from "viem"
+import { getPublicClient } from "@config/wallet"
+import {
+  Account,
+  Address,
+  PublicClient,
+  Signature,
+  TransactionReceipt,
+  WalletClient,
+  parseSignature,
+} from "viem"
 import { waitForTransactionReceipt } from "./torus"
 
 // ERC20 Permit ABI (EIP-2612)
@@ -33,8 +41,10 @@ export async function executePermit(
   token: Address,
   permit: PermitData,
   permitSignature: `0x${string}`,
-  wallet: WalletClient
-): Promise<string> {
+  wallet: WalletClient,
+  publicClient: PublicClient,
+  confirmationWait?: number
+): Promise<{ txHash: string; cb: Promise<TransactionReceipt> }> {
   const { r, s, v, yParity } = parseSignature(permitSignature)
 
   console.log(
@@ -51,22 +61,14 @@ export async function executePermit(
     address: token,
     abi: erc20PermitAbi,
     functionName: "permit",
-    args: [
-      permit.owner,
-      permit.spender,
-      permit.value,
-      permit.deadline,
-      v,
-      r,
-      s,
-    ],
-    account: wallet.account ?? permit.owner,
-    chain: null,
+    args: [permit.owner, permit.spender, permit.value, permit.deadline, v, r, s],
+    account: wallet.account,
   })
 
   console.log("permit Tx", txHash)
   // console.log("permit", permit)
 
-  await waitForTransactionReceipt(publicClient, txHash, 1) //FIXME:
-  return txHash
+  const cb = waitForTransactionReceipt(publicClient, txHash, 1, confirmationWait) //FIXME: wallet.account.client might not be configrued
+  // await cb
+  return { txHash, cb }
 }

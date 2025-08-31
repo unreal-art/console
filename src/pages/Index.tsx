@@ -24,16 +24,13 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import AnimatedBackground from "@/components/AnimatedBackground"
-import CodePlayground from "@/components/CodePlayground"
-import OpenAIStreamingPlayground from "@/components/OpenAIStreamingPlayground"
 import FeatureCards from "@/components/FeatureCards"
 import TestimonialCarousel from "@/components/TestimonialCarousel"
 import FAQ from "@/components/FAQ"
-import OnboardingFlow from "@/components/OnboardingFlow"
-import ChatCompletion from "@/components/ChatCompletion"
 import { useOpenWidget } from "@/hooks/useOpenWidget"
 import { useApi } from "@/lib/ApiContext"
 import { OPENAI_DOCS_URL } from "@/config/unreal"
+import { useNavigate } from "react-router-dom"
 
 const Index = () => {
   const [copied, setCopied] = useState(false)
@@ -188,6 +185,8 @@ console.log(response.choices[0].message.content);`,
     window.open(OPENAI_DOCS_URL, '_blank')
   }
 
+  const navigate = useNavigate()
+
   return (
     <div className="relative min-h-screen bg-slate-950 text-white overflow-hidden">
       <AnimatedBackground />
@@ -295,26 +294,26 @@ console.log(response.choices[0].message.content);`,
         </div>
       </motion.section>
 
-      {/* Onboarding Flow */}
-      <section className="py-16 px-4 md:px-8 max-w-6xl mx-auto">
-        <div ref={onboardingRef}>
-          <OnboardingFlow />
+      
+      {/* Streaming Playground CTA (opens dedicated page) */}
+      <section className="py-8 px-4 md:px-8 max-w-6xl mx-auto">
+        <div className="text-center mb-6">
+          <h2 className="text-3xl font-bold mb-2">Streaming Playground</h2>
+          <p className="text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+            Try the live streaming playground on its own page.
+          </p>
+        </div>
+        <div className="flex justify-center">
+          <Button
+            size="lg"
+            variant="outline"
+            className="border-slate-600 hover:bg-slate-800"
+            onClick={() => navigate("/playground")}
+          >
+            Open Playground
+          </Button>
         </div>
       </section>
-
-      {/* Chat Completion Demo */}
-      {isAuthenticated && apiKey && (
-        <section className="py-16 px-4 md:px-8 max-w-6xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-4">Test Your API Key</h2>
-            <p className="text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-              Try out your new API key with our chat completion endpoint. This
-              demo shows how to use the API in a real application.
-            </p>
-          </div>
-          <ChatCompletion />
-        </section>
-      )}
 
       {/* Code Examples Section */}
       <section className="py-20 relative">
@@ -374,12 +373,6 @@ console.log(response.choices[0].message.content);`,
           </Card>
         </div>
       </section>
-
-      {/* Code Playground */}
-      <CodePlayground />
-
-      {/* OpenAI SDK Streaming Playground */}
-      <OpenAIStreamingPlayground />
 
       {/* Feature Cards */}
       <FeatureCards />
@@ -539,7 +532,7 @@ console.log(response.choices[0].message.content);`,
           </div>
 
           <div className="border-t border-slate-800 mt-8 pt-8 text-center text-slate-400">
-            <p>© 2025 Unreal AI. All rights reserved.</p>
+            <p> 2025 Unreal AI. All rights reserved.</p>
           </div>
         </div>
       </footer>

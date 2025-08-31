@@ -1,28 +1,28 @@
-import React, { useCallback, useMemo, useState, useEffect, useRef } from "react"
+import React, { useCallback, useState, useEffect, useRef } from "react"
 import { motion } from "framer-motion"
-import { Play, Copy, Check, Terminal, Package } from "lucide-react"
+import { Play, Terminal } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Textarea } from "@/components/ui/textarea"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useApi } from "@/lib/ApiContext"
 import { CODING_MODEL } from "@/config/models"
 import { OPENAI_URL } from "@/config/unreal"
-import { createOpenAI } from "@ai-sdk/openai"
-import { streamText } from "ai"
+import OpenAI from "openai"
 import { useNavigate } from "react-router-dom"
 
-const OpenAIStreamingPlayground: React.FC = () => {
+interface OpenAIStreamingPlaygroundProps {
+  initialPrompt?: string
+  autorun?: boolean
+}
+
+const OpenAIStreamingPlayground: React.FC<OpenAIStreamingPlaygroundProps> = ({ initialPrompt, autorun }) => {
   const { apiKey, isAuthenticated } = useApi()
   const navigate = useNavigate()
 
-  const [prompt, setPrompt] = useState<string>(
-    "Write a concise TypeScript function called `toTitleCase` that converts a string to Title Case, followed by a short usage example."
-  )
   const [isRunning, setIsRunning] = useState(false)
   const [response, setResponse] = useState("")
-  const [copied, setCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // Auto-scroll live response
@@ -34,32 +34,6 @@ const OpenAIStreamingPlayground: React.FC = () => {
     }
   }, [response])
 
-  const codeSnippet = useMemo(
-    () => `const response = await fetch('${OPENAI_URL}/chat/completions', {
-  method: 'POST',
-  headers: {
-    'Authorization': 'Bearer your-api-key-here',
-    'Content-Type': 'application/json'
-  },
-  body: JSON.stringify({
-    model: '${CODING_MODEL}',
-    messages: [{
-      role: 'user',
-      content: '${prompt.replace(/`/g, "\\`")}'
-    }]
-  })
-});
-const data = await response.json();
-console.log(data.choices[0].message.content);`,
-    [prompt]
-  )
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
-
   const handleRun = useCallback(async () => {
     setError(null)
     setResponse("")
@@ -69,41 +43,50 @@ console.log(data.choices[0].message.content);`,
       return
     }
 
-    // Require an explicit API key; redirect to Settings if missing
+    // Require an explicit API key; guide to Settings if missing
     const effectiveKey = apiKey
     if (!effectiveKey) {
-      setError("You need to generate an API key first. Redirecting to Settings...")
-      navigate("/settings")
+      setError("API key required. Please create one in Settings to run the demo.")
       return
     }
 
     setIsRunning(true)
     try {
-      // Create OpenAI provider with custom base URL
-      const openai = createOpenAI({
+      // Create OpenAI client with custom base URL
+      const client = new OpenAI({
         apiKey: effectiveKey,
         baseURL: OPENAI_URL,
+        // We intentionally allow browser usage here because the user provides their own key
+        dangerouslyAllowBrowser: true,
       })
 
-      console.log("Starting stream with AI SDK...")
+      console.log("Starting stream with OpenAI SDK...")
       
-      // Stream text using the AI SDK
-      const { textStream } = await streamText({
-        model: openai(CODING_MODEL),
+      // Prepare prompt
+      const userPrompt = (initialPrompt && initialPrompt.trim().length > 0)
+        ? initialPrompt
+        : "Write a concise TypeScript function called `toTitleCase` that converts a string to Title Case, followed by a short usage example."
+
+      // Start a streaming chat completion
+      const stream = await client.chat.completions.create({
+        model: CODING_MODEL,
         messages: [
           { role: "system", content: "You are a helpful coding assistant." },
-          { role: "user", content: prompt },
+          { role: "user", content: userPrompt },
         ],
+        stream: true,
       })
 
       console.log("Stream created, reading chunks...")
-      
-      // Read from the stream
-      for await (const chunk of textStream) {
-        console.log("Chunk received:", chunk)
-        setResponse((prev) => prev + chunk)
+
+      // Read incremental deltas and append to response
+      for await (const chunk of stream) {
+        const delta = chunk.choices?.[0]?.delta?.content
+        if (delta) {
+          setResponse((prev) => prev + delta)
+        }
       }
-      
+
       console.log("Stream completed")
     } catch (error) {
       console.error("Streaming error:", error)
@@ -112,163 +95,120 @@ console.log(data.choices[0].message.content);`,
     } finally {
       setIsRunning(false)
     }
-  }, [apiKey, isAuthenticated, prompt, navigate])
+  }, [apiKey, isAuthenticated, initialPrompt])
+
+  // Optional autorun for guided experiences
+  useEffect(() => {
+    if (autorun) {
+      // debounce slightly to allow layout to mount
+      const t = setTimeout(() => {
+        handleRun()
+      }, 100)
+      return () => clearTimeout(t)
+    }
+  }, [autorun, handleRun])
 
   return (
-    <section className="py-20 relative">
-      <div className="container mx-auto px-6">
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          className="text-center mb-12"
-        >
-          <h2 className="text-4xl font-bold mb-2">Try It Live: API Test</h2>
-          <p className="text-xl text-slate-300">Test our API with your key and see real-time responses</p>
-        </motion.div>
-
-        <div className="max-w-6xl mx-auto">
-          {error && (
-            <Alert className="mb-6 border-red-500 bg-red-500/15">
-              <AlertDescription>
-                <div className="flex items-center justify-between gap-3">
-                  <span className="truncate">{error}</span>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleRun}
-                    disabled={isRunning}
-                  >
-                    Retry
-                  </Button>
+    <div className="w-full">
+      {error && (
+        <Alert className="mb-6 border-red-500 bg-red-500/15">
+          <AlertDescription>
+            <div className="flex items-center justify-between gap-3">
+              <span className="truncate">{error}</span>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => navigate("/settings")}
+                >
+                  Go to Settings
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleRun}
+                  disabled={isRunning}
+                >
+                  Retry
+                </Button>
+              </div>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+      <Card className="bg-slate-900/50 border-slate-700">
+        <CardContent className="p-0">
+          <div className="bg-slate-800 px-4 py-2 flex items-center justify-between border-b border-slate-700">
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              <span className="text-sm text-slate-300">Live Response</span>
+              {initialPrompt && (
+                <div className="hidden md:block pl-3 border-l border-slate-700 ml-3">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="text-xs text-slate-400 truncate max-w-[360px] block">
+                        Prompt: {initialPrompt}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-md">
+                      <span className="text-xs break-words">Prompt: {initialPrompt}</span>
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
-              </AlertDescription>
-            </Alert>
-          )}
-
-          <div className="grid lg:grid-cols-2 gap-8">
-            {/* Editor */}
-            <Card className="bg-slate-900/50 border-slate-700">
-              <CardContent className="p-0">
-                <div className="bg-slate-800 px-4 py-2 flex items-center justify-between border-b border-slate-700">
-                  <div className="flex items-center space-x-2">
-                    <Terminal className="w-4 h-4 text-slate-400" />
-                    <span className="text-sm text-slate-300">API Test (Fetch)</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => copyToClipboard(codeSnippet)}
-                      className="text-slate-400 hover:text-white"
-                    >
-                      {copied ? (
-                        <Check className="w-4 h-4" />
-                      ) : (
-                        <Copy className="w-4 h-4" />
-                      )}
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={handleRun}
-                      disabled={isRunning}
-                      className="bg-green-600 hover:bg-green-700"
-                    >
-                      {isRunning ? (
-                        <>
-                          <motion.div
-                            animate={{ rotate: 360 }}
-                            transition={{
-                              duration: 1,
-                              repeat: Infinity,
-                              ease: "linear",
-                            }}
-                            className="w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2"
-                          />
-                          Running...
-                        </>
-                      ) : (
-                        <>
-                          <Play className="w-4 h-4 mr-2" />
-                          Run
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="p-6 bg-slate-950 space-y-4">
-                  <div>
-                    <div className="text-sm text-slate-400 mb-2">Prompt</div>
-                    <Textarea
-                      value={prompt}
-                      onChange={(e) => setPrompt(e.target.value)}
-                      className="min-h-[100px]"
-                      placeholder="Describe the code you want the model to write..."
-                      disabled={isRunning}
+              )}
+            </div>
+            <div className="flex items-center space-x-2">
+              <Badge variant="secondary" className="bg-blue-600 text-white">
+                {CODING_MODEL}
+              </Badge>
+              <Button
+                size="sm"
+                onClick={handleRun}
+                disabled={isRunning}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                {isRunning ? (
+                  <>
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                      className="w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2"
                     />
-                  </div>
-
-                  <div>
-                    <div className="text-sm text-slate-400 mb-2">JavaScript (Fetch)</div>
-                    <pre className="text-xs md:text-sm text-green-400 overflow-x-auto">
-                      <code>{codeSnippet}</code>
-                    </pre>
-                  </div>
-
-                  <div className="flex items-center gap-2 text-xs text-slate-400">
-                    <Package className="w-3.5 h-3.5" />
-                    Endpoint: {" "}
-                    <code className="text-slate-300">{OPENAI_URL}/chat/completions</code>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Live Response */}
-            <Card className="bg-slate-900/50 border-slate-700">
-              <CardContent className="p-0">
-                <div className="bg-slate-800 px-4 py-2 flex items-center justify-between border-b border-slate-700">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                    <span className="text-sm text-slate-300">
-                      Live Response
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Badge
-                      variant="secondary"
-                      className="bg-blue-600 text-white"
-                    >
-                      {CODING_MODEL}
-                    </Badge>
-                  </div>
-                </div>
-
-                <div ref={responseContainerRef} className="p-6 bg-slate-950 min-h-[300px] max-h-[60vh] overflow-y-auto">
-                  {response ? (
-                    <motion.pre
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="text-sm text-blue-400 overflow-x-auto whitespace-pre-wrap"
-                    >
-                      <code>{response}</code>
-                    </motion.pre>
-                  ) : (
-                    <div className="flex items-center justify-center h-full text-slate-500">
-                      <div className="text-center">
-                        <Terminal className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                        <p>Enter a prompt and click "Run" to stream the code</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                    Running...
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4 mr-2" />
+                    Run
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
-        </div>
-      </div>
-    </section>
+          <div
+            ref={responseContainerRef}
+            className="p-6 bg-slate-950 min-h-[300px] max-h-[60vh] overflow-y-auto"
+          >
+            {response ? (
+              <motion.pre
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-sm text-blue-400 overflow-x-auto whitespace-pre-wrap"
+              >
+                <code>{response}</code>
+              </motion.pre>
+            ) : (
+              <div className="flex items-center justify-center h-full text-slate-500">
+                <div className="text-center">
+                  <Terminal className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>Click "Run" to stream the code</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   )
 }
 

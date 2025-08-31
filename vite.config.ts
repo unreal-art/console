@@ -29,6 +29,7 @@ export default defineConfig(({ mode }) => {
         "@": path.resolve(__dirname, "./src"),
         "@config": path.resolve(__dirname, "./src/config"),
         "@abis": path.resolve(__dirname, "./src/abis"),
+        "@utils": path.resolve(__dirname, "./utils"),
         "zod/v4": "zod",
         "zod/v4-mini": "zod",
         "zod/v3": "zod",

@@ -6,13 +6,13 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ApiProvider } from "./lib/ApiContext";
 
 // Import pages
-import Index from "./pages/Index";
+import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
-import Chat from "./pages/Chat";
 import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import SignIn from "./pages/SignIn";
 import NotFound from "./pages/NotFound";
+import Playground from "./pages/Playground";
 
 const queryClient = new QueryClient();
 
@@ -24,9 +24,9 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Index />} />
+            <Route path="/" element={<Home />} />
             <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/chat" element={<Chat />} />
+            <Route path="/playground" element={<Playground />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/login" element={<Login />} />
             <Route path="/sign-in" element={<SignIn />} />
