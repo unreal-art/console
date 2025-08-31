@@ -63,6 +63,8 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const [modelOpen, setModelOpen] = useState(false)
 
   // Simple id generator for UIMessage ids
   const makeId = () =>
@@ -308,10 +310,11 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
     }
   }, [autorun, initialPrompt, sendMessage])
 
-  const handleClear = () => {
+  // Actions
+  const handleClear = useCallback(() => {
     setMessages([])
     setError(null)
-  }
+  }, [])
 
   const stopStreaming = useCallback(() => {
     try {
@@ -350,6 +353,85 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
     }
   }, [messages, sendMessage, getTextFromMessage])
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null
+      const tag = target?.tagName?.toLowerCase()
+      const isTyping =
+        tag === "input" || tag === "textarea" || (target?.isContentEditable ?? false)
+      const key = e.key?.toLowerCase?.() ?? ""
+
+      // Send message
+      if ((e.metaKey || e.ctrlKey) && key === "enter") {
+        if (isTyping) return // textarea has its own handler to prevent double-send
+        e.preventDefault()
+        void sendMessage()
+        return
+      }
+
+      // Clear conversation
+      if ((e.metaKey || e.ctrlKey) && key === "k") {
+        e.preventDefault()
+        handleClear()
+        return
+      }
+
+      // Stop streaming
+      if ((e.metaKey || e.ctrlKey) && key === ".") {
+        e.preventDefault()
+        if (isStreaming) stopStreaming()
+        return
+      }
+
+      // Regenerate last
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && key === "r") {
+        e.preventDefault()
+        if (!isStreaming) regenerateLast()
+        return
+      }
+
+      // Retry last
+      if (e.altKey && key === "r") {
+        e.preventDefault()
+        if (!isStreaming) retryLast()
+        return
+      }
+
+      // Open model select
+      if ((e.metaKey || e.ctrlKey) && key === "m") {
+        e.preventDefault()
+        setModelOpen(true)
+        return
+      }
+
+      // Focus input when not typing
+      if (!isTyping && key === "/") {
+        e.preventDefault()
+        inputRef.current?.focus()
+        return
+      }
+
+      // Escape to stop or dismiss error
+      if (key === "escape") {
+        if (isStreaming) {
+          e.preventDefault()
+          stopStreaming()
+          return
+        }
+        if (error) {
+          e.preventDefault()
+          setError(null)
+          return
+        }
+      }
+    }
+    window.addEventListener("keydown", handler)
+    return () => window.removeEventListener("keydown", handler)
+  }, [sendMessage, handleClear, isStreaming, stopStreaming, regenerateLast, retryLast, error])
+
+  // Moved actions above
+
   return (
     <div className="w-full">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3">
@@ -357,6 +439,8 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
           <Select
             value={model}
             onValueChange={(v) => setModel(v as UnrealModelId)}
+            open={modelOpen}
+            onOpenChange={setModelOpen}
           >
             <SelectTrigger
               className="w-[260px]"
@@ -388,7 +472,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
               Clear
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Start a new conversation</TooltipContent>
+          <TooltipContent>Start a new conversation • Cmd/Ctrl+K</TooltipContent>
         </Tooltip>
         <div className="flex items-center gap-2">
           {isStreaming && (
@@ -399,7 +483,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                   Stop
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Stop the current response</TooltipContent>
+              <TooltipContent>Stop the current response • Cmd/Ctrl+.</TooltipContent>
             </Tooltip>
           )}
           {!isStreaming && messages.some((m) => m.role === "assistant") && (
@@ -415,7 +499,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                   Regenerate
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Regenerate the last response</TooltipContent>
+              <TooltipContent>Regenerate the last response • Shift+Cmd/Ctrl+R</TooltipContent>
             </Tooltip>
           )}
         </div>
@@ -431,6 +515,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                 size="sm"
                 variant="outline"
                 onClick={retryLast}
+                title="Retry (Alt+R)"
                 disabled={isStreaming}
               >
                 Try again
@@ -446,6 +531,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                 size="sm"
                 variant="outline"
                 onClick={() => setError(null)}
+                title="Dismiss (Esc)"
                 disabled={isStreaming}
               >
                 Dismiss
@@ -498,11 +584,19 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
           onChange={(e) => setInput(e.target.value)}
           className="resize-none min-h-[100px]"
           disabled={isStreaming}
+          ref={inputRef}
+          onKeyDown={(e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+              e.preventDefault()
+              void sendMessage()
+            }
+          }}
         />
         <div className="flex items-center justify-end">
           <Button
             onClick={() => void sendMessage()}
             disabled={isStreaming || !input.trim()}
+            title="Send (Cmd/Ctrl+Enter)"
           >
             {isStreaming ? (
               <>

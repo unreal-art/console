@@ -49,6 +49,41 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     void sync();
   }, [walletAddress]);
 
+  // Global navigation shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      const isTyping = tag === 'input' || tag === 'textarea' || (target?.isContentEditable ?? false);
+      if (isTyping) return;
+      const key = e.key?.toLowerCase?.() ?? '';
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey) {
+        e.preventDefault();
+        switch (key) {
+          case 'h':
+            navigate('/');
+            return;
+          case 'p':
+            navigate('/playground');
+            return;
+          case 's':
+            navigate('/settings');
+            return;
+          case 'd':
+            navigate('/dashboard');
+            return;
+          case 'g':
+            navigate('/?guided=1');
+            return;
+          default:
+            return;
+        }
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [navigate]);
+
   const handleChainChange = async (value: string) => {
     try {
       await switchChain(value);
@@ -126,10 +161,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <Tooltip>
               <TooltipTrigger asChild>
                 <Link to="/?guided=1">
-                  <Button variant="outline" size="sm">Guided Start</Button>
+                  <Button variant="outline" size="sm" title="Guided Start (Cmd/Ctrl+Shift+G)">Guided Start</Button>
                 </Link>
               </TooltipTrigger>
-              <TooltipContent>Replay onboarding modal</TooltipContent>
+              <TooltipContent>Replay onboarding modal • Cmd/Ctrl+Shift+G</TooltipContent>
             </Tooltip>
             {chains.length > 0 && (
               <Select
