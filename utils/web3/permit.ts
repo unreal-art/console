@@ -1,4 +1,4 @@
-limport { getPublicClient } from "@config/wallet"
+import { getPublicClient } from "@config/wallet"
 import {
   Account,
   Address,
