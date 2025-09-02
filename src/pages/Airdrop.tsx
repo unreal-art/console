@@ -303,8 +303,8 @@ const Airdrop: React.FC = () => {
               Step 2 — Verify follows
             </h2>
             <p className="text-sm text-muted-foreground mb-4">
-              We simulate a quick verification to keep things simple. Once
-              complete, you can claim.
+              We do a quick verification to keep things simple. Once complete,
+              you can claim.
             </p>
             <div className="flex items-center gap-3 mb-4">
               <Button
