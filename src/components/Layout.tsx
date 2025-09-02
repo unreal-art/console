@@ -66,6 +66,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           case 'p':
             navigate('/playground');
             return;
+          case 'a':
+            navigate('/airdrop');
+            return;
           case 's':
             navigate('/settings');
             return;
@@ -148,6 +151,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 className={`${location.pathname === '/playground' ? 'text-primary font-medium' : 'text-muted-foreground hover:text-primary'}`}
               >
                 Playground
+              </Link>
+              <Link 
+                to="/airdrop" 
+                className={`${location.pathname === '/airdrop' ? 'text-primary font-medium' : 'text-muted-foreground hover:text-primary'}`}
+                title="Airdrop • Cmd/Ctrl+Shift+A"
+              >
+                Airdrop
               </Link>
               <Link 
                 to="/settings" 

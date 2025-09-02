@@ -99,6 +99,15 @@ const Settings = () => {
     }
   }, [isAuthenticated])
 
+  // Handle copy to clipboard
+  const handleCopy = useCallback(() => {
+    if (apiKey) {
+      navigator.clipboard.writeText(apiKey)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }, [apiKey])
+
   // Page-level keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -191,15 +200,6 @@ const Settings = () => {
     setCopiedHash(hash)
     setTimeout(() => setCopiedHash(null), 2000)
   }
-
-  // Handle copy to clipboard
-  const handleCopy = useCallback(() => {
-    if (apiKey) {
-      navigator.clipboard.writeText(apiKey)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    }
-  }, [apiKey])
 
   // Handle dialog close
   const handleCloseDialog = () => {

@@ -170,7 +170,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
                       client
                     )
                     const balanceInEther = formatEther(balance)
-                    calls = parseInt(balanceInEther)
+                    calls = Number(balanceInEther)
                     console.debug(
                       "[ApiContext] UNREAL balance:",
                       balanceInEther,
@@ -381,11 +381,11 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     try {
       // Switch the account in WalletService
       await walletService.switchAccount(address)
-      
+
       // Update the context state to reflect the new address
       setWalletAddress(address)
       console.debug("[ApiContext] Switched to account:", address)
-      
+
       // Note: This doesn't automatically re-register or change authentication
       // The user will need to re-register if they want to use this account for API calls
     } catch (error: unknown) {
@@ -659,16 +659,16 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     setError(null)
   }
 
-// Get current chain ID from wallet
-const getCurrentChainId = async (): Promise<number> => {
-  try {
-    return await walletService.getCurrentChainId()
-  } catch (error) {
-    console.error("Error getting current chain ID:", error)
-    // Return configured default chain ID if error
-    return getDefaultChain().id
+  // Get current chain ID from wallet
+  const getCurrentChainId = async (): Promise<number> => {
+    try {
+      return await walletService.getCurrentChainId()
+    } catch (error) {
+      console.error("Error getting current chain ID:", error)
+      // Return configured default chain ID if error
+      return getDefaultChain().id
+    }
   }
-}
 
   const value = {
     isAuthenticated,
