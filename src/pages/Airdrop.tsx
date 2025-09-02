@@ -21,6 +21,8 @@ const Airdrop: React.FC = () => {
   const [verifying, setVerifying] = useState(false)
   const [verifyProgress, setVerifyProgress] = useState(0)
   const [verified, setVerified] = useState(false)
+  const [verifyStartTime, setVerifyStartTime] = useState<number | null>(null)
+  const MIN_VERIFY_MS = 30_000
 
   // Claim + confirmation state
   const [isClaiming, setIsClaiming] = useState(false)
@@ -53,29 +55,24 @@ const Airdrop: React.FC = () => {
 
   useEffect(() => {
     let interval: number | null = null
-    if (verifying) {
-      setVerifyProgress(0)
+    if (verifying && verifyStartTime !== null) {
       interval = window.setInterval(() => {
-        setVerifyProgress((p) => {
-          const next = Math.min(
-            100,
-            p + Math.max(2, Math.round(6 + Math.random() * 10))
-          )
-          if (next >= 100) {
-            if (interval) window.clearInterval(interval)
-            setVerifying(false)
-            setVerified(true)
-            // Move focus to Claim when done
-            setTimeout(() => claimBtnRef.current?.focus(), 50)
-          }
-          return next
-        })
-      }, 120)
+        const elapsed = Date.now() - verifyStartTime
+        const pct = Math.min(100, Math.floor((elapsed / MIN_VERIFY_MS) * 100))
+        setVerifyProgress(pct)
+        if (elapsed >= MIN_VERIFY_MS) {
+          if (interval) window.clearInterval(interval)
+          setVerifying(false)
+          setVerified(true)
+          // Move focus to Claim when done
+          setTimeout(() => claimBtnRef.current?.focus(), 50)
+        }
+      }, 100)
     }
     return () => {
       if (interval) window.clearInterval(interval)
     }
-  }, [verifying])
+  }, [verifying, verifyStartTime])
 
   // Elapsed timer while confirming
   useEffect(() => {
@@ -94,6 +91,8 @@ const Airdrop: React.FC = () => {
 
   const handleStartVerification = useCallback(() => {
     if (!canVerify) return
+    setVerifyProgress(0)
+    setVerifyStartTime(Date.now())
     setVerifying(true)
   }, [canVerify])
 
@@ -170,6 +169,42 @@ const Airdrop: React.FC = () => {
     }
   }, [canClaim, getCurrentChainId])
 
+  // Open centered popup for social follows
+  const openPopupCentered = useCallback(
+    (url: string, name: string, width = 700, height = 800) => {
+      const win = window as Window & { screenLeft?: number; screenTop?: number }
+      const dualScreenLeft = win.screenLeft ?? window.screenX ?? 0
+      const dualScreenTop = win.screenTop ?? window.screenY ?? 0
+      const w =
+        window.innerWidth ||
+        document.documentElement.clientWidth ||
+        window.screen.width
+      const h =
+        window.innerHeight ||
+        document.documentElement.clientHeight ||
+        window.screen.height
+      const left = dualScreenLeft + (w - width) / 2
+      const top = dualScreenTop + (h - height) / 2
+      const features = `popup=yes,width=${width},height=${height},top=${Math.max(
+        0,
+        Math.floor(top)
+      )},left=${Math.max(0, Math.floor(left))},resizable=yes,scrollbars=yes,noopener,noreferrer`
+      const newWindow = window.open(url, name, features)
+      if (newWindow) {
+        try {
+          newWindow.opener = null
+          newWindow.focus()
+        } catch {
+          // no-op
+        }
+      } else {
+        // Fallback to new tab if popup blocked
+        window.open(url, "_blank", "noopener,noreferrer")
+      }
+    },
+    []
+  )
+
   // Keyboard shortcuts
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -199,6 +234,7 @@ const Airdrop: React.FC = () => {
           e.preventDefault()
           setVerifying(false)
           setVerifyProgress(0)
+          setVerifyStartTime(null)
         }
         return
       }
@@ -207,11 +243,11 @@ const Airdrop: React.FC = () => {
       if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
         switch (key) {
           case "x":
-            window.open(X_URL, "_blank", "noopener,noreferrer")
+            openPopupCentered(X_URL, "FollowX", 700, 800)
             setFollowedX(true)
             break
           case "l":
-            window.open(LINKEDIN_URL, "_blank", "noopener,noreferrer")
+            openPopupCentered(LINKEDIN_URL, "FollowLinkedIn", 700, 800)
             setFollowedLinkedIn(true)
             break
           case "v":
@@ -227,7 +263,7 @@ const Airdrop: React.FC = () => {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [handleStartVerification, handleClaim, verifying, verified])
+  }, [handleStartVerification, handleClaim, verifying, verified, openPopupCentered])
 
   const handleConnect = async () => {
     try {
@@ -265,7 +301,7 @@ const Airdrop: React.FC = () => {
                   <Button
                     variant={followedX ? "secondary" : "default"}
                     onClick={() => {
-                      window.open(X_URL, "_blank", "noopener,noreferrer")
+                      openPopupCentered(X_URL, "FollowX", 700, 800)
                       setFollowedX(true)
                     }}
                     title="Open X (Twitter) • Shortcut: X"
@@ -278,7 +314,12 @@ const Airdrop: React.FC = () => {
                   <Button
                     variant={followedLinkedIn ? "secondary" : "default"}
                     onClick={() => {
-                      window.open(LINKEDIN_URL, "_blank", "noopener,noreferrer")
+                      openPopupCentered(
+                        LINKEDIN_URL,
+                        "FollowLinkedIn",
+                        700,
+                        800
+                      )
                       setFollowedLinkedIn(true)
                     }}
                     title="Open LinkedIn • Shortcut: L"
