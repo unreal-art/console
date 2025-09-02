@@ -89,7 +89,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
     try {
       // Use the current wallet address from context, which is now correctly set to the selected address
       if (!walletAddress) return
-      
+
       // 1. Get payment token from system info
       const systemInfo = await apiClient.getSystemInfo()
       console.log("systemInfo", systemInfo)
@@ -106,7 +106,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
         walletAddress as `0x${string}`
       )
       const balanceInEther = formatEther(balance)
-      const calls = parseInt(balanceInEther)
+      const calls = Number(balanceInEther)
       console.log("calls=", calls)
 
       setCallsAmount(calls)
@@ -116,7 +116,10 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
       setShowAirdropStep(calls === 0)
 
       // Do not persist calls to localStorage; keep in-memory only per app policy
-      console.debug("OnboardingFlow: callsAmount computed (not persisted)", calls)
+      console.debug(
+        "OnboardingFlow: callsAmount computed (not persisted)",
+        calls
+      )
     } catch (err) {
       console.error("Unable to fetch calls amount:", err)
     }
@@ -370,9 +373,12 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
           })
 
           toast({
-            title: response.alreadyClaimed ? "Airdrop Already Claimed (Unconfirmed)" : "Transaction Submitted",
+            title: response.alreadyClaimed
+              ? "Airdrop Already Claimed (Unconfirmed)"
+              : "Transaction Submitted",
             description:
-              response.message || "Waiting for blockchain confirmation. This may take a minute or two.",
+              response.message ||
+              "Waiting for blockchain confirmation. This may take a minute or two.",
           })
 
           try {
@@ -673,21 +679,27 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
                       </div>
                     )}
 
-                    {isActive && !isCompleted && (
-                      step.id === 0 && showAddressDropdown ? (
+                    {isActive &&
+                      !isCompleted &&
+                      (step.id === 0 && showAddressDropdown ? (
                         <div className="space-y-4">
                           <div className="bg-slate-800 rounded-md p-3 max-h-48 overflow-y-auto">
                             {availableAddresses.length > 0 ? (
                               availableAddresses.map((address, index) => (
                                 <div
                                   key={address}
-                                  className={`flex items-center justify-between p-2 rounded-md cursor-pointer ${selectedAddress === address ? 'bg-blue-900' : 'hover:bg-slate-700'}`}
+                                  className={`flex items-center justify-between p-2 rounded-md cursor-pointer ${
+                                    selectedAddress === address
+                                      ? "bg-blue-900"
+                                      : "hover:bg-slate-700"
+                                  }`}
                                   onClick={() => setSelectedAddress(address)}
                                 >
                                   <div className="flex items-center">
                                     <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
                                     <span>
-                                      {address.slice(0, 6)}...{address.slice(-4)}
+                                      {address.slice(0, 6)}...
+                                      {address.slice(-4)}
                                     </span>
                                   </div>
                                   {selectedAddress === address && (
@@ -756,13 +768,13 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
                             </span>
                           ) : (
                             <>
-                              {step.id === 0 && (
-                                walletAddress ? (
-                                  `Connected: ${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`
-                                ) : (
-                                  "Connect Wallet"
-                                )
-                              )}
+                              {step.id === 0 &&
+                                (walletAddress
+                                  ? `Connected: ${walletAddress.slice(
+                                      0,
+                                      6
+                                    )}...${walletAddress.slice(-4)}`
+                                  : "Connect Wallet")}
                               {step.id === 1 && "Sign & Register"}
                               {step.id === 2 &&
                                 showAirdropStep &&
@@ -777,8 +789,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
                             </>
                           )}
                         </Button>
-                      )
-                    )}
+                      ))}
 
                     {isCompleted && (
                       <div className="flex items-center text-green-500 text-sm">
