@@ -23,6 +23,7 @@ const Airdrop: React.FC = () => {
   const [verified, setVerified] = useState(false)
   const [verifyStartTime, setVerifyStartTime] = useState<number | null>(null)
   const MIN_VERIFY_MS = 30_000
+  const [remainingSeconds, setRemainingSeconds] = useState(0)
 
   // Claim + confirmation state
   const [isClaiming, setIsClaiming] = useState(false)
@@ -60,10 +61,13 @@ const Airdrop: React.FC = () => {
         const elapsed = Date.now() - verifyStartTime
         const pct = Math.min(100, Math.floor((elapsed / MIN_VERIFY_MS) * 100))
         setVerifyProgress(pct)
+        const remaining = Math.max(0, Math.ceil((MIN_VERIFY_MS - elapsed) / 1000))
+        setRemainingSeconds(remaining)
         if (elapsed >= MIN_VERIFY_MS) {
           if (interval) window.clearInterval(interval)
           setVerifying(false)
           setVerified(true)
+          setRemainingSeconds(0)
           // Move focus to Claim when done
           setTimeout(() => claimBtnRef.current?.focus(), 50)
         }
@@ -93,6 +97,7 @@ const Airdrop: React.FC = () => {
     if (!canVerify) return
     setVerifyProgress(0)
     setVerifyStartTime(Date.now())
+    setRemainingSeconds(Math.ceil(MIN_VERIFY_MS / 1000))
     setVerifying(true)
   }, [canVerify])
 
@@ -235,6 +240,7 @@ const Airdrop: React.FC = () => {
           setVerifying(false)
           setVerifyProgress(0)
           setVerifyStartTime(null)
+          setRemainingSeconds(0)
         }
         return
       }
@@ -372,7 +378,7 @@ const Airdrop: React.FC = () => {
               </Button>
               {verifying && (
                 <span className="text-sm text-muted-foreground">
-                  Press Esc to cancel
+                  Press Esc to cancel • ~{remainingSeconds}s remaining
                 </span>
               )}
             </div>
