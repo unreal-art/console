@@ -1,7 +1,7 @@
 {
   "name": "unreal-console",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "setup:min": "npm install -g bun && mkdir -p tests/.data",
