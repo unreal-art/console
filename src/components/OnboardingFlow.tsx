@@ -123,7 +123,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
   // Fetch calls amount similar to cockpit registration logic
   useEffect(() => {
     fetchCallsAmount()
-  }, [walletAddress, fetchCallsAmount])
+  }, [walletAddress])
 
   // State to track if this is a zero-balance registration
   const [isZeroBalanceRegistration, setIsZeroBalanceRegistration] =
@@ -685,7 +685,10 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
                           <>
                             {step.id === 0 &&
                               (walletAddress
-                                ? `Connected: ${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`
+                                ? `Connected: ${walletAddress.slice(
+                                    0,
+                                    6
+                                  )}...${walletAddress.slice(-4)}`
                                 : "Connect Wallet")}
                             {step.id === 1 && "Sign & Register"}
                             {step.id === 2 &&
@@ -693,7 +696,8 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
                               (airdropRequested && airdropSuccess
                                 ? "Airdrop Claimed"
                                 : "Request Air Drop")}
-                            {(step.id === 2 && !showAirdropStep) || step.id === 3
+                            {(step.id === 2 && !showAirdropStep) ||
+                            step.id === 3
                               ? "Generate Key"
                               : ""}
                             <ArrowRight className="ml-2 w-4 h-4" />
