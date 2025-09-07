@@ -16,7 +16,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import Layout from "@/components/Layout"
 import { useApi } from "@/lib/ApiContext"
 import { getPublicClient } from "@/config/wallet"
-import { getAddress } from "viem"
+import { getAddress, formatUnits } from "viem"
 import { getChainById } from "@utils/web3/chains"
 import { getConfiguredChains, switchChain } from "@/lib/onboard"
 
@@ -66,7 +66,8 @@ const SignIn = () => {
   const [isConnecting, setIsConnecting] = useState(false)
   const [isRegistering, setIsRegistering] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
-  const [unrealBalance, setUnrealBalance] = useState<number>(0)
+  const [unrealBalance, setUnrealBalance] = useState<string>("0")
+  const [unrealBalanceWei, setUnrealBalanceWei] = useState<bigint>(0n)
   const [isLoadingBalance, setIsLoadingBalance] = useState(false)
   const [chains, setChains] = useState(getConfiguredChains())
   const [selectedChainId, setSelectedChainId] = useState<string | null>(null)
@@ -86,19 +87,20 @@ const SignIn = () => {
       const chainId = await getCurrentChainId()
       const publicClient = getPublicClient(chainId)
       const balance = await publicClient.readContract({
-        address: tokenAddr,
+        address: getAddress(tokenAddr),
         abi: UNREAL_TOKEN_ABI,
         functionName: "balanceOf",
-        args: [addr],
+        args: [getAddress(addr as `0x${string}`)],
       })
 
-      // Convert to number for simplicity
-      // In production, you might want to handle BigInt properly
-      const balanceNumber = Number(balance) / 10 ** 18 // Assuming 18 decimals
-      setUnrealBalance(balanceNumber)
+      // Preserve precision: keep raw BigInt and a formatted string (18 decimals)
+      setUnrealBalanceWei(balance as bigint)
+      const formatted = formatUnits(balance as bigint, 18)
+      setUnrealBalance(formatted)
     } catch (err) {
       console.error("Error fetching UNREAL balance:", err)
-      setUnrealBalance(0)
+      setUnrealBalance("0")
+      setUnrealBalanceWei(0n)
     } finally {
       setIsLoadingBalance(false)
     }
@@ -116,7 +118,8 @@ const SignIn = () => {
     if (walletAddress) {
       void fetchUnrealBalance()
     } else {
-      setUnrealBalance(0)
+      setUnrealBalance("0")
+      setUnrealBalanceWei(0n)
     }
   }, [walletAddress, fetchUnrealBalance])
 
@@ -144,10 +147,25 @@ const SignIn = () => {
         void fetchUnrealBalance(undefined, first)
       } else {
         setSelectedToken(null)
-        setUnrealBalance(0)
+        setUnrealBalance("0")
+        setUnrealBalanceWei(0n)
       }
     }
   }, [selectedChainId, fetchUnrealBalance])
+
+  // Format a decimal string safely without converting to Number (avoids precision loss)
+  const formatBalance = (s: string, decimals = 2) => {
+    try {
+      if (!s) return decimals > 0 ? `0.${"0".repeat(decimals)}` : "0"
+      const [intPart, fracPart = ""] = s.split(".")
+      if (decimals <= 0) return intPart
+      const trimmed = fracPart.slice(0, decimals)
+      const padded = trimmed.padEnd(decimals, "0")
+      return `${intPart}.${padded}`
+    } catch {
+      return s
+    }
+  }
 
   // Handle wallet connection
   const handleConnectWallet = async () => {
@@ -171,7 +189,11 @@ const SignIn = () => {
       console.debug("[SignIn] Registering with wallet:", addr)
       
       // Use the actual UNREAL balance for the calls value
-      const callsValue = unrealBalance > 0 ? Math.floor(unrealBalance) : 0
+      // Compute as whole-token units from raw wei using BigInt to avoid precision loss
+      const wholeTokens = unrealBalanceWei / (10n ** 18n)
+      const callsValue = wholeTokens > BigInt(Number.MAX_SAFE_INTEGER)
+        ? Number.MAX_SAFE_INTEGER
+        : Number(wholeTokens)
 
       // Now register with the connected wallet
       await registerWithWallet(callsValue)
@@ -190,7 +212,8 @@ const SignIn = () => {
       setSelectedChainId(value.toLowerCase())
       // Clear token selection and balance until user picks a token
       setSelectedToken(null)
-      setUnrealBalance(0)
+      setUnrealBalance("0")
+      setUnrealBalanceWei(0n)
     } catch (e) {
       console.warn("Failed to switch chain", e)
     } finally {
@@ -327,7 +350,7 @@ const SignIn = () => {
                         )}
                       </div>
                       <p className="text-2xl font-bold">
-                        {isLoadingBalance ? "..." : unrealBalance.toFixed(2)}
+                        {isLoadingBalance ? "..." : formatBalance(unrealBalance, 2)}
                       </p>
                       <p className="text-sm text-muted-foreground mt-1">
                         This balance will be used for your registration
