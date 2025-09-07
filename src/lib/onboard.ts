@@ -2,6 +2,7 @@ import injectedWallets from "@web3-onboard/injected-wallets"
 import Onboard, { type OnboardAPI, type WalletState } from "@web3-onboard/core"
 import coinbaseModule from "@web3-onboard/coinbase"
 import walletConnectModule from "@web3-onboard/walletconnect"
+import particleModule from "@web3-onboard/particle-network"
 import magicModule from "@web3-onboard/magic"
 import ledgerModule from "@web3-onboard/ledger"
 import trezorModule from "@web3-onboard/trezor"
@@ -99,6 +100,18 @@ export function initOnboard(chains?: OnboardChain[]) {
         import.meta.env.VITE_TREZOR_APP_URL || "https://console.unreal.art",
       email: import.meta.env.VITE_TREZOR_EMAIL || "team@unreal.art",
     })
+    let particle: ReturnType<typeof particleModule> | null = null
+    if (
+      import.meta.env.VITE_PARTICLE_PROJECT_ID &&
+      import.meta.env.VITE_PARTICLE_CLIENT_KEY &&
+      import.meta.env.VITE_PARTICLE_APP_ID
+    ) {
+      particle = particleModule({
+        projectId: import.meta.env.VITE_PARTICLE_PROJECT_ID,
+        clientKey: import.meta.env.VITE_PARTICLE_CLIENT_KEY,
+        appId: import.meta.env.VITE_PARTICLE_APP_ID,
+      })
+    }
     const sequence = sequenceModule()
     const taho = tahoModule()
     const dcent = dcentModule()
@@ -113,22 +126,23 @@ export function initOnboard(chains?: OnboardChain[]) {
     const wallets = [
       injected,
       coinbase,
-      keepkey,
+      // keepkey,//FIXME:buffer not defined
       okx,
-      sequence,
+      sequence, //working
       trust,
       // frontier,
       // taho,
       // ledger,
-      dcent,
+      // dcent,//FIMME: process not defined
       // trezor,
-      safe,
+      // safe,
       // keystone,//FIXME: buffer not defined
       // infinityWallet,//FIXME: deprecated
     ]
 
     // Conditionally add SDK-keyed wallets
     if (walletConnect) wallets.push(walletConnect)
+    if (particle) wallets.push(particle)
     if (import.meta.env.VITE_MAGIC_API_KEY) {
       wallets.push(magic)
     }
