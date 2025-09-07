@@ -31,8 +31,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           try {
             const stored = localStorage.getItem('unreal_last_chain');
             if (stored && stored.toLowerCase() !== hex) {
-              await switchChain(stored);
-              setChainId(stored.toLowerCase());
+              // Restrict switching to Sign-In page only
+              if (location.pathname === '/sign-in') {
+                await switchChain(stored);
+                setChainId(stored.toLowerCase());
+              }
             }
           } catch (_) {
             // ignore restore errors
@@ -47,7 +50,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       }
     };
     void sync();
-  }, [walletAddress]);
+  }, [walletAddress, location.pathname]);
 
   // Global navigation shortcuts
   useEffect(() => {
@@ -100,23 +103,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     setIsConnecting(true);
     try {
       await connectWallet();
-      try {
-        const id = await walletService.getChainId();
-        const hex = `0x${id.toString(16)}`.toLowerCase();
-        setChainId(hex);
-        // After connect, restore last chain if needed
-        const stored = localStorage.getItem('unreal_last_chain');
-        if (stored && stored.toLowerCase() !== hex) {
-          try {
-            await switchChain(stored);
-            setChainId(stored.toLowerCase());
-          } catch (e) {
-            console.debug('Failed to restore last chain after connect', e);
-          }
-        }
-      } catch (e) {
-        console.debug('Failed to get chainId after connect', e);
-      }
+      // Do not switch chains automatically here; user will be taken to Sign-In
+      // where chain selection/switching is permitted.
     } finally {
       setIsConnecting(false);
       // Always take the user to sign-in to complete session/token setup
@@ -176,7 +164,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               </TooltipTrigger>
               <TooltipContent>Replay onboarding modal • Cmd/Ctrl+Shift+G</TooltipContent>
             </Tooltip>
-            {chains.length > 0 && (
+            {location.pathname === '/sign-in' && chains.length > 0 && (
               <Select
                 value={(chainId ?? chains[0]?.id) as string}
                 onValueChange={handleChainChange}
