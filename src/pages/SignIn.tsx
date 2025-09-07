@@ -9,6 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { AlertCircle, Loader2, CheckCircle, AlertTriangle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -16,6 +17,7 @@ import Layout from "@/components/Layout"
 import { useApi } from "@/lib/ApiContext"
 import { getPublicClient } from "@/config/wallet"
 import { getAddress } from "viem"
+import { getConfiguredChains, switchChain } from "@/lib/onboard"
 
 // Define the minimal ABI for the UNREAL token to fetch balance
 const UNREAL_TOKEN_ABI = [
@@ -54,6 +56,9 @@ const SignIn = () => {
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [unrealBalance, setUnrealBalance] = useState<number>(0)
   const [isLoadingBalance, setIsLoadingBalance] = useState(false)
+  const [chains, setChains] = useState(getConfiguredChains())
+  const [selectedChainId, setSelectedChainId] = useState<string | null>(null)
+  const [isSwitchingChain, setIsSwitchingChain] = useState(false)
 
   // Fetch UNREAL token balance - wrapped in useCallback to prevent dependency changes
   const fetchUnrealBalance = useCallback(async (address?: string) => {
@@ -100,6 +105,21 @@ const SignIn = () => {
     }
   }, [walletAddress, fetchUnrealBalance])
 
+  // Sync selected chain from wallet when connected
+  useEffect(() => {
+    const syncChain = async () => {
+      try {
+        const id = await getCurrentChainId()
+        const hex = `0x${id.toString(16)}`.toLowerCase()
+        setSelectedChainId(hex)
+        setChains(getConfiguredChains())
+      } catch (_) {
+        // ignore
+      }
+    }
+    if (walletAddress) void syncChain()
+  }, [walletAddress, getCurrentChainId])
+
   // Handle wallet connection
   const handleConnectWallet = async () => {
     setIsConnecting(true)
@@ -134,6 +154,20 @@ const SignIn = () => {
       console.error("Error registering wallet:", error)
     } finally {
       setIsRegistering(false)
+    }
+  }
+
+  const handleChainChange = async (value: string) => {
+    setIsSwitchingChain(true)
+    try {
+      await switchChain(value)
+      setSelectedChainId(value.toLowerCase())
+      // refresh balance on new chain
+      await fetchUnrealBalance()
+    } catch (e) {
+      console.warn("Failed to switch chain", e)
+    } finally {
+      setIsSwitchingChain(false)
     }
   }
 
@@ -199,6 +233,32 @@ const SignIn = () => {
                     </div>
                   </div>
 
+                  {/* Step: Select Network */}
+                  {chains.length > 0 && (
+                    <div className="p-4 border rounded-lg">
+                      <div className="mb-2 flex items-center justify-between">
+                        <p className="font-medium">Select Network</p>
+                        {isSwitchingChain && <Loader2 className="h-4 w-4 animate-spin" />}
+                      </div>
+                      <Select
+                        value={(selectedChainId ?? chains[0]?.id) as string}
+                        onValueChange={handleChainChange}
+                        disabled={!walletAddress || isSwitchingChain}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Choose a network" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {chains.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
                   <div className="p-4 border rounded-lg">
                     <div className="flex justify-between mb-2">
                       <p className="font-medium">UNREAL Token Balance</p>
@@ -218,7 +278,7 @@ const SignIn = () => {
                     className="w-full"
                     size="lg"
                     onClick={handleSignIn}
-                    disabled={isRegistering || apiLoading}
+                    disabled={isRegistering || apiLoading || !selectedChainId}
                   >
                     {isRegistering ? (
                       <>

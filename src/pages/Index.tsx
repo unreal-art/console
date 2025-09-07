@@ -165,19 +165,10 @@ console.log(response.choices[0].message.content);`,
     })
   }
 
-  const handleWalletConnect = async () => {
-    try {
-      if (isAuthenticated) {
-        // Just disconnect the wallet when already authenticated
-        logout()
-      } else {
-        // Connect wallet and then scroll to the API key section
-        await connectWallet()
-        scrollToOnboarding()
-      }
-    } catch (error) {
-      console.error("Wallet connection error:", error)
-    }
+  const navigate = useNavigate()
+
+  const handleGetStarted = () => {
+    navigate('/sign-in')
   }
 
   const handleViewDocs = () => {
@@ -185,7 +176,7 @@ console.log(response.choices[0].message.content);`,
     window.open(OPENAI_DOCS_URL, '_blank')
   }
 
-  const navigate = useNavigate()
+  // navigate already defined above
 
   return (
     <div className="relative min-h-screen bg-slate-950 text-white overflow-hidden">
@@ -205,7 +196,7 @@ console.log(response.choices[0].message.content);`,
           </div>
           <Button
             className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-            onClick={handleWalletConnect}
+            onClick={handleGetStarted}
             disabled={isLoading}
           >
             {isLoading ? (
@@ -213,11 +204,9 @@ console.log(response.choices[0].message.content);`,
                 <span className="animate-spin mr-2 h-4 w-4 border-t-2 border-b-2 border-white rounded-full"></span>
                 Loading...
               </span>
-            ) : isAuthenticated ? (
-              <>Disconnect Wallet</>
             ) : (
               <>
-                Connect Wallet
+                Get Started
                 <ArrowRight className="ml-2 w-4 h-4" />
               </>
             )}
@@ -252,14 +241,11 @@ console.log(response.choices[0].message.content);`,
               <Button
                 size="lg"
                 className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-lg px-8 py-4"
-                onClick={handleWalletConnect}
+                onClick={handleGetStarted}
               >
-                {isAuthenticated ? (
-                  <>Disconnect Wallet</>
-                ) : (
-                  <>Connect Wallet
-                  <ArrowRight className="ml-2 w-5 h-5" /></>
-                )}
+                <>Get Started
+                  <ArrowRight className="ml-2 w-5 h-5" />
+                </>
               </Button>
               <Button
                 size="lg"
