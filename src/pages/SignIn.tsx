@@ -132,15 +132,22 @@ const SignIn = () => {
     }
   }, [walletAddress])
 
-  // When a network is selected, populate available tokens and clear selection
+  // When a network is selected, populate available tokens and auto-select the first
   useEffect(() => {
     if (selectedChainId) {
       const tokens = getTokensForChainHex(selectedChainId)
       setAvailableTokens(tokens)
-      setSelectedToken(null)
-      setUnrealBalance(0)
+      const first = tokens[0]?.address
+      if (first) {
+        setSelectedToken(first)
+        // Fetch balance for the first token immediately
+        void fetchUnrealBalance(undefined, first)
+      } else {
+        setSelectedToken(null)
+        setUnrealBalance(0)
+      }
     }
-  }, [selectedChainId])
+  }, [selectedChainId, fetchUnrealBalance])
 
   // Handle wallet connection
   const handleConnectWallet = async () => {
@@ -184,7 +191,6 @@ const SignIn = () => {
       // Clear token selection and balance until user picks a token
       setSelectedToken(null)
       setUnrealBalance(0)
-      setAvailableTokens(getTokensForChainHex(value))
     } catch (e) {
       console.warn("Failed to switch chain", e)
     } finally {
