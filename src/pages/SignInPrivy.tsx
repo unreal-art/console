@@ -16,9 +16,12 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import Layout from "@/components/Layout"
 import { useApi } from "@/lib/ApiContext"
 import { usePrivy, useWallets, useLogin } from "@/lib/privyHooks"
-import { privyWalletService } from "@/lib/privyWalletService"
+import type { ConnectedWallet } from "@privy-io/react-auth"
+import { ConnectButton } from "@rainbow-me/rainbowkit"
+import { useAccount, useChainId, useSwitchChain } from "wagmi"
+import { walletService } from "@/lib/api"
 import { getPublicClient } from "@/config/wallet"
-import { getAddress, formatUnits, toHex, type EIP1193Provider } from "viem"
+import { getAddress, formatUnits, toHex } from "viem"
 import { getChainById } from "@utils/web3/chains"
 import { torusMainnet, amoyTestnet, titanAITestnet } from "@/config/wallet"
 
@@ -106,6 +109,11 @@ const SignInPrivy = () => {
   const [error, setError] = useState<string | null>(null)
   const [walletAddress, setWalletAddress] = useState<string | null>(null)
 
+  // Wagmi account/chain (RainbowKit)
+  const { address: wagmiAddress, isConnected: wagmiConnected } = useAccount()
+  const wagmiChainId = useChainId()
+  const { switchChainAsync } = useSwitchChain()
+
   // Check if already authenticated and redirect
   useEffect(() => {
     if (isAuthenticated && !apiLoading) {
@@ -132,6 +140,27 @@ const SignInPrivy = () => {
       }
     }
   }, [authenticated, wallets, selectedToken])
+
+  // Hydrate wallet service when RainbowKit connects
+  useEffect(() => {
+    if (wagmiConnected && wagmiAddress) {
+      // hydrate walletService from window provider
+      walletService
+        .connectFromWindow()
+        .then(() => {
+          setWalletAddress(wagmiAddress)
+          if (wagmiChainId) {
+            setSelectedChainId(wagmiChainId)
+            const tokens = getTokensForChainId(wagmiChainId)
+            setAvailableTokens(tokens)
+            if (tokens.length > 0 && !selectedToken) {
+              setSelectedToken(tokens[0].address)
+            }
+          }
+        })
+        .catch((e) => console.warn("walletService.connectFromWindow failed", e))
+    }
+  }, [wagmiConnected, wagmiAddress, wagmiChainId, selectedToken])
 
   // Fetch UNREAL token balance
   const fetchUnrealBalance = useCallback(async (address?: string, tokenAddress?: `0x${string}`, chainId?: number) => {
@@ -194,14 +223,11 @@ const SignInPrivy = () => {
   }
 
   // Handle wallet connected callback
-  const handleWalletConnected = async (wallet: { address: string; chainId: string; walletClientType: string; connectorType: string; getEthereumProvider: () => Promise<EIP1193Provider> }) => {
+  const handleWalletConnected = async (wallet: ConnectedWallet) => {
     try {
-      // Initialize the Privy wallet service
-      await privyWalletService.connect(wallet)
-      const address = await privyWalletService.getAddress()
-      if (address) {
-        setWalletAddress(address)
-      }
+      const provider = await wallet.getEthereumProvider()
+      await walletService.hydrateFromProvider(provider, wallet.address as `0x${string}`)
+      setWalletAddress(wallet.address)
     } catch (err) {
       console.error("Error initializing wallet service:", err)
     }
@@ -248,7 +274,11 @@ const SignInPrivy = () => {
     setError(null)
 
     try {
-      await privyWalletService.switchChain(chainId)
+      if (switchChainAsync) {
+        await switchChainAsync({ chainId })
+        // Rehydrate walletService after switch
+        await walletService.connectFromWindow()
+      }
       
       // Update tokens for new chain
       const tokens = getTokensForChainId(chainId)
@@ -306,26 +336,33 @@ const SignInPrivy = () => {
                 </Alert>
               )}
 
-              {!authenticated ? (
-                <Button
-                  className="w-full"
-                  size="lg"
-                  onClick={handleConnectWallet}
-                  disabled={isConnecting || apiLoading}
-                >
-                  {isConnecting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Connecting...
-                    </>
-                  ) : (
-                    <>
-                      <Wallet className="mr-2 h-4 w-4" />
-                      Connect Wallet
-                    </>
-                  )}
-                </Button>
-              ) : (
+              <div className="space-y-4">
+                {/* RainbowKit Connect */}
+                <div className="w-full flex justify-center">
+                  <ConnectButton showBalance={false} chainStatus="icon" />
+                </div>
+
+                {/* Privy email/social login as an alternative path */}
+                {!authenticated && (
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    size="lg"
+                    onClick={handleConnectWallet}
+                    disabled={isConnecting || apiLoading}
+                  >
+                    {isConnecting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Connecting...
+                      </>
+                    ) : (
+                      <>Continue with Email / Google (Privy)</>
+                    )}
+                  </Button>
+                )}
+
+                {(authenticated || wagmiConnected) && (
                 <div className="space-y-4">
                   {/* Connected wallet info */}
                   <div className="p-4 border rounded-lg bg-muted/50">
@@ -421,7 +458,8 @@ const SignInPrivy = () => {
                     )}
                   </Button>
                 </div>
-              )}
+                )}
+              </div>
             </CardContent>
 
             <CardFooter className="flex flex-col space-y-2">

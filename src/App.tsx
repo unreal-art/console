@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { BrowserRouter, Routes, Route } from "react-router-dom"
 import { ApiProvider } from "./lib/ApiContext"
 import { useEffect } from "react"
-import { PrivyWrapper } from "./lib/privy"
+import { WalletProviders } from "./lib/WalletProviders"
 import { useAppStore } from "@/store/appStore"
 
 // Import pages
@@ -44,8 +44,8 @@ const App = () => {
               <Route path="/airdrop" element={<Airdrop />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/login" element={<Login />} />
-              {/* Mount Privy only for sign-in route to avoid affecting other pages */}
-              <Route path="/sign-in" element={<PrivyWrapper><SignIn /></PrivyWrapper>} />
+              {/* Mount Privy + wagmi + RainbowKit only for the sign-in route */}
+              <Route path="/sign-in" element={<WalletProviders><SignIn /></WalletProviders>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

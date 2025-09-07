@@ -411,8 +411,68 @@ export class WalletService {
     }
   }
 
+  /**
+   * Hydrate the wallet client/provider from window.ethereum.
+   * Use this when a wallet is connected via RainbowKit or any EIP-1193 compatible provider.
+   */
+  async connectFromWindow(): Promise<string> {
+    if (typeof window === "undefined" || !window.ethereum) {
+      throw new Error("No EIP-1193 provider found on window.ethereum")
+    }
+    // Set provider and create a wallet client
+    this.provider = window.ethereum
+    try {
+      this.walletClient = (createWalletClient({
+        transport: custom(this.provider),
+      }) as unknown) as WalletClient
+      const accounts = (await this.provider.request({
+        method: "eth_accounts",
+        params: [],
+      })) as string[]
+      if (!accounts || accounts.length === 0) {
+        throw new Error("No accounts available from provider")
+      }
+      this.account = accounts[0] as `0x${string}`
+      return this.account
+    } catch (e) {
+      console.error("connectFromWindow failed:", e)
+      throw e as Error
+    }
+  }
+
+  /**
+   * Hydrate the wallet client/provider from an external EIP-1193 provider
+   * (e.g., Privy embedded wallet or RainbowKit connector) and optional address.
+   */
+  async hydrateFromProvider(
+    provider: unknown,
+    addressHint?: string
+  ): Promise<string> {
+    const p = provider as EIP1193Provider
+    this.provider = p
+    this.walletClient = (createWalletClient({ transport: custom(p) }) as unknown) as WalletClient
+    try {
+      if (addressHint) {
+        this.account = addressHint as `0x${string}`
+        return this.account
+      }
+      const accounts = (await p.request({
+        method: "eth_accounts",
+        params: [],
+      })) as string[]
+      if (!accounts || accounts.length === 0) {
+        throw new Error("No accounts available from provider")
+      }
+      this.account = accounts[0] as `0x${string}`
+      return this.account
+    } catch (e) {
+      console.error("hydrateFromProvider failed:", e)
+      throw e as Error
+    }
+  }
+
   // Expose a dynamic public client based on the connected provider
-  getPublicClient(): ReturnType<typeof createPublicClient> {
+  getPublicClient(): any {
     if (!this.provider) {
       throw new Error("No provider available - connect a wallet first")
     }
