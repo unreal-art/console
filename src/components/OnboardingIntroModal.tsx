@@ -51,16 +51,19 @@ const OnboardingIntroModal: React.FC<OnboardingIntroModalProps> = ({ onStart, fo
   const hasApiKey = useMemo(() => Boolean(apiKeyHash || apiKey), [apiKey, apiKeyHash])
 
   const statusItem = (label: string, done: boolean) => (
-    <div className="flex items-center justify-between py-2">
-      <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center justify-between gap-2 py-2">
+      <div className="flex items-center gap-2 min-w-0">
         {done ? (
           <CheckCircle2 className="h-4 w-4 text-green-500" />
         ) : (
           <Circle className="h-4 w-4 text-slate-500" />
         )}
-        <span>{label}</span>
+        <span className="break-words">{label}</span>
       </div>
-      <Badge variant={done ? "default" : "secondary"} className={done ? "bg-green-600" : "bg-slate-700"}>
+      <Badge
+        variant={done ? "default" : "secondary"}
+        className={done ? "bg-green-600 shrink-0" : "bg-slate-700 shrink-0"}
+      >
         {done ? "Done" : "Pending"}
       </Badge>
     </div>
@@ -161,10 +164,10 @@ const OnboardingIntroModal: React.FC<OnboardingIntroModalProps> = ({ onStart, fo
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-w-[calc(100vw-2rem)] overflow-x-hidden">
         <DialogHeader>
           <DialogTitle>Welcome to Unreal Console</DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="break-words">
             OpenAI-compatible API with wallet auth, keys, and live streaming. Go to the Sign-In page to connect your wallet, choose a network and payment token, then sign in to receive a session token (cookie). You can call <code>/auth/verify</code> to see auth details. Finally, go to Settings to create an API key.
           </DialogDescription>
         </DialogHeader>
@@ -174,9 +177,15 @@ const OnboardingIntroModal: React.FC<OnboardingIntroModalProps> = ({ onStart, fo
           {statusItem("Sign in (session token)", Boolean(token))}
           {/* Optional verify helper */}
           {token && !verifyData && (
-            <div className="flex items-center justify-between py-1">
+            <div className="flex flex-wrap items-center justify-between gap-2 py-1">
               <span className="text-sm text-slate-400">Optionally verify session</span>
-              <Button size="sm" variant="outline" onClick={handleVerify} disabled={verifying}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleVerify}
+                disabled={verifying}
+                className="w-full sm:w-auto"
+              >
                 {verifying ? "Verifying..." : "Verify session"}
               </Button>
             </div>
@@ -184,13 +193,14 @@ const OnboardingIntroModal: React.FC<OnboardingIntroModalProps> = ({ onStart, fo
           {statusItem("Generate API key", hasApiKey)}
         </div>
 
-        <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:justify-between mt-4">
-          <div className="flex gap-2 order-2 sm:order-1">
+        <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:justify-between mt-4 w-full">
+          <div className="flex flex-col sm:flex-row gap-2 order-2 sm:order-1 w-full sm:w-auto">
             <Button
               ref={skipRef}
               title="Skip (S or Esc)"
               variant="ghost"
               onClick={() => setOpen(false)}
+              className="w-full sm:w-auto"
             >
               Skip for now
             </Button>
@@ -202,18 +212,21 @@ const OnboardingIntroModal: React.FC<OnboardingIntroModalProps> = ({ onStart, fo
                 setOpen(false)
                 onStart()
               }}
+              className="w-full sm:w-auto max-w-full whitespace-normal break-words"
             >
-              Start guided onboarding
-              <ArrowRight className="h-4 w-4 ml-2" />
+              <span className="hidden sm:inline">Start guided onboarding</span>
+              <span className="inline sm:hidden">Start guided</span>
+              <ArrowRight className="h-4 w-4 ml-2 shrink-0" />
             </Button>
           </div>
           <Button
             ref={tryRef}
             title="Try a sample prompt (T)"
-            className="order-1 sm:order-2"
+            className="order-1 sm:order-2 w-full sm:w-auto max-w-full whitespace-normal break-words"
             onClick={handleTrySample}
           >
-            Try a sample prompt
+            <span className="hidden sm:inline">Try a sample prompt</span>
+            <span className="inline sm:hidden">Try sample</span>
           </Button>
         </DialogFooter>
       </DialogContent>

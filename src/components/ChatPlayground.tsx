@@ -94,6 +94,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
         const response = await fetch(`${OPENAI_URL}/models`, {
           method: "GET",
           headers,
+          credentials: "include",
         })
         if (!response.ok) return // fallback silently
         const data: unknown = await response.json()
@@ -172,7 +173,6 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
       setError(null)
       setIsStreaming(true)
 
-
       try {
         // Helper functions for retry logic
         const isTransient = (err: unknown) => {
@@ -203,8 +203,14 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
             const client = new OpenAI({
               apiKey: auth,
               baseURL: OPENAI_URL,
-              // We intentionally allow browser usage here because the user provides their own key/token
+              // We intentionally allow browser usage here because the user provides their own key
               dangerouslyAllowBrowser: true,
+              fetch: (input, init) => {
+                return fetch(input as RequestInfo, {
+                  ...(init || {}),
+                  credentials: "include",
+                })
+              },
             })
 
             // Convert UI messages to OpenAI messages (text-only)
@@ -226,9 +232,18 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
             // Success - break out of retry loop
             break
           } catch (e) {
-            const err = e as { name?: string }
-            if (err?.name === "AbortError") {
-              // Aborted by user; do not set error
+            const err = e as { name?: string; message?: string }
+            const name = err?.name ?? ""
+            const msgText =
+              err?.message ?? (e instanceof Error ? e.message : String(e ?? ""))
+
+            // Treat user-initiated or replacement aborts as non-errors.
+            // OpenAI SDK throws APIUserAbortError; browsers may throw AbortError/DOMException.
+            if (
+              name === "AbortError" ||
+              name === "APIUserAbortError" ||
+              /abort(ed)?/i.test(msgText)
+            ) {
               return
             }
             if (attempt < maxAttempts - 1 && isTransient(e)) {
@@ -308,7 +323,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
       }, 100)
       return () => clearTimeout(t)
     }
-  }, [autorun, initialPrompt, sendMessage])
+  }, [])
 
   // Actions
   const handleClear = useCallback(() => {
@@ -359,7 +374,9 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
       const target = e.target as HTMLElement | null
       const tag = target?.tagName?.toLowerCase()
       const isTyping =
-        tag === "input" || tag === "textarea" || (target?.isContentEditable ?? false)
+        tag === "input" ||
+        tag === "textarea" ||
+        (target?.isContentEditable ?? false)
       const key = e.key?.toLowerCase?.() ?? ""
 
       // Send message
@@ -428,7 +445,15 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
     }
     window.addEventListener("keydown", handler)
     return () => window.removeEventListener("keydown", handler)
-  }, [sendMessage, handleClear, isStreaming, stopStreaming, regenerateLast, retryLast, error])
+  }, [
+    sendMessage,
+    handleClear,
+    isStreaming,
+    stopStreaming,
+    regenerateLast,
+    retryLast,
+    error,
+  ])
 
   // Moved actions above
 
@@ -483,7 +508,9 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                   Stop
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Stop the current response • Cmd/Ctrl+.</TooltipContent>
+              <TooltipContent>
+                Stop the current response • Cmd/Ctrl+.
+              </TooltipContent>
             </Tooltip>
           )}
           {!isStreaming && messages.some((m) => m.role === "assistant") && (
@@ -499,7 +526,9 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                   Regenerate
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Regenerate the last response • Shift+Cmd/Ctrl+R</TooltipContent>
+              <TooltipContent>
+                Regenerate the last response • Shift+Cmd/Ctrl+R
+              </TooltipContent>
             </Tooltip>
           )}
         </div>

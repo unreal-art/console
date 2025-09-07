@@ -55,6 +55,7 @@ const ChatCompletion: React.FC = () => {
           headers: {
             'Authorization': `Bearer ${apiKey}`,
           },
+          credentials: 'include',
         });
         if (!response.ok) {
           // Silently fallback to static list
@@ -114,6 +115,7 @@ const ChatCompletion: React.FC = () => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiKey}`
         },
+        credentials: 'include',
         body: JSON.stringify({
           model: model,
           messages: [...messages, userMessage],
