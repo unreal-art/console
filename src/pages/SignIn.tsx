@@ -105,20 +105,15 @@ const SignIn = () => {
     }
   }, [walletAddress, fetchUnrealBalance])
 
-  // Sync selected chain from wallet when connected
+  // Refresh chains after wallet connects, but do NOT auto-select a network
   useEffect(() => {
-    const syncChain = async () => {
-      try {
-        const id = await getCurrentChainId()
-        const hex = `0x${id.toString(16)}`.toLowerCase()
-        setSelectedChainId(hex)
-        setChains(getConfiguredChains())
-      } catch (_) {
-        // ignore
-      }
+    if (walletAddress) {
+      setChains(getConfiguredChains())
+      // Keep selectedChainId null to require manual selection
+    } else {
+      setSelectedChainId(null)
     }
-    if (walletAddress) void syncChain()
-  }, [walletAddress, getCurrentChainId])
+  }, [walletAddress])
 
   // Handle wallet connection
   const handleConnectWallet = async () => {
@@ -238,7 +233,7 @@ const SignIn = () => {
                         {isSwitchingChain && <Loader2 className="h-4 w-4 animate-spin" />}
                       </div>
                       <Select
-                        value={(selectedChainId ?? chains[0]?.id) as string}
+                        value={(selectedChainId ?? undefined) as string | undefined}
                         onValueChange={handleChainChange}
                         disabled={!walletAddress || isSwitchingChain}
                       >
@@ -275,7 +270,7 @@ const SignIn = () => {
                     className="w-full"
                     size="lg"
                     onClick={handleSignIn}
-                    disabled={isRegistering || apiLoading || !selectedChainId}
+                    disabled={isRegistering || apiLoading || isSwitchingChain || !selectedChainId}
                   >
                     {isRegistering ? (
                       <>
