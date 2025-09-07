@@ -69,8 +69,9 @@ const appMetadata = {
   logo: logo,
   description: "Multi-chain wallet for Unreal Console",
   recommendedInjectedWallets: [
-    { name: "Coinbase", url: "https://wallet.coinbase.com/" },
     { name: "MetaMask", url: "https://metamask.io" },
+    { name: "Coinbase", url: "https://wallet.coinbase.com/" },
+    { name: "Phantom", url: "https://phantom.app/" },
   ],
 }
 export function initOnboard(chains?: OnboardChain[]) {
@@ -81,7 +82,7 @@ export function initOnboard(chains?: OnboardChain[]) {
     const coinbase = coinbaseModule()
     const walletConnect = walletConnectModule({
       // Use WalletConnect Cloud Project ID
-      projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || "",
+      projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID,
     })
     const fortmatic = fortmaticModule({
       apiKey: import.meta.env.VITE_FORTMATIC_API_KEY || "",
