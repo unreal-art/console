@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react"
 import { apiClient } from "@/lib/api"
-import { getUnrealBalance } from "../../utils/unreal"
+import { getUnrealBalance } from "@utils/web3/unreal"
 import { formatEther, type Address } from "viem"
 import { useApi } from "@/lib/ApiContext"
 import { toast, useToast } from "@/components/ui/use-toast"
@@ -52,11 +52,9 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
     isLoading: apiLoading,
     error: apiError,
     walletAddress,
-    availableAddresses: contextAvailableAddresses,
     token,
     verifyData,
     connectWallet,
-    getAvailableAddresses,
     registerWithWallet,
     createApiKey,
     clearApiKey,
@@ -79,10 +77,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
   >(null)
   const [elapsedTime, setElapsedTime] = useState<number>(0)
 
-  // State for available addresses and selected address
-  const [availableAddresses, setAvailableAddresses] = useState<string[]>([])
-  const [selectedAddress, setSelectedAddress] = useState<string>("")
-  const [showAddressDropdown, setShowAddressDropdown] = useState<boolean>(false)
+  // Single wallet flow: no multi-address selection UI
 
   const fetchCallsAmount = useCallback(async () => {
     console.log("fetchCallsAmount")
@@ -128,7 +123,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
   // Fetch calls amount similar to cockpit registration logic
   useEffect(() => {
     fetchCallsAmount()
-  }, [walletAddress, fetchCallsAmount])
+  }, [walletAddress])
 
   // State to track if this is a zero-balance registration
   const [isZeroBalanceRegistration, setIsZeroBalanceRegistration] =
@@ -259,52 +254,24 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
     }
   }
 
-  // Handle getting available wallet addresses
-  const handleGetAvailableAddresses = async () => {
+  // Single-wallet flow: connect directly using active account
+
+  // Handle wallet connection
+  const handleConnectWallet = async () => {
     setIsLoading(true)
     setError(null)
     try {
-      const addresses = await getAvailableAddresses()
-      setAvailableAddresses(addresses)
-      if (addresses.length > 0) {
-        setSelectedAddress(addresses[0])
-      }
-      setShowAddressDropdown(true)
+      await connectWallet()
+      handleStepComplete(0)
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error
           ? error.message
-          : "Failed to get wallet addresses. Please try again."
-      console.error("Error getting wallet addresses:", error)
+          : "Failed to connect wallet. Please try again."
+      console.error("Error connecting wallet:", error)
       setError(errorMessage)
     } finally {
       setIsLoading(false)
-    }
-  }
-
-  // Handle wallet connection
-  const handleConnectWallet = async () => {
-    // If we already have addresses and dropdown is showing, connect with selected address
-    if (showAddressDropdown && selectedAddress) {
-      setIsLoading(true)
-      setError(null)
-      try {
-        await connectWallet(selectedAddress)
-        setShowAddressDropdown(false)
-        handleStepComplete(0)
-      } catch (error: unknown) {
-        const errorMessage =
-          error instanceof Error
-            ? error.message
-            : "Failed to connect wallet. Please try again."
-        console.error("Error connecting wallet:", error)
-        setError(errorMessage)
-      } finally {
-        setIsLoading(false)
-      }
-    } else {
-      // Otherwise, get available addresses first
-      await handleGetAvailableAddresses()
     }
   }
 
@@ -679,117 +646,65 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
                       </div>
                     )}
 
-                    {isActive &&
-                      !isCompleted &&
-                      (step.id === 0 && showAddressDropdown ? (
-                        <div className="space-y-4">
-                          <div className="bg-slate-800 rounded-md p-3 max-h-48 overflow-y-auto">
-                            {availableAddresses.length > 0 ? (
-                              availableAddresses.map((address, index) => (
-                                <div
-                                  key={address}
-                                  className={`flex items-center justify-between p-2 rounded-md cursor-pointer ${
-                                    selectedAddress === address
-                                      ? "bg-blue-900"
-                                      : "hover:bg-slate-700"
-                                  }`}
-                                  onClick={() => setSelectedAddress(address)}
-                                >
-                                  <div className="flex items-center">
-                                    <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
-                                    <span>
-                                      {address.slice(0, 6)}...
-                                      {address.slice(-4)}
-                                    </span>
-                                  </div>
-                                  {selectedAddress === address && (
-                                    <Check className="h-4 w-4 text-blue-500" />
-                                  )}
-                                </div>
-                              ))
-                            ) : (
-                              <div className="text-center py-2 text-slate-400">
-                                No addresses found
-                              </div>
-                            )}
-                          </div>
-                          <Button
-                            onClick={handleConnectWallet}
-                            className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-                            disabled={isLoading || !selectedAddress}
-                          >
-                            {isLoading ? (
-                              <span className="flex items-center">
-                                <span className="animate-spin mr-2 h-4 w-4 border-t-2 border-b-2 border-white rounded-full"></span>
-                                Loading...
-                              </span>
-                            ) : (
-                              <>
-                                Connect with Selected Address
-                                <ArrowRight className="ml-2 w-4 h-4" />
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      ) : (
-                        <Button
-                          onClick={() => {
-                            if (step.id === 0) handleConnectWallet()
-                            else if (step.id === 1) handleRegister()
-                            else if (step.id === 2 && showAirdropStep)
-                              handleRequestAirdrop()
-                            else if (
-                              (step.id === 2 && !showAirdropStep) ||
-                              step.id === 3
-                            )
-                              handleGenerateApiKey()
-                          }}
-                          className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-                          disabled={
-                            isLoading ||
-                            (step.id === 2 &&
-                              showAirdropStep &&
-                              (isConfirming || airdropRequested))
-                          }
-                        >
-                          {isLoading ||
+                    {isActive && !isCompleted && (
+                      <Button
+                        onClick={() => {
+                          if (step.id === 0) handleConnectWallet()
+                          else if (step.id === 1) handleRegister()
+                          else if (step.id === 2 && showAirdropStep)
+                            handleRequestAirdrop()
+                          else if (
+                            (step.id === 2 && !showAirdropStep) ||
+                            step.id === 3
+                          )
+                            handleGenerateApiKey()
+                        }}
+                        className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                        disabled={
+                          isLoading ||
                           (step.id === 2 &&
                             showAirdropStep &&
-                            (isConfirming || airdropRequested)) ? (
-                            <span className="flex items-center">
-                              <span className="animate-spin mr-2 h-4 w-4 border-t-2 border-b-2 border-white rounded-full"></span>
-                              {step.id === 2 && showAirdropStep && isConfirming
-                                ? "Confirming..."
-                                : step.id === 2 &&
-                                  showAirdropStep &&
-                                  airdropRequested
-                                ? "Processing..."
-                                : "Loading..."}
-                            </span>
-                          ) : (
-                            <>
-                              {step.id === 0 &&
-                                (walletAddress
-                                  ? `Connected: ${walletAddress.slice(
-                                      0,
-                                      6
-                                    )}...${walletAddress.slice(-4)}`
-                                  : "Connect Wallet")}
-                              {step.id === 1 && "Sign & Register"}
-                              {step.id === 2 &&
+                            (isConfirming || airdropRequested))
+                        }
+                      >
+                        {isLoading ||
+                        (step.id === 2 &&
+                          showAirdropStep &&
+                          (isConfirming || airdropRequested)) ? (
+                          <span className="flex items-center">
+                            <span className="animate-spin mr-2 h-4 w-4 border-t-2 border-b-2 border-white rounded-full"></span>
+                            {step.id === 2 && showAirdropStep && isConfirming
+                              ? "Confirming..."
+                              : step.id === 2 &&
                                 showAirdropStep &&
-                                (airdropRequested && airdropSuccess
-                                  ? "Airdrop Claimed"
-                                  : "Request Air Drop")}
-                              {(step.id === 2 && !showAirdropStep) ||
-                              step.id === 3
-                                ? "Generate Key"
-                                : ""}
-                              <ArrowRight className="ml-2 w-4 h-4" />
-                            </>
-                          )}
-                        </Button>
-                      ))}
+                                airdropRequested
+                              ? "Processing..."
+                              : "Loading..."}
+                          </span>
+                        ) : (
+                          <>
+                            {step.id === 0 &&
+                              (walletAddress
+                                ? `Connected: ${walletAddress.slice(
+                                    0,
+                                    6
+                                  )}...${walletAddress.slice(-4)}`
+                                : "Connect Wallet")}
+                            {step.id === 1 && "Sign & Register"}
+                            {step.id === 2 &&
+                              showAirdropStep &&
+                              (airdropRequested && airdropSuccess
+                                ? "Airdrop Claimed"
+                                : "Request Air Drop")}
+                            {(step.id === 2 && !showAirdropStep) ||
+                            step.id === 3
+                              ? "Generate Key"
+                              : ""}
+                            <ArrowRight className="ml-2 w-4 h-4" />
+                          </>
+                        )}
+                      </Button>
+                    )}
 
                     {isCompleted && (
                       <div className="flex items-center text-green-500 text-sm">

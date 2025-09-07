@@ -13,7 +13,7 @@ interface OnboardingIntroModalProps {
 
 const OnboardingIntroModal: React.FC<OnboardingIntroModalProps> = ({ onStart, forceOpen }) => {
   const navigate = useNavigate()
-  const { isAuthenticated, token, verifyData, verifyToken, apiKey, apiKeyHash } = useApi()
+  const { isAuthenticated, token, verifyData, verifyToken, apiKey, apiKeyHash, walletAddress } = useApi()
   const [open, setOpen] = useState(false)
   const [verifying, setVerifying] = useState(false)
 
@@ -165,13 +165,13 @@ const OnboardingIntroModal: React.FC<OnboardingIntroModalProps> = ({ onStart, fo
         <DialogHeader>
           <DialogTitle>Welcome to Unreal Console</DialogTitle>
           <DialogDescription>
-            OpenAI-compatible API with wallet auth, keys, and live streaming. Connect your wallet, then register to get a session token (cookie). You can call <code>/auth/verify</code> to see auth details. Finally, create an API key.
+            OpenAI-compatible API with wallet auth, keys, and live streaming. Go to the Sign-In page to connect your wallet, choose a network and payment token, then sign in to receive a session token (cookie). You can call <code>/auth/verify</code> to see auth details. Finally, go to Settings to create an API key.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-2 mt-2">
-          {statusItem("Connect wallet", isAuthenticated)}
-          {statusItem("Register (session token)", Boolean(token))}
+          {statusItem("Connect wallet", Boolean(walletAddress))}
+          {statusItem("Sign in (session token)", Boolean(token))}
           {/* Optional verify helper */}
           {token && !verifyData && (
             <div className="flex items-center justify-between py-1">

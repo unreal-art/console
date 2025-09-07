@@ -10,7 +10,7 @@ const Home: React.FC = () => {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const forceOpen = searchParams.get("onboarding") === "1" || searchParams.get("guided") === "1"
-  const handleStart = () => navigate("/settings")
+  const handleStart = () => navigate("/sign-in")
   return (
     <Layout>
       <OnboardingIntroModal onStart={handleStart} forceOpen={forceOpen} />

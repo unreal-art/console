@@ -249,9 +249,16 @@ export class WalletService {
   async connect(selectedAddress?: string): Promise<string> {
     try {
       this.onboard = getOnboard()
-      const wallets = await this.onboard.connectWallet()
+
+      // If a wallet is already connected in Onboard state, hydrate without prompting
+      const stateWallets = this.onboard?.state?.get?.().wallets || []
+      let wallets = stateWallets as WalletState[]
       if (!wallets || wallets.length === 0) {
-        throw new Error("No wallet connected")
+        // Prompt connect only when there is no existing connection
+        wallets = await this.onboard.connectWallet()
+        if (!wallets || wallets.length === 0) {
+          throw new Error("No wallet connected")
+        }
       }
 
       const primary = wallets[0]
@@ -405,11 +412,11 @@ export class WalletService {
   }
 
   // Expose a dynamic public client based on the connected provider
-  getPublicClient(): any {
+  getPublicClient(): ReturnType<typeof createPublicClient> {
     if (!this.provider) {
       throw new Error("No provider available - connect a wallet first")
     }
-    return createPublicClient({ transport: custom(this.provider) }) as any
+    return createPublicClient({ transport: custom(this.provider) })
   }
 
   async getChainId(): Promise<number> {

@@ -14,6 +14,7 @@ import {
   ApiKey,
   ApiKeyListResponse,
 } from "./api"
+//
 import { getUnrealBalance } from "@utils/web3/unreal"
 import { initOnboard, getOnboard, type OnboardChain } from "@/lib/onboard"
 import type { WalletState } from "@web3-onboard/core"
@@ -26,7 +27,6 @@ interface ApiContextType {
   isAuthenticated: boolean
   isLoading: boolean
   walletAddress: string | null
-  availableAddresses: string[]
   openaiAddress: string | null
   token: string | null
   verifyData: VerifyResponse | null
@@ -36,8 +36,6 @@ interface ApiContextType {
   isLoadingApiKeys: boolean
   error: string | null
   connectWallet: (selectedAddress?: string) => Promise<string>
-  switchAccount: (address: string) => Promise<void>
-  getAvailableAddresses: () => Promise<string[]>
   registerWithWallet: (calls: number) => Promise<string>
   verifyToken: () => Promise<VerifyResponse>
   createApiKey: (name: string) => Promise<ApiKeyResponse>
@@ -57,7 +55,6 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
 }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
-  const [availableAddresses, setAvailableAddresses] = useState<string[]>([])
   const [walletAddress, setWalletAddress] = useState<string | null>(null)
   const [openaiAddress, setOpenaiAddress] = useState<string | null>(null)
   const [token, setToken] = useState<string | null>(null)
@@ -237,15 +234,6 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
           const first = wallets && wallets[0]
           const nextAddr: string | null = first?.accounts?.[0]?.address || null
 
-          // Update available addresses list
-          const addrs = Array.isArray(wallets)
-            ? wallets
-                .flatMap((w: WalletState) => w?.accounts || [])
-                .map((a) => String(a?.address || ""))
-                .filter((v) => v.length > 0)
-            : []
-          setAvailableAddresses(addrs)
-
           // Update current wallet address if changed
           if (nextAddr !== walletAddress) {
             setWalletAddress(nextAddr)
@@ -316,25 +304,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
   }
 
   // Get available wallet addresses
-  const getAvailableAddresses = async (): Promise<string[]> => {
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      const addresses = await walletService.getAvailableAddresses()
-      setAvailableAddresses(addresses)
-      return addresses
-    } catch (error: unknown) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Failed to get wallet addresses"
-      setError(message)
-      throw error as Error
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  // Multi-address selection removed for single-wallet flow
 
   // Connect wallet
   const connectWallet = async (selectedAddress?: string): Promise<string> => {
@@ -342,26 +312,55 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     setError(null)
 
     try {
-      // Get available addresses first if not already fetched
-      if (availableAddresses.length === 0) {
-        await getAvailableAddresses()
+      // Fast-path: if already connected to the desired address, skip reconnect
+      if (
+        walletAddress &&
+        (!selectedAddress ||
+          selectedAddress?.toLowerCase() === walletAddress.toLowerCase())
+      ) {
+        if (!openaiAddress) {
+          const authAddressResponse = await apiClient.getAuthAddress()
+          setOpenaiAddress(authAddressResponse.address)
+          console.debug(
+            "[ApiContext] Fetched OpenAI address",
+            authAddressResponse.address
+          )
+        }
+        return walletAddress
       }
 
       // Connect wallet with selected address
       const address = await walletService.connect(selectedAddress)
 
       // Ensure we're using the selected address if provided
-      const finalAddress = selectedAddress || address
-      setWalletAddress(finalAddress)
-      console.debug("[ApiContext] Connected wallet address", finalAddress)
+      const finalAddress = address
+
+      if (
+        selectedAddress &&
+        selectedAddress.toLowerCase() !== address.toLowerCase()
+      ) {
+        console.warn(
+          "[ApiContext] Wallet returned different address than requested hint",
+          { selectedAddress, address }
+        )
+      }
+      if (
+        !walletAddress ||
+        finalAddress.toLowerCase() !== walletAddress.toLowerCase()
+      ) {
+        setWalletAddress(finalAddress)
+        console.debug("[ApiContext] Connected wallet address", finalAddress)
+      }
 
       // Get OpenAI address
-      const authAddressResponse = await apiClient.getAuthAddress()
-      setOpenaiAddress(authAddressResponse.address)
-      console.debug(
-        "[ApiContext] Fetched OpenAI address",
-        authAddressResponse.address
-      )
+      if (!openaiAddress) {
+        const authAddressResponse = await apiClient.getAuthAddress()
+        setOpenaiAddress(authAddressResponse.address)
+        console.debug(
+          "[ApiContext] Fetched OpenAI address",
+          authAddressResponse.address
+        )
+      }
 
       return finalAddress
     } catch (error: unknown) {
@@ -374,27 +373,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     }
   }
 
-  // Switch to a different account from the available addresses
-  const switchAccount = async (address: string): Promise<void> => {
-    setError(null)
-
-    try {
-      // Switch the account in WalletService
-      await walletService.switchAccount(address)
-
-      // Update the context state to reflect the new address
-      setWalletAddress(address)
-      console.debug("[ApiContext] Switched to account:", address)
-
-      // Note: This doesn't automatically re-register or change authentication
-      // The user will need to re-register if they want to use this account for API calls
-    } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : "Failed to switch account"
-      setError(message)
-      throw error as Error
-    }
-  }
+  // switchAccount removed in single-wallet mode
 
   // Register with wallet
   const registerWithWallet = async (calls: number): Promise<string> => {
@@ -435,6 +414,12 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
         openaiAddr,
         calls,
       })
+      // Ensure WalletService is hydrated (no prompt if already connected)
+      try {
+        await walletService.connect(currentAddress as `0x${string}`)
+      } catch (e) {
+        console.warn("WalletService.hydrate/connect warning:", e)
+      }
       const result = await performRegistration(
         calls,
         currentAddress,
@@ -674,7 +659,6 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     isAuthenticated,
     isLoading,
     walletAddress,
-    availableAddresses,
     openaiAddress,
     token,
     verifyData,
@@ -684,8 +668,6 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     isLoadingApiKeys,
     error,
     connectWallet,
-    switchAccount,
-    getAvailableAddresses,
     registerWithWallet,
     verifyToken,
     createApiKey,
