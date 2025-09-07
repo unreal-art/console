@@ -96,23 +96,14 @@ const SignIn = () => {
     }
   }, [isAuthenticated, apiLoading, navigate])
 
-  // Fetch balance when walletAddress becomes available
+  // Fetch balance when walletAddress becomes available (no auto-connect here to avoid loops)
   useEffect(() => {
     if (walletAddress) {
-      // Hydrate WalletService (no-op if already hydrated) and then fetch balance
-      void (async () => {
-        try {
-          await connectWallet()
-        } catch (_) {
-          // ignore hydration errors; user can connect explicitly
-        } finally {
-          void fetchUnrealBalance()
-        }
-      })()
+      void fetchUnrealBalance()
     } else {
       setUnrealBalance(0)
     }
-  }, [walletAddress, fetchUnrealBalance, connectWallet])
+  }, [walletAddress, fetchUnrealBalance])
 
   // Sync selected chain from wallet when connected
   useEffect(() => {

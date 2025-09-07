@@ -312,21 +312,41 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     setError(null)
 
     try {
+      // Fast-path: if already connected to the desired address, skip reconnect
+      if (
+        walletAddress &&
+        (!selectedAddress || selectedAddress?.toLowerCase() === walletAddress.toLowerCase())
+      ) {
+        if (!openaiAddress) {
+          const authAddressResponse = await apiClient.getAuthAddress()
+          setOpenaiAddress(authAddressResponse.address)
+          console.debug(
+            "[ApiContext] Fetched OpenAI address",
+            authAddressResponse.address
+          )
+        }
+        return walletAddress
+      }
+
       // Connect wallet with selected address
       const address = await walletService.connect(selectedAddress)
 
       // Ensure we're using the selected address if provided
       const finalAddress = selectedAddress || address
-      setWalletAddress(finalAddress)
-      console.debug("[ApiContext] Connected wallet address", finalAddress)
+      if (!walletAddress || finalAddress.toLowerCase() !== walletAddress.toLowerCase()) {
+        setWalletAddress(finalAddress)
+        console.debug("[ApiContext] Connected wallet address", finalAddress)
+      }
 
       // Get OpenAI address
-      const authAddressResponse = await apiClient.getAuthAddress()
-      setOpenaiAddress(authAddressResponse.address)
-      console.debug(
-        "[ApiContext] Fetched OpenAI address",
-        authAddressResponse.address
-      )
+      if (!openaiAddress) {
+        const authAddressResponse = await apiClient.getAuthAddress()
+        setOpenaiAddress(authAddressResponse.address)
+        console.debug(
+          "[ApiContext] Fetched OpenAI address",
+          authAddressResponse.address
+        )
+      }
 
       return finalAddress
     } catch (error: unknown) {
