@@ -2,8 +2,6 @@ import injectedWallets from "@web3-onboard/injected-wallets"
 import Onboard, { type OnboardAPI, type WalletState } from "@web3-onboard/core"
 import coinbaseModule from "@web3-onboard/coinbase"
 import walletConnectModule from "@web3-onboard/walletconnect"
-import fortmaticModule from "@web3-onboard/fortmatic"
-import portisModule from "@web3-onboard/portis"
 import magicModule from "@web3-onboard/magic"
 import ledgerModule from "@web3-onboard/ledger"
 import trezorModule from "@web3-onboard/trezor"
@@ -80,20 +78,22 @@ export function initOnboard(chains?: OnboardChain[]) {
     // Initialize as many wallet options as possible (custodial-friendly + popular HW/injected)
     const injected = injectedWallets()
     const coinbase = coinbaseModule()
-    const walletConnect = walletConnectModule({
-      // Use WalletConnect Cloud Project ID
-      projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID,
-    })
-    const fortmatic = fortmaticModule({
-      apiKey: import.meta.env.VITE_FORTMATIC_API_KEY || "",
-    })
-    const portis = portisModule({
-      apiKey: import.meta.env.VITE_PORTIS_API_KEY || "",
-    })
+    // Initialize WalletConnect only if Project ID is present
+    let walletConnect: ReturnType<typeof walletConnectModule> | null = null
+    if (import.meta.env.VITE_WALLETCONNECT_PROJECT_ID) {
+      walletConnect = walletConnectModule({
+        // Use WalletConnect Cloud Project ID
+        projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID,
+      })
+    }
     const magic = magicModule({
       apiKey: import.meta.env.VITE_MAGIC_API_KEY || "",
     })
-    const ledger = ledgerModule()
+    const ledger = ledgerModule({
+      projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID,
+      walletConnectVersion: 2,
+      // requiredChains: configuredChains.map((c) => c.id),
+    })
     const trezor = trezorModule({
       appUrl:
         import.meta.env.VITE_TREZOR_APP_URL || "https://console.unreal.art",
@@ -128,17 +128,9 @@ export function initOnboard(chains?: OnboardChain[]) {
     ]
 
     // Conditionally add SDK-keyed wallets
-    if (import.meta.env.VITE_WALLETCONNECT_PROJECT_ID) {
-      wallets.push(walletConnect)
-    }
+    if (walletConnect) wallets.push(walletConnect)
     if (import.meta.env.VITE_MAGIC_API_KEY) {
       wallets.push(magic)
-    }
-    if (import.meta.env.VITE_FORTMATIC_API_KEY) {
-      wallets.push(fortmatic)
-    }
-    if (import.meta.env.VITE_PORTIS_API_KEY) {
-      wallets.push(portis)
     }
     onboardInstance = Onboard({
       wallets,
