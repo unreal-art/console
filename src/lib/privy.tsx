@@ -1,89 +1,51 @@
-import { PrivyProvider } from '@privy-io/react-auth';
-import { toHex } from 'viem';
-import { torusMainnet, amoyTestnet, titanAITestnet } from '@/config/wallet';
-import { ReactNode } from 'react';
+import { PrivyProvider, type PrivyClientConfig } from "@privy-io/react-auth"
+import { ReactNode } from "react"
 
 // Privy App ID - You'll need to get this from your Privy dashboard
 // For development, you can use a test app ID
-const PRIVY_APP_ID = process.env.VITE_PRIVY_APP_ID || 'YOUR_PRIVY_APP_ID';
+const PRIVY_APP_ID = import.meta.env.VITE_PRIVY_APP_ID
 
-// Configure chains for Privy
-const privyChains = [
-  {
-    id: torusMainnet.id,
-    name: torusMainnet.name,
-    network: 'torus',
-    nativeCurrency: torusMainnet.nativeCurrency,
-    rpcUrls: {
-      default: { http: torusMainnet.rpcUrls.default.http },
-    },
-    blockExplorers: torusMainnet.blockExplorers,
-  },
-  {
-    id: amoyTestnet.id,
-    name: amoyTestnet.name,
-    network: 'polygon-amoy',
-    nativeCurrency: amoyTestnet.nativeCurrency,
-    rpcUrls: {
-      default: { http: amoyTestnet.rpcUrls.default.http },
-    },
-    blockExplorers: amoyTestnet.blockExplorers,
-  },
-  {
-    id: titanAITestnet.id,
-    name: titanAITestnet.name,
-    network: 'titan-ai',
-    nativeCurrency: titanAITestnet.nativeCurrency,
-    rpcUrls: {
-      default: { http: titanAITestnet.rpcUrls.default.http },
-    },
-    blockExplorers: titanAITestnet.blockExplorers,
-  },
-];
-
-// Default chain ID (Torus Mainnet)
-const defaultChain = torusMainnet.id;
+// Minimal config for Privy (advanced EVM config can be layered with @privy-io/wagmi if needed)
 
 interface PrivyWrapperProps {
-  children: ReactNode;
+  children: ReactNode
 }
 
 export function PrivyWrapper({ children }: PrivyWrapperProps) {
+  // If no Privy App ID is configured, render children without the provider to avoid runtime errors.
+  if (!PRIVY_APP_ID) {
+    if (typeof window !== "undefined") {
+      console.warn(
+        "[Privy] VITE_PRIVY_APP_ID not set; rendering without PrivyProvider"
+      )
+    }
+    return <>{children}</>
+  }
+
+  // Optional WalletConnect Project ID
+  const WALLETCONNECT_ID = (
+    import.meta as unknown as { env: Record<string, string | undefined> }
+  ).env?.VITE_WALLETCONNECT_PROJECT_ID
+
+  // Keep config minimal to avoid unsupported fields/runtime issues; advanced EVM integration can be added via @privy-io/wagmi later.
+  const config = {
+    appearance: {
+      theme: 'dark' as const,
+      accentColor: '#676FFF' as const,
+      logo: '/logo.svg',
+      showWalletLoginFirst: true,
+    },
+    loginMethods: ['wallet', 'email', 'google'] as const,
+    embeddedWallets: {
+      createOnLogin: 'users-without-wallets' as const,
+      requireUserPasswordOnCreate: false,
+    },
+    ...(WALLETCONNECT_ID ? { walletConnectCloudProjectId: WALLETCONNECT_ID } : {}),
+  } satisfies PrivyClientConfig;
+
   return (
-    <PrivyProvider
-      appId={PRIVY_APP_ID}
-      config={{
-        // Appearance configuration
-        appearance: {
-          theme: 'dark',
-          accentColor: '#676FFF',
-          logo: '/logo.svg', // Update with your logo path
-          showWalletLoginFirst: true,
-        },
-        // Login methods - prioritize wallet connection
-        loginMethods: ['wallet', 'email', 'google'],
-        // Embedded wallets configuration
-        embeddedWallets: {
-          createOnLogin: 'users-without-wallets',
-          requireUserPasswordOnCreate: false,
-        },
-        // Supported chains
-        supportedChains: privyChains.map(chain => ({
-          id: chain.id,
-          name: chain.name,
-          network: chain.network,
-          nativeCurrency: chain.nativeCurrency,
-          rpcUrls: chain.rpcUrls,
-          blockExplorers: chain.blockExplorers,
-        })),
-        defaultChain,
-        // Wallet connection options
-        walletConnectCloudProjectId: process.env.VITE_WALLETCONNECT_PROJECT_ID,
-      }}
-    >
+    <PrivyProvider appId={PRIVY_APP_ID} config={config}>
       {children}
     </PrivyProvider>
-  );
+  )
 }
-
-

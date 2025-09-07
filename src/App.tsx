@@ -4,8 +4,8 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { BrowserRouter, Routes, Route } from "react-router-dom"
 import { ApiProvider } from "./lib/ApiContext"
-import { PrivyWrapper } from "./lib/privy"
 import { useEffect } from "react"
+import { PrivyWrapper } from "./lib/privy"
 import { useAppStore } from "@/store/appStore"
 
 // Import pages
@@ -32,26 +32,25 @@ const App = () => {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <PrivyWrapper>
-        <ApiProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/playground" element={<Playground />} />
-                <Route path="/airdrop" element={<Airdrop />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/sign-in" element={<SignIn />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </BrowserRouter>
-          </TooltipProvider>
-        </ApiProvider>
-      </PrivyWrapper>
+      <ApiProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/playground" element={<Playground />} />
+              <Route path="/airdrop" element={<Airdrop />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/login" element={<Login />} />
+              {/* Mount Privy only for sign-in route to avoid affecting other pages */}
+              <Route path="/sign-in" element={<PrivyWrapper><SignIn /></PrivyWrapper>} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </ApiProvider>
     </QueryClientProvider>
   )
 }

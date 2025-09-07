@@ -18,7 +18,7 @@ import { useApi } from "@/lib/ApiContext"
 import { usePrivy, useWallets, useLogin } from "@/lib/privyHooks"
 import { privyWalletService } from "@/lib/privyWalletService"
 import { getPublicClient } from "@/config/wallet"
-import { getAddress, formatUnits, toHex } from "viem"
+import { getAddress, formatUnits, toHex, type EIP1193Provider } from "viem"
 import { getChainById } from "@utils/web3/chains"
 import { torusMainnet, amoyTestnet, titanAITestnet } from "@/config/wallet"
 
@@ -194,7 +194,7 @@ const SignInPrivy = () => {
   }
 
   // Handle wallet connected callback
-  const handleWalletConnected = async (wallet: { address: string; chainId: string; walletClientType: string; connectorType: string; getEthereumProvider: () => Promise<any> }) => {
+  const handleWalletConnected = async (wallet: { address: string; chainId: string; walletClientType: string; connectorType: string; getEthereumProvider: () => Promise<EIP1193Provider> }) => {
     try {
       // Initialize the Privy wallet service
       await privyWalletService.connect(wallet)
