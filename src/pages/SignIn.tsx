@@ -120,11 +120,6 @@ const SignIn = () => {
 
   const { toast } = useToast()
 
-  const formatAddress = useCallback((addr?: string | null) => {
-    if (!addr) return ""
-    if (addr.length <= 12) return addr
-    return `${addr.slice(0, 6)}…${addr.slice(-4)}`
-  }, [])
 
   const copyToClipboard = useCallback(
     async (text?: string | null) => {
@@ -396,17 +391,15 @@ const SignIn = () => {
                         <TooltipTrigger asChild>
                           <button
                             type="button"
-                            className="text-sm text-muted-foreground truncate max-w-[240px] hover:underline"
+                            className="text-sm font-mono text-muted-foreground truncate max-w-[240px] md:max-w-[420px] lg:max-w-[560px] xl:max-w-full hover:underline"
                             title={walletAddress ?? undefined}
                             onClick={() => copyToClipboard(walletAddress)}
                           >
-                            {formatAddress(walletAddress)}
+                            {walletAddress}
                           </button>
                         </TooltipTrigger>
                         <TooltipContent>
-                          <span className="font-mono text-xs">
-                            {walletAddress}
-                          </span>
+                          <span className="font-mono text-xs">{walletAddress}</span>
                         </TooltipContent>
                       </Tooltip>
                     </div>
@@ -495,14 +488,14 @@ const SignIn = () => {
                                   href={getExplorerUrl(selectedChainId, selectedToken)}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="font-mono hover:underline truncate max-w-[240px]"
+                                  className="font-mono hover:underline truncate max-w-[240px] md:max-w-[420px] lg:max-w-[560px] xl:max-w-full"
                                   title={selectedToken}
                                   onClick={(e) => {
                                     const href = e.currentTarget.getAttribute("href") || "#"
                                     if (!href || href === "#") e.preventDefault()
                                   }}
                                 >
-                                  {formatAddress(selectedToken)}
+                                  {selectedToken}
                                 </a>
                               </TooltipTrigger>
                               <TooltipContent>
