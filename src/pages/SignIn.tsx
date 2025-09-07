@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { AlertCircle, Loader2, CheckCircle, AlertTriangle, LogOut } from "lucide-react"
+import { AlertCircle, Loader2, CheckCircle, AlertTriangle, LogOut, Copy } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import Layout from "@/components/Layout"
 import { useApi } from "@/lib/ApiContext"
@@ -20,6 +20,8 @@ import { getAddress, formatUnits } from "viem"
 import { getChainById } from "@utils/web3/chains"
 import { getConfiguredChains, switchChain } from "@/lib/onboard"
 import { walletService } from "@/lib/api"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { useToast } from "@/hooks/use-toast"
 
 // Define the minimal ABI for the UNREAL token to fetch balance
 const UNREAL_TOKEN_ABI = [
@@ -76,6 +78,36 @@ const SignIn = () => {
   const [isSwitchingChain, setIsSwitchingChain] = useState(false)
   const [availableTokens, setAvailableTokens] = useState<Array<{ address: `0x${string}`; label: string }>>([])
   const [selectedToken, setSelectedToken] = useState<`0x${string}` | null>(null)
+
+  const { toast } = useToast()
+
+  const formatAddress = useCallback((addr?: string | null) => {
+    if (!addr) return ""
+    if (addr.length <= 12) return addr
+    return `${addr.slice(0, 6)}…${addr.slice(-4)}`
+  }, [])
+
+  const copyToClipboard = useCallback(async (text?: string | null) => {
+    if (!text) return
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text)
+      } else {
+        const ta = document.createElement("textarea")
+        ta.value = text
+        ta.style.position = "fixed"
+        ta.style.left = "-9999px"
+        document.body.appendChild(ta)
+        ta.focus()
+        ta.select()
+        document.execCommand("copy")
+        document.body.removeChild(ta)
+      }
+      toast({ description: "Wallet address copied" })
+    } catch (e) {
+      toast({ description: "Failed to copy address" })
+    }
+  }, [toast])
 
   // Fetch UNREAL token balance - wrapped in useCallback to prevent dependency changes
   const fetchUnrealBalance = useCallback(async (address?: string, tokenAddress?: `0x${string}`) => {
@@ -296,11 +328,32 @@ const SignIn = () => {
               ) : (
                 <div className="space-y-4">
                   <div className="flex justify-between items-center p-4 border rounded-lg">
-                    <div>
-                      <p className="font-medium">Connected Wallet</p>
-                      <p className="text-sm text-muted-foreground truncate max-w-[240px]">
-                        {walletAddress}
-                      </p>
+                    <div className="flex items-center gap-3">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            className="text-sm text-muted-foreground truncate max-w-[240px] hover:underline"
+                            title={walletAddress ?? undefined}
+                            onClick={() => copyToClipboard(walletAddress)}
+                          >
+                            {formatAddress(walletAddress)}
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <span className="font-mono text-xs">{walletAddress}</span>
+                        </TooltipContent>
+                      </Tooltip>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Copy wallet address"
+                        title="Copy"
+                        onClick={() => copyToClipboard(walletAddress)}
+                      >
+                        <Copy className="h-4 w-4" />
+                        <span className="sr-only">Copy</span>
+                      </Button>
                     </div>
                     <div className="flex items-center gap-2">
                       <Button
