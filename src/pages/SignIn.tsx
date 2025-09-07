@@ -17,6 +17,7 @@ import Layout from "@/components/Layout"
 import { useApi } from "@/lib/ApiContext"
 import { getPublicClient } from "@/config/wallet"
 import { getAddress } from "viem"
+import { getChainById } from "@utils/web3/chains"
 import { getConfiguredChains, switchChain } from "@/lib/onboard"
 
 // Define the minimal ABI for the UNREAL token to fetch balance
@@ -42,10 +43,21 @@ const UNREAL_TOKEN_ABI = [
   },
 ] as const
 
-// UNREAL payment token on Torus Mainnet (checksummed)
-const UNREAL_TOKEN_ADDRESS = getAddress(
-  "0xA409B5E5D34928a0F1165c7a73c8aC572D1aBCDB"
-)
+type ChainToken = { address: `0x${string}`; symbol?: string; name?: string }
+
+function getTokensForChainHex(hexId: string): Array<{ address: `0x${string}`; label: string }> {
+  try {
+    const id = parseInt(hexId.replace(/^0x/, ""), 16)
+    const chain = getChainById(id) as unknown as { custom?: { tokens?: Record<string, ChainToken> } }
+    const tokens = chain?.custom?.tokens || {}
+    return Object.entries(tokens).map(([key, t]) => ({
+      address: t.address,
+      label: t.symbol || t.name || key,
+    }))
+  } catch (_) {
+    return []
+  }
+}
 
 const SignIn = () => {
   const navigate = useNavigate()
@@ -59,11 +71,14 @@ const SignIn = () => {
   const [chains, setChains] = useState(getConfiguredChains())
   const [selectedChainId, setSelectedChainId] = useState<string | null>(null)
   const [isSwitchingChain, setIsSwitchingChain] = useState(false)
+  const [availableTokens, setAvailableTokens] = useState<Array<{ address: `0x${string}`; label: string }>>([])
+  const [selectedToken, setSelectedToken] = useState<`0x${string}` | null>(null)
 
   // Fetch UNREAL token balance - wrapped in useCallback to prevent dependency changes
-  const fetchUnrealBalance = useCallback(async (address?: string) => {
+  const fetchUnrealBalance = useCallback(async (address?: string, tokenAddress?: `0x${string}`) => {
     const addr = address ?? walletAddress ?? undefined
-    if (!addr) return
+    const tokenAddr = tokenAddress ?? selectedToken ?? undefined
+    if (!addr || !tokenAddr) return
 
     setIsLoadingBalance(true)
     try {
@@ -71,7 +86,7 @@ const SignIn = () => {
       const chainId = await getCurrentChainId()
       const publicClient = getPublicClient(chainId)
       const balance = await publicClient.readContract({
-        address: UNREAL_TOKEN_ADDRESS,
+        address: tokenAddr,
         abi: UNREAL_TOKEN_ABI,
         functionName: "balanceOf",
         args: [addr],
@@ -87,7 +102,7 @@ const SignIn = () => {
     } finally {
       setIsLoadingBalance(false)
     }
-  }, [getCurrentChainId, walletAddress])
+  }, [getCurrentChainId, walletAddress, selectedToken])
 
   // Redirect to dashboard if already authenticated
   useEffect(() => {
@@ -112,8 +127,20 @@ const SignIn = () => {
       // Keep selectedChainId null to require manual selection
     } else {
       setSelectedChainId(null)
+      setSelectedToken(null)
+      setAvailableTokens([])
     }
   }, [walletAddress])
+
+  // When a network is selected, populate available tokens and clear selection
+  useEffect(() => {
+    if (selectedChainId) {
+      const tokens = getTokensForChainHex(selectedChainId)
+      setAvailableTokens(tokens)
+      setSelectedToken(null)
+      setUnrealBalance(0)
+    }
+  }, [selectedChainId])
 
   // Handle wallet connection
   const handleConnectWallet = async () => {
@@ -154,13 +181,22 @@ const SignIn = () => {
     try {
       await switchChain(value)
       setSelectedChainId(value.toLowerCase())
-      // refresh balance on new chain
-      await fetchUnrealBalance()
+      // Clear token selection and balance until user picks a token
+      setSelectedToken(null)
+      setUnrealBalance(0)
+      setAvailableTokens(getTokensForChainHex(value))
     } catch (e) {
       console.warn("Failed to switch chain", e)
     } finally {
       setIsSwitchingChain(false)
     }
+  }
+
+  const handleTokenChange = async (value: string) => {
+    const token = getAddress(value)
+    setSelectedToken(token as `0x${string}`)
+    // fetch balance for the chosen token
+    await fetchUnrealBalance(undefined, token as `0x${string}`)
   }
 
   // Handle onboarding complete
@@ -251,26 +287,53 @@ const SignIn = () => {
                     </div>
                   )}
 
-                  <div className="p-4 border rounded-lg">
-                    <div className="flex justify-between mb-2">
-                      <p className="font-medium">UNREAL Token Balance</p>
-                      {isLoadingBalance && (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      )}
+                  {/* Step: Select Payment Token (after network is chosen) */}
+                  {selectedChainId && (
+                    <div className="p-4 border rounded-lg">
+                      <div className="mb-2 flex items-center justify-between">
+                        <p className="font-medium">Select Payment Token</p>
+                      </div>
+                      <Select
+                        value={(selectedToken ?? undefined) as string | undefined}
+                        onValueChange={handleTokenChange}
+                        disabled={!walletAddress || !selectedChainId}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Choose a payment token" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableTokens.map((t) => (
+                            <SelectItem key={t.address} value={t.address}>
+                              {t.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
-                    <p className="text-2xl font-bold">
-                      {isLoadingBalance ? "..." : unrealBalance.toFixed(2)}
-                    </p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      This balance will be used for your registration
-                    </p>
-                  </div>
+                  )}
+
+                  {selectedToken && (
+                    <div className="p-4 border rounded-lg">
+                      <div className="flex justify-between mb-2">
+                        <p className="font-medium">UNREAL Token Balance</p>
+                        {isLoadingBalance && (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        )}
+                      </div>
+                      <p className="text-2xl font-bold">
+                        {isLoadingBalance ? "..." : unrealBalance.toFixed(2)}
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        This balance will be used for your registration
+                      </p>
+                    </div>
+                  )}
 
                   <Button
                     className="w-full"
                     size="lg"
                     onClick={handleSignIn}
-                    disabled={isRegistering || apiLoading || isSwitchingChain || !selectedChainId}
+                    disabled={isRegistering || apiLoading || isSwitchingChain || !selectedChainId || !selectedToken}
                   >
                     {isRegistering ? (
                       <>
