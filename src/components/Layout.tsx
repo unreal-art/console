@@ -89,6 +89,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 Playground
               </Link>
               <Link 
+                to="/playground-live" 
+                className={`${location.pathname === '/playground-live' ? 'text-primary font-medium' : 'text-muted-foreground hover:text-primary'}`}
+                title="Live Playground"
+              >
+                Live Playground
+              </Link>
+              <Link 
                 to="/airdrop" 
                 className={`${location.pathname === '/airdrop' ? 'text-primary font-medium' : 'text-muted-foreground hover:text-primary'}`}
                 title="Airdrop • Cmd/Ctrl+Shift+A"
