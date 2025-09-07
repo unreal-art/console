@@ -172,7 +172,6 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
       setError(null)
       setIsStreaming(true)
 
-
       try {
         // Helper functions for retry logic
         const isTransient = (err: unknown) => {
@@ -317,7 +316,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
       }, 100)
       return () => clearTimeout(t)
     }
-  }, [autorun, initialPrompt, sendMessage])
+  }, [])
 
   // Actions
   const handleClear = useCallback(() => {
@@ -368,7 +367,9 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
       const target = e.target as HTMLElement | null
       const tag = target?.tagName?.toLowerCase()
       const isTyping =
-        tag === "input" || tag === "textarea" || (target?.isContentEditable ?? false)
+        tag === "input" ||
+        tag === "textarea" ||
+        (target?.isContentEditable ?? false)
       const key = e.key?.toLowerCase?.() ?? ""
 
       // Send message
@@ -437,7 +438,15 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
     }
     window.addEventListener("keydown", handler)
     return () => window.removeEventListener("keydown", handler)
-  }, [sendMessage, handleClear, isStreaming, stopStreaming, regenerateLast, retryLast, error])
+  }, [
+    sendMessage,
+    handleClear,
+    isStreaming,
+    stopStreaming,
+    regenerateLast,
+    retryLast,
+    error,
+  ])
 
   // Moved actions above
 
@@ -492,7 +501,9 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                   Stop
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Stop the current response • Cmd/Ctrl+.</TooltipContent>
+              <TooltipContent>
+                Stop the current response • Cmd/Ctrl+.
+              </TooltipContent>
             </Tooltip>
           )}
           {!isStreaming && messages.some((m) => m.role === "assistant") && (
@@ -508,7 +519,9 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                   Regenerate
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Regenerate the last response • Shift+Cmd/Ctrl+R</TooltipContent>
+              <TooltipContent>
+                Regenerate the last response • Shift+Cmd/Ctrl+R
+              </TooltipContent>
             </Tooltip>
           )}
         </div>
