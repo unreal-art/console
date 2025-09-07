@@ -1,5 +1,22 @@
 import injectedWallets from "@web3-onboard/injected-wallets"
 import Onboard, { type OnboardAPI, type WalletState } from "@web3-onboard/core"
+import coinbaseModule from "@web3-onboard/coinbase"
+import walletConnectModule from "@web3-onboard/walletconnect"
+import fortmaticModule from "@web3-onboard/fortmatic"
+import portisModule from "@web3-onboard/portis"
+import magicModule from "@web3-onboard/magic"
+import ledgerModule from "@web3-onboard/ledger"
+import trezorModule from "@web3-onboard/trezor"
+import sequenceModule from "@web3-onboard/sequence"
+import tahoModule from "@web3-onboard/taho"
+import dcentModule from "@web3-onboard/dcent"
+import keystoneModule from "@web3-onboard/keystone"
+import safeModule from "@web3-onboard/gnosis"
+import okxModule from "@web3-onboard/okx"
+import infinityWalletModule from "@web3-onboard/infinity-wallet"
+import trustModule from "@web3-onboard/trust"
+import frontierModule from "@web3-onboard/frontier"
+import keepkeyModule from "@web3-onboard/keepkey"
 import { toHex, type EIP1193Provider } from "viem"
 import { torusMainnet, amoyTestnet, titanAITestnet } from "@/config/wallet"
 import { getUnrealTokenAddress } from "@utils/web3/chains"
@@ -59,7 +76,68 @@ const appMetadata = {
 export function initOnboard(chains?: OnboardChain[]) {
   if (chains && chains.length > 0) configuredChains = chains
   if (!onboardInstance) {
-    const wallets = [injectedWallets()]
+    // Initialize as many wallet options as possible (custodial-friendly + popular HW/injected)
+    const injected = injectedWallets()
+    const coinbase = coinbaseModule()
+    const walletConnect = walletConnectModule({
+      // Use WalletConnect Cloud Project ID
+      projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || "",
+    })
+    const fortmatic = fortmaticModule({
+      apiKey: import.meta.env.VITE_FORTMATIC_API_KEY || "",
+    })
+    const portis = portisModule({
+      apiKey: import.meta.env.VITE_PORTIS_API_KEY || "",
+    })
+    const magic = magicModule({
+      apiKey: import.meta.env.VITE_MAGIC_API_KEY || "",
+    })
+    const ledger = ledgerModule()
+    const trezor = trezorModule({
+      appUrl: import.meta.env.VITE_TREZOR_APP_URL || "https://unreal.art",
+      email: import.meta.env.VITE_TREZOR_EMAIL || "support@unreal.art",
+    })
+    const sequence = sequenceModule()
+    const taho = tahoModule()
+    const dcent = dcentModule()
+    const keystone = keystoneModule()
+    const safe = safeModule()
+    const okx = okxModule()
+    const infinityWallet = infinityWalletModule()
+    const trust = trustModule()
+    const frontier = frontierModule()
+    const keepkey = keepkeyModule()
+
+    const wallets = [
+      infinityWallet,
+      keepkey,
+      sequence,
+      injected,
+      trust,
+      okx,
+      frontier,
+      taho,
+      ledger,
+      coinbase,
+      dcent,
+      trezor,
+      safe,
+      keystone,
+    ]
+
+    // Conditionally add SDK-keyed wallets
+    if (import.meta.env.VITE_WALLETCONNECT_PROJECT_ID) {
+      wallets.push(walletConnect)
+    }
+    if (import.meta.env.VITE_MAGIC_API_KEY) {
+      wallets.push(magic)
+    }
+    if (import.meta.env.VITE_FORTMATIC_API_KEY) {
+      wallets.push(fortmatic)
+    }
+    if (import.meta.env.VITE_PORTIS_API_KEY) {
+      wallets.push(portis)
+    }
     onboardInstance = Onboard({
       wallets,
       chains: configuredChains,
