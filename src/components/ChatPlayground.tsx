@@ -94,6 +94,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
         const response = await fetch(`${OPENAI_URL}/models`, {
           method: "GET",
           headers,
+          credentials: "include",
         })
         if (!response.ok) return // fallback silently
         const data: unknown = await response.json()
@@ -202,8 +203,14 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
             const client = new OpenAI({
               apiKey: auth,
               baseURL: OPENAI_URL,
-              // We intentionally allow browser usage here because the user provides their own key/token
+              // We intentionally allow browser usage here because the user provides their own key
               dangerouslyAllowBrowser: true,
+              fetch: (input, init) => {
+                return fetch(input as RequestInfo, {
+                  ...(init || {}),
+                  credentials: "include",
+                })
+              },
             })
 
             // Convert UI messages to OpenAI messages (text-only)

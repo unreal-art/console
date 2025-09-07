@@ -58,6 +58,11 @@ const OpenAIStreamingPlayground: React.FC<OpenAIStreamingPlaygroundProps> = ({ i
         baseURL: OPENAI_URL,
         // We intentionally allow browser usage here because the user provides their own key
         dangerouslyAllowBrowser: true,
+        fetch: (input, init) =>
+          fetch(input as RequestInfo, {
+            ...(init || {}),
+            credentials: "include",
+          }),
       })
 
       console.log("Starting stream with OpenAI SDK...")

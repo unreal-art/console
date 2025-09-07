@@ -54,7 +54,15 @@ console.log(data.choices[0].message.content);`
     setResponse("")
     setError(null)
     try {
-      const openai = createOpenAI({ apiKey, baseURL: OPENAI_URL })
+      const openai = createOpenAI({
+        apiKey,
+        baseURL: OPENAI_URL,
+        fetch: (input, init) =>
+          fetch(input as RequestInfo, {
+            ...(init || {}),
+            credentials: "include",
+          }),
+      })
       const { textStream } = await streamText({
         model: openai(DEFAULT_MODEL),
         messages: [
