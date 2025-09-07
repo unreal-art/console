@@ -1,5 +1,11 @@
 # unreal-console
 
+## 2.0.1
+
+### Patch Changes
+
+- 010c11a: guided start is overflowing
+
 ## 1.0.0
 
 ### Major Changes
