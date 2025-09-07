@@ -33,18 +33,18 @@ export type OnboardChain = {
 
 export const DEFAULT_CHAINS: OnboardChain[] = [
   {
-    id: toHex(torusMainnet.id), // 8192
-    token: torusMainnet.nativeCurrency.symbol,
-    label: torusMainnet.name,
-    rpcUrl: torusMainnet.rpcUrls.default.http[0],
-    secondaryTokens: [{ address: getUnrealTokenAddress(torusMainnet.id) }],
-  },
-  {
     id: toHex(titanAITestnet.id), // 8192
     token: titanAITestnet.nativeCurrency.symbol,
     label: titanAITestnet.name,
     rpcUrl: titanAITestnet.rpcUrls.default.http[0],
     secondaryTokens: [{ address: getUnrealTokenAddress(titanAITestnet.id) }],
+  },
+  {
+    id: toHex(torusMainnet.id), // 8192
+    token: torusMainnet.nativeCurrency.symbol,
+    label: torusMainnet.name,
+    rpcUrl: torusMainnet.rpcUrls.default.http[0],
+    secondaryTokens: [{ address: getUnrealTokenAddress(torusMainnet.id) }],
   },
   {
     id: toHex(amoyTestnet.id), // 8192

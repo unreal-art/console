@@ -160,11 +160,11 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
                   try {
                     const walletAddr = address as `0x${string}`
                     const chainId = await walletService.getCurrentChainId()
-                    const client = getPublicClient(chainId)
+                    const publicClient = getPublicClient(chainId)
                     const balance = await getUnrealBalance(
                       paymentToken,
                       walletAddr,
-                      client
+                      publicClient
                     )
                     const balanceInEther = formatEther(balance)
                     calls = Number(balanceInEther)
