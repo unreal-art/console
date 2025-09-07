@@ -6,7 +6,7 @@ import {
   type WalletClient,
 } from "viem"
 import { OPENAI_URL } from "@/config/unreal"
-import { getOnboard } from "@/lib/onboard"
+import { getOnboard, resetOnboard } from "@/lib/onboard"
 import type { OnboardAPI, WalletState } from "@web3-onboard/core"
 import { getDefaultChain } from "@/config/wallet"
 
@@ -246,18 +246,27 @@ export class WalletService {
   }
 
   // Connect to wallet
-  async connect(selectedAddress?: string): Promise<string> {
+  async connect(selectedAddress?: string, forceSelect?: boolean): Promise<string> {
     try {
       this.onboard = getOnboard()
 
-      // If a wallet is already connected in Onboard state, hydrate without prompting
-      const stateWallets = this.onboard?.state?.get?.().wallets || []
-      let wallets = stateWallets as WalletState[]
-      if (!wallets || wallets.length === 0) {
-        // Prompt connect only when there is no existing connection
+      let wallets: WalletState[] = []
+      if (forceSelect) {
+        // Always prompt the wallet selection modal
         wallets = await this.onboard.connectWallet()
         if (!wallets || wallets.length === 0) {
           throw new Error("No wallet connected")
+        }
+      } else {
+        // If a wallet is already connected in Onboard state, hydrate without prompting
+        const stateWallets = this.onboard?.state?.get?.().wallets || []
+        wallets = stateWallets as WalletState[]
+        if (!wallets || wallets.length === 0) {
+          // Prompt connect only when there is no existing connection
+          wallets = await this.onboard.connectWallet()
+          if (!wallets || wallets.length === 0) {
+            throw new Error("No wallet connected")
+          }
         }
       }
 
@@ -342,6 +351,38 @@ export class WalletService {
     this.connectedWallet = null
     // Optionally clear any cached wallet info in localStorage/sessionStorage
     localStorage.removeItem("unreal_wallet_address")
+    try {
+      // Clear common web3-onboard persisted state to avoid auto-reconnect
+      localStorage.removeItem("onboard")
+      localStorage.removeItem("connectedWallets")
+      // Clear WalletConnect v2 persisted state keys if present
+      try {
+        const keysToClear: string[] = []
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i)
+          if (!k) continue
+          const low = k.toLowerCase()
+          if (
+            low.startsWith("wc@") ||
+            low.includes("walletconnect") ||
+            low.includes("_walletconnect")
+          ) {
+            keysToClear.push(k)
+          }
+        }
+        keysToClear.forEach((k) => localStorage.removeItem(k))
+      } catch (_) {
+        // ignore wc storage errors
+      }
+    } catch (_) {
+      // ignore storage errors
+    }
+    // Drop current onboard instance so next connect shows the selection modal fresh
+    try {
+      resetOnboard()
+    } catch (_) {
+      // ignore
+    }
     return
   }
 

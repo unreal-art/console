@@ -1,5 +1,21 @@
 import injectedWallets from "@web3-onboard/injected-wallets"
 import Onboard, { type OnboardAPI, type WalletState } from "@web3-onboard/core"
+import coinbaseModule from "@web3-onboard/coinbase"
+import walletConnectModule from "@web3-onboard/walletconnect"
+import particleModule from "@web3-onboard/particle-network"
+import magicModule from "@web3-onboard/magic"
+import ledgerModule from "@web3-onboard/ledger"
+import trezorModule from "@web3-onboard/trezor"
+import sequenceModule from "@web3-onboard/sequence"
+import tahoModule from "@web3-onboard/taho"
+import dcentModule from "@web3-onboard/dcent"
+import keystoneModule from "@web3-onboard/keystone"
+import safeModule from "@web3-onboard/gnosis"
+import okxModule from "@web3-onboard/okx"
+import infinityWalletModule from "@web3-onboard/infinity-wallet"
+import trustModule from "@web3-onboard/trust"
+import frontierModule from "@web3-onboard/frontier"
+import keepkeyModule from "@web3-onboard/keepkey"
 import { toHex, type EIP1193Provider } from "viem"
 import { torusMainnet, amoyTestnet, titanAITestnet } from "@/config/wallet"
 import { getUnrealTokenAddress } from "@utils/web3/chains"
@@ -17,18 +33,18 @@ export type OnboardChain = {
 
 export const DEFAULT_CHAINS: OnboardChain[] = [
   {
-    id: toHex(torusMainnet.id), // 8192
-    token: torusMainnet.nativeCurrency.symbol,
-    label: torusMainnet.name,
-    rpcUrl: torusMainnet.rpcUrls.default.http[0],
-    secondaryTokens: [{ address: getUnrealTokenAddress(torusMainnet.id) }],
-  },
-  {
     id: toHex(titanAITestnet.id), // 8192
     token: titanAITestnet.nativeCurrency.symbol,
     label: titanAITestnet.name,
     rpcUrl: titanAITestnet.rpcUrls.default.http[0],
     secondaryTokens: [{ address: getUnrealTokenAddress(titanAITestnet.id) }],
+  },
+  {
+    id: toHex(torusMainnet.id), // 8192
+    token: torusMainnet.nativeCurrency.symbol,
+    label: torusMainnet.name,
+    rpcUrl: torusMainnet.rpcUrls.default.http[0],
+    secondaryTokens: [{ address: getUnrealTokenAddress(torusMainnet.id) }],
   },
   {
     id: toHex(amoyTestnet.id), // 8192
@@ -44,17 +60,96 @@ export const DEFAULT_CHAINS: OnboardChain[] = [
 let onboardInstance: OnboardAPI | null = null
 let configuredChains: OnboardChain[] = DEFAULT_CHAINS
 
+import logo from "@public/favicon.ico"
+
+const appMetadata = {
+  name: "Unreal Console",
+  icon: logo,
+  logo: logo,
+  description: "Multi-chain wallet for Unreal Console",
+  recommendedInjectedWallets: [
+    { name: "MetaMask", url: "https://metamask.io" },
+    { name: "Coinbase", url: "https://wallet.coinbase.com/" },
+    { name: "Phantom", url: "https://phantom.app/" },
+  ],
+}
 export function initOnboard(chains?: OnboardChain[]) {
   if (chains && chains.length > 0) configuredChains = chains
   if (!onboardInstance) {
-    const wallets = [injectedWallets()]
+    // Initialize as many wallet options as possible (custodial-friendly + popular HW/injected)
+    const injected = injectedWallets()
+    const coinbase = coinbaseModule()
+    // Initialize WalletConnect only if Project ID is present
+    let walletConnect: ReturnType<typeof walletConnectModule> | null = null
+    if (import.meta.env.VITE_WALLETCONNECT_PROJECT_ID) {
+      walletConnect = walletConnectModule({
+        // Use WalletConnect Cloud Project ID
+        projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID,
+      })
+    }
+    const magic = magicModule({
+      apiKey: import.meta.env.VITE_MAGIC_API_KEY || "",
+    })
+    const ledger = ledgerModule({
+      projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID,
+      walletConnectVersion: 2,
+      // requiredChains: configuredChains.map((c) => c.id),
+    })
+    const trezor = trezorModule({
+      appUrl:
+        import.meta.env.VITE_TREZOR_APP_URL || "https://console.unreal.art",
+      email: import.meta.env.VITE_TREZOR_EMAIL || "team@unreal.art",
+    })
+    let particle: ReturnType<typeof particleModule> | null = null
+    if (
+      import.meta.env.VITE_PARTICLE_PROJECT_ID &&
+      import.meta.env.VITE_PARTICLE_CLIENT_KEY &&
+      import.meta.env.VITE_PARTICLE_APP_ID
+    ) {
+      particle = particleModule({
+        projectId: import.meta.env.VITE_PARTICLE_PROJECT_ID,
+        clientKey: import.meta.env.VITE_PARTICLE_CLIENT_KEY,
+        appId: import.meta.env.VITE_PARTICLE_APP_ID,
+      })
+    }
+    const sequence = sequenceModule()
+    const taho = tahoModule()
+    const dcent = dcentModule()
+    const keystone = keystoneModule()
+    const safe = safeModule()
+    const okx = okxModule()
+    const infinityWallet = infinityWalletModule()
+    const trust = trustModule()
+    const frontier = frontierModule()
+    const keepkey = keepkeyModule()
+
+    const wallets = [
+      injected,
+      coinbase,
+      // keepkey,//FIXME:buffer not defined
+      okx,
+      sequence, //working
+      trust,
+      // frontier,
+      // taho,
+      // ledger,
+      // dcent,//FIMME: process not defined
+      // trezor,
+      // safe,
+      // keystone,//FIXME: buffer not defined
+      // infinityWallet,//FIXME: deprecated
+    ]
+
+    // Conditionally add SDK-keyed wallets
+    if (walletConnect) wallets.push(walletConnect)
+    if (particle) wallets.push(particle)
+    if (import.meta.env.VITE_MAGIC_API_KEY) {
+      wallets.push(magic)
+    }
     onboardInstance = Onboard({
       wallets,
       chains: configuredChains,
-      appMetadata: {
-        name: "Unreal Console",
-        description: "Multi-chain wallet for Unreal Console",
-      },
+      appMetadata,
     })
   }
   return onboardInstance
@@ -66,6 +161,12 @@ export function getOnboard() {
 
 export function getConfiguredChains(): OnboardChain[] {
   return configuredChains
+}
+
+// Allow consumers to drop the current Onboard instance so the next call
+// to getOnboard() re-initializes without any cached connection state.
+export function resetOnboard() {
+  onboardInstance = null
 }
 
 export async function switchChain(chainIdHex: string): Promise<void> {

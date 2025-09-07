@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react"
+import React, { useState, useEffect, useCallback, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import {
   Card,
@@ -9,9 +9,29 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { AlertCircle, Loader2, CheckCircle, AlertTriangle } from "lucide-react"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog"
+import {
+  AlertCircle,
+  Loader2,
+  CheckCircle,
+  AlertTriangle,
+  LogOut,
+  Copy,
+  ExternalLink,
+} from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import Layout from "@/components/Layout"
 import { useApi } from "@/lib/ApiContext"
@@ -19,6 +39,13 @@ import { getPublicClient } from "@/config/wallet"
 import { getAddress, formatUnits } from "viem"
 import { getChainById } from "@utils/web3/chains"
 import { getConfiguredChains, switchChain } from "@/lib/onboard"
+import { walletService } from "@/lib/api"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import { useToast } from "@/hooks/use-toast"
 
 // Define the minimal ABI for the UNREAL token to fetch balance
 const UNREAL_TOKEN_ABI = [
@@ -45,10 +72,14 @@ const UNREAL_TOKEN_ABI = [
 
 type ChainToken = { address: `0x${string}`; symbol?: string; name?: string }
 
-function getTokensForChainHex(hexId: string): Array<{ address: `0x${string}`; label: string }> {
+function getTokensForChainHex(
+  hexId: string
+): Array<{ address: `0x${string}`; label: string }> {
   try {
     const id = parseInt(hexId.replace(/^0x/, ""), 16)
-    const chain = getChainById(id) as unknown as { custom?: { tokens?: Record<string, ChainToken> } }
+    const chain = getChainById(id) as unknown as {
+      custom?: { tokens?: Record<string, ChainToken> }
+    }
     const tokens = chain?.custom?.tokens || {}
     return Object.entries(tokens).map(([key, t]) => ({
       address: t.address,
@@ -61,9 +92,19 @@ function getTokensForChainHex(hexId: string): Array<{ address: `0x${string}`; la
 
 const SignIn = () => {
   const navigate = useNavigate()
-  const { isAuthenticated, isLoading: apiLoading, error: apiError, registerWithWallet, connectWallet, clearError, getCurrentChainId, walletAddress } = useApi()
+  const {
+    isAuthenticated,
+    isLoading: apiLoading,
+    error: apiError,
+    registerWithWallet,
+    connectWallet,
+    clearError,
+    getCurrentChainId,
+    walletAddress,
+  } = useApi()
 
   const [isConnecting, setIsConnecting] = useState(false)
+  const [isDisconnecting, setIsDisconnecting] = useState(false)
   const [isRegistering, setIsRegistering] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [unrealBalance, setUnrealBalance] = useState<string>("0")
@@ -72,39 +113,108 @@ const SignIn = () => {
   const [chains, setChains] = useState(getConfiguredChains())
   const [selectedChainId, setSelectedChainId] = useState<string | null>(null)
   const [isSwitchingChain, setIsSwitchingChain] = useState(false)
-  const [availableTokens, setAvailableTokens] = useState<Array<{ address: `0x${string}`; label: string }>>([])
+  const [availableTokens, setAvailableTokens] = useState<
+    Array<{ address: `0x${string}`; label: string }>
+  >([])
   const [selectedToken, setSelectedToken] = useState<`0x${string}` | null>(null)
 
-  // Fetch UNREAL token balance - wrapped in useCallback to prevent dependency changes
-  const fetchUnrealBalance = useCallback(async (address?: string, tokenAddress?: `0x${string}`) => {
-    const addr = address ?? walletAddress ?? undefined
-    const tokenAddr = tokenAddress ?? selectedToken ?? undefined
-    if (!addr || !tokenAddr) return
+  const { toast } = useToast()
+  const balanceReqIdRef = useRef(0)
 
-    setIsLoadingBalance(true)
-    try {
-      // Get current chain ID from wallet
-      const chainId = await getCurrentChainId()
-      const publicClient = getPublicClient(chainId)
-      const balance = await publicClient.readContract({
-        address: getAddress(tokenAddr),
-        abi: UNREAL_TOKEN_ABI,
-        functionName: "balanceOf",
-        args: [getAddress(addr as `0x${string}`)],
-      })
+  const copyToClipboard = useCallback(
+    async (text?: string | null) => {
+      if (!text) return
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text)
+        } else {
+          const ta = document.createElement("textarea")
+          ta.value = text
+          ta.style.position = "fixed"
+          ta.style.left = "-9999px"
+          document.body.appendChild(ta)
+          ta.focus()
+          ta.select()
+          document.execCommand("copy")
+          document.body.removeChild(ta)
+        }
+        toast({ description: "Wallet address copied" })
+      } catch (e) {
+        toast({ description: "Failed to copy address" })
+      }
+    },
+    [toast]
+  )
 
-      // Preserve precision: keep raw BigInt and a formatted string (18 decimals)
-      setUnrealBalanceWei(balance as bigint)
-      const formatted = formatUnits(balance as bigint, 18)
-      setUnrealBalance(formatted)
-    } catch (err) {
-      console.error("Error fetching UNREAL balance:", err)
-      setUnrealBalance("0")
-      setUnrealBalanceWei(0n)
-    } finally {
-      setIsLoadingBalance(false)
-    }
-  }, [getCurrentChainId, walletAddress, selectedToken])
+  const getExplorerUrl = useCallback(
+    (chainHex?: string | null, addr?: string | null): string => {
+      try {
+        if (!chainHex || !addr) return "#"
+        const id = parseInt(chainHex.replace(/^0x/, ""), 16)
+        const chain = getChainById(id) as unknown as {
+          blockExplorers?: { default?: { url?: string } }
+        }
+        const base = (chain?.blockExplorers?.default?.url || "").replace(/\/$/, "")
+        return base ? `${base}/address/${addr}` : "#"
+      } catch {
+        return "#"
+      }
+    },
+    []
+  )
+
+  // Fetch UNREAL token balance - accepts optional chain override to avoid race after chain switch
+  const fetchUnrealBalance = useCallback(
+    async (
+      address?: string,
+      tokenAddress?: `0x${string}`,
+      chainHexOverride?: string | null
+    ) => {
+      const addr = address ?? walletAddress ?? undefined
+      const tokenAddr = tokenAddress ?? selectedToken ?? undefined
+      if (!addr || !tokenAddr) return
+
+      // Bump request ID to invalidate older in-flight requests
+      const myReqId = ++balanceReqIdRef.current
+      setIsLoadingBalance(true)
+      try {
+        // Prefer explicit chain from caller (e.g., right after switch), fallback to wallet state
+        let chainId: number
+        if (chainHexOverride) {
+          chainId = parseInt(chainHexOverride.replace(/^0x/, ""), 16)
+        } else {
+          chainId = await getCurrentChainId()
+        }
+        const publicClient = getPublicClient(chainId)
+        const balance = await publicClient.readContract({
+          address: getAddress(tokenAddr),
+          abi: UNREAL_TOKEN_ABI,
+          functionName: "balanceOf",
+          args: [getAddress(addr as `0x${string}`)],
+        })
+
+        // If another request started after this one, ignore this result
+        if (myReqId !== balanceReqIdRef.current) return
+
+        // Preserve precision: keep raw BigInt and a formatted string (18 decimals)
+        setUnrealBalanceWei(balance as bigint)
+        const formatted = formatUnits(balance as bigint, 18)
+        setUnrealBalance(formatted)
+      } catch (err) {
+        // Ignore errors from stale requests
+        if (myReqId === balanceReqIdRef.current) {
+          console.error("Error fetching UNREAL balance:", err)
+          setUnrealBalance("0")
+          setUnrealBalanceWei(0n)
+        }
+      } finally {
+        if (myReqId === balanceReqIdRef.current) {
+          setIsLoadingBalance(false)
+        }
+      }
+    },
+    [getCurrentChainId, walletAddress, selectedToken]
+  )
 
   // Redirect to dashboard if already authenticated
   useEffect(() => {
@@ -144,7 +254,7 @@ const SignIn = () => {
       if (first) {
         setSelectedToken(first)
         // Fetch balance for the first token immediately
-        void fetchUnrealBalance(undefined, first)
+        void fetchUnrealBalance(undefined, first, selectedChainId)
       } else {
         setSelectedToken(null)
         setUnrealBalance("0")
@@ -179,6 +289,18 @@ const SignIn = () => {
     }
   }
 
+  // Handle wallet disconnect
+  const handleDisconnectWallet = async () => {
+    setIsDisconnecting(true)
+    try {
+      await walletService.disconnect()
+    } catch (err) {
+      console.warn("Error disconnecting wallet:", err)
+    } finally {
+      setIsDisconnecting(false)
+    }
+  }
+
   // Handle sign in (register wallet)
   const handleSignIn = async () => {
     setIsRegistering(true)
@@ -187,13 +309,14 @@ const SignIn = () => {
       const addr = walletAddress ?? (await connectWallet())
       if (!addr) throw new Error("Wallet not connected")
       console.debug("[SignIn] Registering with wallet:", addr)
-      
+
       // Use the actual UNREAL balance for the calls value
       // Compute as whole-token units from raw wei using BigInt to avoid precision loss
-      const wholeTokens = unrealBalanceWei / (10n ** 18n)
-      const callsValue = wholeTokens > BigInt(Number.MAX_SAFE_INTEGER)
-        ? Number.MAX_SAFE_INTEGER
-        : Number(wholeTokens)
+      const wholeTokens = unrealBalanceWei / 10n ** 18n
+      const callsValue =
+        wholeTokens > BigInt(Number.MAX_SAFE_INTEGER)
+          ? Number.MAX_SAFE_INTEGER
+          : Number(wholeTokens)
 
       // Now register with the connected wallet
       await registerWithWallet(callsValue)
@@ -225,7 +348,7 @@ const SignIn = () => {
     const token = getAddress(value)
     setSelectedToken(token as `0x${string}`)
     // fetch balance for the chosen token
-    await fetchUnrealBalance(undefined, token as `0x${string}`)
+    await fetchUnrealBalance(undefined, token as `0x${string}`, selectedChainId)
   }
 
   // Handle onboarding complete
@@ -282,11 +405,39 @@ const SignIn = () => {
               ) : (
                 <div className="space-y-4">
                   <div className="flex justify-between items-center p-4 border rounded-lg">
-                    <div>
-                      <p className="font-medium">Connected Wallet</p>
-                      <p className="text-sm text-muted-foreground truncate max-w-[240px]">
-                        {walletAddress}
-                      </p>
+                    <div className="flex items-center gap-3">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            className="text-sm font-mono text-muted-foreground truncate max-w-[240px] md:max-w-[420px] lg:max-w-[560px] xl:max-w-full hover:underline"
+                            title={walletAddress ?? undefined}
+                            onClick={() => copyToClipboard(walletAddress)}
+                          >
+                            {walletAddress}
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <span className="font-mono text-xs">{walletAddress}</span>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Disconnect wallet"
+                        title="Disconnect"
+                        onClick={handleDisconnectWallet}
+                        disabled={isDisconnecting}
+                      >
+                        {isDisconnecting ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <LogOut className="h-4 w-4" />
+                        )}
+                        <span className="sr-only">Disconnect</span>
+                      </Button>
                     </div>
                   </div>
 
@@ -295,10 +446,14 @@ const SignIn = () => {
                     <div className="p-4 border rounded-lg">
                       <div className="mb-2 flex items-center justify-between">
                         <p className="font-medium">Select Network</p>
-                        {isSwitchingChain && <Loader2 className="h-4 w-4 animate-spin" />}
+                        {isSwitchingChain && (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        )}
                       </div>
                       <Select
-                        value={(selectedChainId ?? undefined) as string | undefined}
+                        value={
+                          (selectedChainId ?? undefined) as string | undefined
+                        }
                         onValueChange={handleChainChange}
                         disabled={!walletAddress || isSwitchingChain}
                       >
@@ -323,7 +478,9 @@ const SignIn = () => {
                         <p className="font-medium">Select Payment Token</p>
                       </div>
                       <Select
-                        value={(selectedToken ?? undefined) as string | undefined}
+                        value={
+                          (selectedToken ?? undefined) as string | undefined
+                        }
                         onValueChange={handleTokenChange}
                         disabled={!walletAddress || !selectedChainId}
                       >
@@ -338,6 +495,68 @@ const SignIn = () => {
                           ))}
                         </SelectContent>
                       </Select>
+
+                      {/* Display selected token address with copy + explorer link */}
+                      {selectedToken && (
+                        <div className="mt-3 flex items-center justify-between text-sm text-muted-foreground">
+                          <div className="flex items-center gap-2">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                {/* Clicking the address opens explorer if available */}
+                                <a
+                                  href={getExplorerUrl(selectedChainId, selectedToken)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="font-mono hover:underline truncate max-w-[240px] md:max-w-[420px] lg:max-w-[560px] xl:max-w-full"
+                                  title={selectedToken}
+                                  onClick={(e) => {
+                                    const href = e.currentTarget.getAttribute("href") || "#"
+                                    if (!href || href === "#") e.preventDefault()
+                                  }}
+                                >
+                                  {selectedToken}
+                                </a>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <span className="font-mono text-xs">{selectedToken}</span>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label="Copy token address"
+                              title="Copy"
+                              onClick={() => copyToClipboard(selectedToken)}
+                            >
+                              <Copy className="h-4 w-4" />
+                              <span className="sr-only">Copy</span>
+                            </Button>
+                            {/* Open in explorer */}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              asChild
+                              title="Open in explorer"
+                              aria-label="Open in explorer"
+                            >
+                              <a
+                                href={getExplorerUrl(selectedChainId, selectedToken)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => {
+                                  const href = e.currentTarget.getAttribute("href") || "#"
+                                  if (!href || href === "#") e.preventDefault()
+                                }}
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                                <span className="sr-only">Open in explorer</span>
+                              </a>
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -350,7 +569,9 @@ const SignIn = () => {
                         )}
                       </div>
                       <p className="text-2xl font-bold">
-                        {isLoadingBalance ? "..." : formatBalance(unrealBalance, 2)}
+                        {isLoadingBalance
+                          ? "..."
+                          : formatBalance(unrealBalance, 2)}
                       </p>
                       <p className="text-sm text-muted-foreground mt-1">
                         This balance will be used for your registration
@@ -362,7 +583,13 @@ const SignIn = () => {
                     className="w-full"
                     size="lg"
                     onClick={handleSignIn}
-                    disabled={isRegistering || apiLoading || isSwitchingChain || !selectedChainId || !selectedToken}
+                    disabled={
+                      isRegistering ||
+                      apiLoading ||
+                      isSwitchingChain ||
+                      !selectedChainId ||
+                      !selectedToken
+                    }
                   >
                     {isRegistering ? (
                       <>
