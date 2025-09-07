@@ -111,20 +111,20 @@ export function initOnboard(chains?: OnboardChain[]) {
     const keepkey = keepkeyModule()
 
     const wallets = [
-      infinityWallet,
-      keepkey,
-      sequence,
       injected,
-      trust,
+      coinbase,
+      keepkey,
       okx,
+      sequence,
+      trust,
       frontier,
       taho,
       ledger,
-      coinbase,
       dcent,
       trezor,
       safe,
       keystone,
+      infinityWallet,
     ]
 
     // Conditionally add SDK-keyed wallets
