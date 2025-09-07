@@ -44,6 +44,18 @@ export const DEFAULT_CHAINS: OnboardChain[] = [
 let onboardInstance: OnboardAPI | null = null
 let configuredChains: OnboardChain[] = DEFAULT_CHAINS
 
+import logo from "@public/favicon.ico"
+
+const appMetadata = {
+  name: "Unreal Console",
+  icon: logo,
+  logo: logo,
+  description: "Multi-chain wallet for Unreal Console",
+  recommendedInjectedWallets: [
+    { name: "Coinbase", url: "https://wallet.coinbase.com/" },
+    { name: "MetaMask", url: "https://metamask.io" },
+  ],
+}
 export function initOnboard(chains?: OnboardChain[]) {
   if (chains && chains.length > 0) configuredChains = chains
   if (!onboardInstance) {
@@ -51,10 +63,7 @@ export function initOnboard(chains?: OnboardChain[]) {
     onboardInstance = Onboard({
       wallets,
       chains: configuredChains,
-      appMetadata: {
-        name: "Unreal Console",
-        description: "Multi-chain wallet for Unreal Console",
-      },
+      appMetadata,
     })
   }
   return onboardInstance
