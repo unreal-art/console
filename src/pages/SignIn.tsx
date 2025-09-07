@@ -99,11 +99,20 @@ const SignIn = () => {
   // Fetch balance when walletAddress becomes available
   useEffect(() => {
     if (walletAddress) {
-      void fetchUnrealBalance()
+      // Hydrate WalletService (no-op if already hydrated) and then fetch balance
+      void (async () => {
+        try {
+          await connectWallet()
+        } catch (_) {
+          // ignore hydration errors; user can connect explicitly
+        } finally {
+          void fetchUnrealBalance()
+        }
+      })()
     } else {
       setUnrealBalance(0)
     }
-  }, [walletAddress, fetchUnrealBalance])
+  }, [walletAddress, fetchUnrealBalance, connectWallet])
 
   // Sync selected chain from wallet when connected
   useEffect(() => {
@@ -134,15 +143,12 @@ const SignIn = () => {
 
   // Handle sign in (register wallet)
   const handleSignIn = async () => {
-    if (!walletAddress) return
-
     setIsRegistering(true)
     try {
-      console.debug("[SignIn] Registering with wallet:", walletAddress)
-      // Ensure wallet is connected in ApiContext before registration
-      if (!walletAddress) {
-        await connectWallet()
-      }
+      // Always hydrate wallet service; connectWallet will not prompt if already connected
+      const addr = walletAddress ?? (await connectWallet())
+      if (!addr) throw new Error("Wallet not connected")
+      console.debug("[SignIn] Registering with wallet:", addr)
       
       // Use the actual UNREAL balance for the calls value
       const callsValue = unrealBalance > 0 ? Math.floor(unrealBalance) : 0

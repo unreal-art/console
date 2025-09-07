@@ -379,6 +379,12 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
         openaiAddr,
         calls,
       })
+      // Ensure WalletService is hydrated (no prompt if already connected)
+      try {
+        await walletService.connect(currentAddress as `0x${string}`)
+      } catch (e) {
+        console.warn("WalletService.hydrate/connect warning:", e)
+      }
       const result = await performRegistration(
         calls,
         currentAddress,
