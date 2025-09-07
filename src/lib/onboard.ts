@@ -94,8 +94,9 @@ export function initOnboard(chains?: OnboardChain[]) {
     })
     const ledger = ledgerModule()
     const trezor = trezorModule({
-      appUrl: import.meta.env.VITE_TREZOR_APP_URL || "https://unreal.art",
-      email: import.meta.env.VITE_TREZOR_EMAIL || "support@unreal.art",
+      appUrl:
+        import.meta.env.VITE_TREZOR_APP_URL || "https://console.unreal.art",
+      email: import.meta.env.VITE_TREZOR_EMAIL || "team@unreal.art",
     })
     const sequence = sequenceModule()
     const taho = tahoModule()
