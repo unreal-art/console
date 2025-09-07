@@ -315,7 +315,8 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
       // Fast-path: if already connected to the desired address, skip reconnect
       if (
         walletAddress &&
-        (!selectedAddress || selectedAddress?.toLowerCase() === walletAddress.toLowerCase())
+        (!selectedAddress ||
+          selectedAddress?.toLowerCase() === walletAddress.toLowerCase())
       ) {
         if (!openaiAddress) {
           const authAddressResponse = await apiClient.getAuthAddress()
@@ -332,8 +333,21 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
       const address = await walletService.connect(selectedAddress)
 
       // Ensure we're using the selected address if provided
-      const finalAddress = selectedAddress || address
-      if (!walletAddress || finalAddress.toLowerCase() !== walletAddress.toLowerCase()) {
+      const finalAddress = address
+
+      if (
+        selectedAddress &&
+        selectedAddress.toLowerCase() !== address.toLowerCase()
+      ) {
+        console.warn(
+          "[ApiContext] Wallet returned different address than requested hint",
+          { selectedAddress, address }
+        )
+      }
+      if (
+        !walletAddress ||
+        finalAddress.toLowerCase() !== walletAddress.toLowerCase()
+      ) {
         setWalletAddress(finalAddress)
         console.debug("[ApiContext] Connected wallet address", finalAddress)
       }
