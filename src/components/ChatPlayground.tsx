@@ -226,9 +226,18 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
             // Success - break out of retry loop
             break
           } catch (e) {
-            const err = e as { name?: string }
-            if (err?.name === "AbortError") {
-              // Aborted by user; do not set error
+            const err = e as { name?: string; message?: string }
+            const name = err?.name ?? ""
+            const msgText =
+              err?.message ?? (e instanceof Error ? e.message : String(e ?? ""))
+
+            // Treat user-initiated or replacement aborts as non-errors.
+            // OpenAI SDK throws APIUserAbortError; browsers may throw AbortError/DOMException.
+            if (
+              name === "AbortError" ||
+              name === "APIUserAbortError" ||
+              /abort(ed)?/i.test(msgText)
+            ) {
               return
             }
             if (attempt < maxAttempts - 1 && isTransient(e)) {
