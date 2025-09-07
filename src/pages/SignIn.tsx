@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { AlertCircle, Loader2, CheckCircle, AlertTriangle } from "lucide-react"
+import { AlertCircle, Loader2, CheckCircle, AlertTriangle, LogOut } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import Layout from "@/components/Layout"
 import { useApi } from "@/lib/ApiContext"
@@ -19,6 +19,7 @@ import { getPublicClient } from "@/config/wallet"
 import { getAddress, formatUnits } from "viem"
 import { getChainById } from "@utils/web3/chains"
 import { getConfiguredChains, switchChain } from "@/lib/onboard"
+import { walletService } from "@/lib/api"
 
 // Define the minimal ABI for the UNREAL token to fetch balance
 const UNREAL_TOKEN_ABI = [
@@ -64,6 +65,7 @@ const SignIn = () => {
   const { isAuthenticated, isLoading: apiLoading, error: apiError, registerWithWallet, connectWallet, clearError, getCurrentChainId, walletAddress } = useApi()
 
   const [isConnecting, setIsConnecting] = useState(false)
+  const [isDisconnecting, setIsDisconnecting] = useState(false)
   const [isRegistering, setIsRegistering] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [unrealBalance, setUnrealBalance] = useState<string>("0")
@@ -179,6 +181,18 @@ const SignIn = () => {
     }
   }
 
+  // Handle wallet disconnect
+  const handleDisconnectWallet = async () => {
+    setIsDisconnecting(true)
+    try {
+      await walletService.disconnect()
+    } catch (err) {
+      console.warn("Error disconnecting wallet:", err)
+    } finally {
+      setIsDisconnecting(false)
+    }
+  }
+
   // Handle sign in (register wallet)
   const handleSignIn = async () => {
     setIsRegistering(true)
@@ -287,6 +301,23 @@ const SignIn = () => {
                       <p className="text-sm text-muted-foreground truncate max-w-[240px]">
                         {walletAddress}
                       </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Disconnect wallet"
+                        title="Disconnect"
+                        onClick={handleDisconnectWallet}
+                        disabled={isDisconnecting}
+                      >
+                        {isDisconnecting ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <LogOut className="h-4 w-4" />
+                        )}
+                        <span className="sr-only">Disconnect</span>
+                      </Button>
                     </div>
                   </div>
 
