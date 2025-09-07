@@ -62,7 +62,6 @@ const Settings = () => {
     deleteApiKey,
     clearApiKey,
     clearError,
-    connectWallet,
   } = useApi()
 
   const [apiKeyName, setApiKeyName] = useState("")
@@ -228,14 +227,12 @@ const Settings = () => {
           <h1 className="text-3xl font-bold mb-6">Settings</h1>
           <Alert className="mb-6 border-amber-500 bg-amber-50 text-amber-900">
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Wallet connection required</AlertTitle>
+            <AlertTitle>Sign-In required</AlertTitle>
             <AlertDescription>
-              Please connect your wallet and register to obtain a session token
-              before managing API keys.
+              Please sign in to obtain a session token before managing API keys.
             </AlertDescription>
           </Alert>
           <div className="flex gap-3">
-            <Button onClick={() => connectWallet?.()}>Connect Wallet</Button>
             <Button variant="outline" onClick={() => navigate("/sign-in")}>
               Go to Sign In
             </Button>
@@ -260,13 +257,9 @@ const Settings = () => {
               <div className="space-y-2 text-sm">
                 <p className="font-medium">Onboarding steps</p>
                 <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
-                  <li>
-                    Connect your wallet (Use the Connect Wallet button in the
-                    header)
-                  </li>
-                  <li>
-                    Register — this issues a session token and sets a cookie
-                  </li>
+                  <li>Go to the Sign-In page</li>
+                  <li>Connect your wallet and select a network</li>
+                  <li>Sign in — this issues a session token</li>
                   <li>Create an API key here, then copy it and store safely</li>
                   <li>Head to Playground or Chat and run your first prompt</li>
                 </ol>

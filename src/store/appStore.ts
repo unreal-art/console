@@ -56,12 +56,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
         apiClient.setToken(token)
         set({ token, isAuthenticated: true })
       }
-      // Try to hydrate wallet client from Onboard state (no prompt)
+      // Hydrate wallet address from existing state without prompting connect
       try {
-        const addr = await walletService.connect()
+        const addr = await walletService.getAddress()
         if (addr) set({ walletAddress: addr })
       } catch {
-        // ignore, user will connect explicitly
+        // ignore, user will connect explicitly on Sign-In
       }
       // Sync chain id if wallet available
       try {
