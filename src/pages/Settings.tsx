@@ -261,7 +261,7 @@ const Settings = () => {
                   <li>Connect your wallet and select a network</li>
                   <li>Sign in — this issues a session token</li>
                   <li>Create an API key here, then copy it and store safely</li>
-                  <li>Head to Playground or Chat and run your first prompt</li>
+                  <li>Head to Playground and run your first prompt</li>
                 </ol>
               </div>
             </PopoverContent>
@@ -271,7 +271,7 @@ const Settings = () => {
         {error && (
           <Alert variant="destructive" className="mb-6">
             <AlertTitle>Error</AlertTitle>
-            <AlertDescription>
+            <AlertDescription className="break-words">
               {error}
               <button title="Dismiss (Esc)" className="ml-2 underline text-sm" onClick={clearError}>
                 Dismiss
@@ -284,7 +284,7 @@ const Settings = () => {
         {operationError && (
           <Alert variant="destructive" className="mb-6">
             <AlertTitle>Operation Error</AlertTitle>
-            <AlertDescription>
+            <AlertDescription className="break-words">
               {operationError}
               <button
                 title="Dismiss (Esc)"

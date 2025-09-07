@@ -61,7 +61,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col overflow-x-hidden">
       {/* Header/Navigation */}
       <header className="bg-background border-b">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
