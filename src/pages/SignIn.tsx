@@ -30,6 +30,7 @@ import {
   AlertTriangle,
   LogOut,
   Copy,
+  ExternalLink,
 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import Layout from "@/components/Layout"
@@ -148,6 +149,23 @@ const SignIn = () => {
       }
     },
     [toast]
+  )
+
+  const getExplorerUrl = useCallback(
+    (chainHex?: string | null, addr?: string | null): string => {
+      try {
+        if (!chainHex || !addr) return "#"
+        const id = parseInt(chainHex.replace(/^0x/, ""), 16)
+        const chain = getChainById(id) as unknown as {
+          blockExplorers?: { default?: { url?: string } }
+        }
+        const base = (chain?.blockExplorers?.default?.url || "").replace(/\/$/, "")
+        return base ? `${base}/address/${addr}` : "#"
+      } catch {
+        return "#"
+      }
+    },
+    []
   )
 
   // Fetch UNREAL token balance - wrapped in useCallback to prevent dependency changes
@@ -465,6 +483,68 @@ const SignIn = () => {
                           ))}
                         </SelectContent>
                       </Select>
+
+                      {/* Display selected token address with copy + explorer link */}
+                      {selectedToken && (
+                        <div className="mt-3 flex items-center justify-between text-sm text-muted-foreground">
+                          <div className="flex items-center gap-2">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                {/* Clicking the address opens explorer if available */}
+                                <a
+                                  href={getExplorerUrl(selectedChainId, selectedToken)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="font-mono hover:underline truncate max-w-[240px]"
+                                  title={selectedToken}
+                                  onClick={(e) => {
+                                    const href = e.currentTarget.getAttribute("href") || "#"
+                                    if (!href || href === "#") e.preventDefault()
+                                  }}
+                                >
+                                  {formatAddress(selectedToken)}
+                                </a>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <span className="font-mono text-xs">{selectedToken}</span>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label="Copy token address"
+                              title="Copy"
+                              onClick={() => copyToClipboard(selectedToken)}
+                            >
+                              <Copy className="h-4 w-4" />
+                              <span className="sr-only">Copy</span>
+                            </Button>
+                            {/* Open in explorer */}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              asChild
+                              title="Open in explorer"
+                              aria-label="Open in explorer"
+                            >
+                              <a
+                                href={getExplorerUrl(selectedChainId, selectedToken)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => {
+                                  const href = e.currentTarget.getAttribute("href") || "#"
+                                  if (!href || href === "#") e.preventDefault()
+                                }}
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                                <span className="sr-only">Open in explorer</span>
+                              </a>
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 

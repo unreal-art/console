@@ -117,11 +117,11 @@ export function initOnboard(chains?: OnboardChain[]) {
       okx,
       sequence,
       trust,
-      frontier,
-      taho,
-      ledger,
+      // frontier,
+      // taho,
+      // ledger,
       dcent,
-      trezor,
+      // trezor,
       safe,
       // keystone,//FIXME: buffer not defined
       // infinityWallet,//FIXME: deprecated
