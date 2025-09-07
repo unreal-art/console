@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react"
+import React, { useState, useEffect, useCallback, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import {
   Card,
@@ -119,7 +119,7 @@ const SignIn = () => {
   const [selectedToken, setSelectedToken] = useState<`0x${string}` | null>(null)
 
   const { toast } = useToast()
-
+  const balanceReqIdRef = useRef(0)
 
   const copyToClipboard = useCallback(
     async (text?: string | null) => {
@@ -163,17 +163,28 @@ const SignIn = () => {
     []
   )
 
-  // Fetch UNREAL token balance - wrapped in useCallback to prevent dependency changes
+  // Fetch UNREAL token balance - accepts optional chain override to avoid race after chain switch
   const fetchUnrealBalance = useCallback(
-    async (address?: string, tokenAddress?: `0x${string}`) => {
+    async (
+      address?: string,
+      tokenAddress?: `0x${string}`,
+      chainHexOverride?: string | null
+    ) => {
       const addr = address ?? walletAddress ?? undefined
       const tokenAddr = tokenAddress ?? selectedToken ?? undefined
       if (!addr || !tokenAddr) return
 
+      // Bump request ID to invalidate older in-flight requests
+      const myReqId = ++balanceReqIdRef.current
       setIsLoadingBalance(true)
       try {
-        // Get current chain ID from wallet
-        const chainId = await getCurrentChainId()
+        // Prefer explicit chain from caller (e.g., right after switch), fallback to wallet state
+        let chainId: number
+        if (chainHexOverride) {
+          chainId = parseInt(chainHexOverride.replace(/^0x/, ""), 16)
+        } else {
+          chainId = await getCurrentChainId()
+        }
         const publicClient = getPublicClient(chainId)
         const balance = await publicClient.readContract({
           address: getAddress(tokenAddr),
@@ -182,16 +193,24 @@ const SignIn = () => {
           args: [getAddress(addr as `0x${string}`)],
         })
 
+        // If another request started after this one, ignore this result
+        if (myReqId !== balanceReqIdRef.current) return
+
         // Preserve precision: keep raw BigInt and a formatted string (18 decimals)
         setUnrealBalanceWei(balance as bigint)
         const formatted = formatUnits(balance as bigint, 18)
         setUnrealBalance(formatted)
       } catch (err) {
-        console.error("Error fetching UNREAL balance:", err)
-        setUnrealBalance("0")
-        setUnrealBalanceWei(0n)
+        // Ignore errors from stale requests
+        if (myReqId === balanceReqIdRef.current) {
+          console.error("Error fetching UNREAL balance:", err)
+          setUnrealBalance("0")
+          setUnrealBalanceWei(0n)
+        }
       } finally {
-        setIsLoadingBalance(false)
+        if (myReqId === balanceReqIdRef.current) {
+          setIsLoadingBalance(false)
+        }
       }
     },
     [getCurrentChainId, walletAddress, selectedToken]
@@ -235,7 +254,7 @@ const SignIn = () => {
       if (first) {
         setSelectedToken(first)
         // Fetch balance for the first token immediately
-        void fetchUnrealBalance(undefined, first)
+        void fetchUnrealBalance(undefined, first, selectedChainId)
       } else {
         setSelectedToken(null)
         setUnrealBalance("0")
@@ -329,7 +348,7 @@ const SignIn = () => {
     const token = getAddress(value)
     setSelectedToken(token as `0x${string}`)
     // fetch balance for the chosen token
-    await fetchUnrealBalance(undefined, token as `0x${string}`)
+    await fetchUnrealBalance(undefined, token as `0x${string}`, selectedChainId)
   }
 
   // Handle onboarding complete
