@@ -20,8 +20,20 @@ export default defineConfig(({ mode }) => {
       Boolean
     ),
     optimizeDeps: {
+      force: true,
       dedupe: ["zod"],
-      include: ["zod"],
+      include: [
+        "zod",
+        "@web3-onboard/particle-network",
+        "@particle-network/auth",
+        "@particle-network/provider",
+        "@particle-network/chains",
+      ],
+      esbuildOptions: {
+        define: {
+          global: "globalThis",
+        },
+      },
     },
     resolve: {
       alias: {
