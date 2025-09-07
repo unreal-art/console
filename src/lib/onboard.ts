@@ -149,6 +149,12 @@ export function getConfiguredChains(): OnboardChain[] {
   return configuredChains
 }
 
+// Allow consumers to drop the current Onboard instance so the next call
+// to getOnboard() re-initializes without any cached connection state.
+export function resetOnboard() {
+  onboardInstance = null
+}
+
 export async function switchChain(chainIdHex: string): Promise<void> {
   const onboard = getOnboard()
   try {

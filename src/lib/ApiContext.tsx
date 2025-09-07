@@ -329,8 +329,8 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
         return walletAddress
       }
 
-      // Connect wallet with selected address
-      const address = await walletService.connect(selectedAddress)
+      // Connect wallet with selected address; force selection modal to allow provider choice
+      const address = await walletService.connect(selectedAddress, true)
 
       // Ensure we're using the selected address if provided
       const finalAddress = address
