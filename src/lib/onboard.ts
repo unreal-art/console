@@ -123,8 +123,8 @@ export function initOnboard(chains?: OnboardChain[]) {
       dcent,
       trezor,
       safe,
-      keystone,
-      infinityWallet,
+      // keystone,//FIXME: buffer not defined
+      // infinityWallet,//FIXME: deprecated
     ]
 
     // Conditionally add SDK-keyed wallets
