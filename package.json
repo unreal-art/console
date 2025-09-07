@@ -65,6 +65,7 @@
     "@web3-onboard/ledger": "^2.7.1",
     "@web3-onboard/magic": "^2.2.1",
     "@web3-onboard/okx": "^2.0.0",
+    "@web3-onboard/particle-network": "^2.1.1",
     "@web3-onboard/sequence": "^2.1.1",
     "@web3-onboard/taho": "^2.1.1",
     "@web3-onboard/transaction-preview": "^2.1.2",
