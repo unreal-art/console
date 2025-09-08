@@ -15,7 +15,8 @@ import {
 } from "@/components/ui/tooltip"
 
 import { AlertCircle, Loader2, Send, Trash2 } from "lucide-react"
-import OpenAI from "openai"
+import { createOpenAI } from "@ai-sdk/openai"
+import { streamText } from "ai"
 
 interface LiveChatPlaygroundProps {
   initialPrompt?: string
@@ -74,42 +75,56 @@ const LiveChatPlayground: React.FC<LiveChatPlaygroundProps> = ({
 
       try {
         const auth = apiKey || token || undefined
-        const client = new OpenAI({
+        const openai = createOpenAI({
           apiKey: auth,
           baseURL: OPENAI_URL,
-          // We intentionally allow browser usage here because the user provides their own key/token
-          dangerouslyAllowBrowser: true,
           fetch: (input, init) =>
             fetch(input as RequestInfo, {
               ...(init || {}),
               credentials: "include",
               headers: {
                 ...init?.headers,
+                // Accept: "text/event-stream",
               },
             }),
         })
 
-        const stream = await client.chat.completions.create({
-          model: DEFAULT_MODEL,
+        const { textStream } = await streamText({
+          model: openai(DEFAULT_MODEL),
           messages: history.map((m) => ({ role: m.role, content: m.content })),
-          stream: true,
-        })
-
-        for await (const chunk of stream) {
-          const delta = chunk.choices?.[0]?.delta?.content
-          if (delta) {
+          onChunk: (chunk) => {
+            console.log({ chunk })
+            // Append chunk to the assistant placeholder message
             setMessages((prev) => {
               const next = [...prev]
               const current = next[assistantIndex]
               if (current && current.role === "assistant") {
                 next[assistantIndex] = {
                   ...current,
-                  content: current.content + delta,
+                  content: current.content + chunk,
                 }
               }
               return next
             })
-          }
+          },
+        })
+
+        // console.log("textStream", textStream)
+
+        for await (const chunk of textStream) {
+          console.log({ chunk })
+          // Append chunk to the assistant placeholder message
+          setMessages((prev) => {
+            const next = [...prev]
+            const current = next[assistantIndex]
+            if (current && current.role === "assistant") {
+              next[assistantIndex] = {
+                ...current,
+                content: current.content + chunk,
+              }
+            }
+            return next
+          })
         }
       } catch (err) {
         console.error("Streaming error:", err)
