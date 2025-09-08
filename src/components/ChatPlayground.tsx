@@ -9,6 +9,7 @@ import {
   isSupportedModel,
 } from "@/config/models"
 import type { UnrealModelId } from "@/config/models"
+import { getChainById } from "@utils/web3/chains"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -35,6 +36,7 @@ import {
   Square,
   RotateCcw,
 } from "lucide-react"
+import { ExternalLink, Copy as CopyIcon } from "lucide-react"
 import OpenAI from "openai"
 import type { UIMessage } from "ai"
 
@@ -47,7 +49,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
   initialPrompt,
   autorun,
 }) => {
-  const { apiKey, token } = useApi()
+  const { apiKey, token, getCurrentChainId, verifyData } = useApi()
   const navigate = useNavigate()
 
   const [messages, setMessages] = useState<UIMessage[]>([])
@@ -66,6 +68,25 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const [modelOpen, setModelOpen] = useState(false)
 
+  // Chain and run metadata for transparent billing
+  const [chainId, setChainId] = useState<number | null>(null)
+  type BillingMeta = {
+    price?: string | number
+    currency?: string
+    txHash?: string
+    requestId?: string | null
+    headers?: Record<string, string>
+    usage?: {
+      prompt_tokens?: number
+      completion_tokens?: number
+      total_tokens?: number
+    }
+    model?: string
+    timestamp: number
+  }
+  const [lastRun, setLastRun] = useState<BillingMeta | null>(null)
+  const [showDetails, setShowDetails] = useState(false)
+
   // Simple id generator for UIMessage ids
   const makeId = () =>
     typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
@@ -81,6 +102,48 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
       el.scrollTop = el.scrollHeight
     }
   }, [messages])
+
+  // Fetch current chain id for explorer links
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      try {
+        const id = await getCurrentChainId()
+        if (mounted) setChainId(id)
+      } catch (_e) {
+        // ignore; fallback to null
+      }
+    })()
+    return () => {
+      mounted = false
+    }
+  }, [getCurrentChainId])
+
+  // Helpers
+  const getExplorerTxUrl = useCallback((id?: number | null, tx?: string | null) => {
+    try {
+      if (!id || !tx) return "#"
+      const chain = getChainById(id) as unknown as {
+        blockExplorers?: { default?: { url?: string } }
+      }
+      const base = (chain?.blockExplorers?.default?.url || "").replace(/\/$/, "")
+      return base ? `${base}/tx/${tx}` : "#"
+    } catch {
+      return "#"
+    }
+  }, [])
+
+  const short = (s?: string | null, head = 8, tail = 8) =>
+    s && s.length > head + tail ? `${s.slice(0, head)}...${s.slice(-tail)}` : s ?? ""
+
+  const copyToClipboard = async (t?: string | null) => {
+    try {
+      if (!t) return
+      await navigator.clipboard.writeText(t)
+    } catch (_e) {
+      // noop
+    }
+  }
 
   // Dynamically fetch models from API and filter to allowlist
   useEffect(() => {
@@ -185,7 +248,21 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
 
         const maxAttempts = 3
         let attempt = 0
-        let response: OpenAI.Chat.ChatCompletion | null = null
+        let completion: OpenAI.Chat.ChatCompletion | null = null
+        let headersCollected: Record<string, string> | null = null
+        let requestId: string | null = null
+        let parsedTxHash: string | undefined = undefined
+        let parsedPrice: string | undefined = undefined
+        let parsedCurrency: string | undefined = undefined
+        let activeChainId: number | null = null
+
+        // Capture current chain id for explorer linking
+        try {
+          activeChainId = await getCurrentChainId()
+          setChainId(activeChainId)
+        } catch (_e) {
+          // ignore
+        }
 
         for (; attempt < maxAttempts; attempt++) {
           try {
@@ -220,14 +297,40 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
             }))
 
             // Use non-streamed chat completions
-            response = await client.chat.completions.create(
-              {
-                model,
-                messages: openaiMessages,
-                stream: false,
-              },
-              { signal: controller.signal }
-            )
+            const result = await client.chat.completions
+              .create(
+                {
+                  model,
+                  messages: openaiMessages,
+                  stream: false,
+                },
+                { signal: controller.signal }
+              )
+              .withResponse()
+
+            completion = result.data
+
+            // Collect headers for transparency panel
+            const headersObj: Record<string, string> = {}
+            try {
+              result.response.headers.forEach((v, k) => {
+                headersObj[String(k).toLowerCase()] = String(v)
+              })
+            } catch (_e) {
+              // ignore header parsing errors
+            }
+            headersCollected = headersObj
+            requestId = result.request_id
+
+            // Best-effort parse of tx hash and price from headers
+            const findKey = (re: RegExp) =>
+              Object.keys(headersObj).find((k) => re.test(k))
+            const txKey = findKey(/(tx|transaction)[-_]?hash/)
+            const priceKey = findKey(/(price|cost)/)
+            const currencyKey = findKey(/(currency|token|unit|symbol)/)
+            parsedTxHash = txKey ? headersObj[txKey] : undefined
+            parsedPrice = priceKey ? headersObj[priceKey] : undefined
+            parsedCurrency = currencyKey ? headersObj[currencyKey] : undefined
 
             // Success - break out of retry loop
             break
@@ -255,8 +358,8 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
         }
 
         // Process the response
-        if (response && response.choices && response.choices.length > 0) {
-          const assistantMessage = response.choices[0].message
+        if (completion && completion.choices && completion.choices.length > 0) {
+          const assistantMessage = completion.choices[0].message
           if (assistantMessage && assistantMessage.content) {
             const newMessage: UIMessage = {
               id: makeId(),
@@ -265,6 +368,18 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
             }
             setMessages((prev) => [...prev, newMessage])
           }
+
+          // Record transparent billing metadata for this run
+          setLastRun({
+            price: parsedPrice,
+            currency: parsedCurrency || "UNREAL",
+            txHash: parsedTxHash,
+            requestId,
+            headers: headersCollected || undefined,
+            usage: completion.usage,
+            model: completion.model,
+            timestamp: Date.now(),
+          })
         }
       } catch (err) {
         console.error("Chat completion error:", err)
@@ -293,7 +408,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
         setIsStreaming(false)
       }
     },
-    [apiKey, token, model, getTextFromMessage]
+    [apiKey, token, model, getTextFromMessage, getCurrentChainId]
   )
 
   const sendMessage = useCallback(
@@ -323,7 +438,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
       }, 100)
       return () => clearTimeout(t)
     }
-  }, [])
+  }, [autorun, initialPrompt, sendMessage])
 
   // Actions
   const handleClear = useCallback(() => {
@@ -533,6 +648,87 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
           )}
         </div>
       </div>
+
+      {/* Transparency panel: price, tx hash, usage, request id */}
+      {lastRun && (
+        <div className="mb-4 rounded-md border bg-muted/30 p-3">
+          <div className="flex flex-wrap items-center gap-3 text-xs md:text-sm">
+            <Badge variant="secondary">Transparency</Badge>
+            {typeof verifyData?.remaining === "number" && (
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground">Remaining</span>
+                <span className="font-medium">{verifyData.remaining.toLocaleString()}</span>
+              </div>
+            )}
+            {lastRun.usage && (
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground">Usage</span>
+                <span className="font-medium">
+                  {lastRun.usage.prompt_tokens ?? 0} in · {lastRun.usage.completion_tokens ?? 0} out · {lastRun.usage.total_tokens ?? ((lastRun.usage.prompt_tokens ?? 0) + (lastRun.usage.completion_tokens ?? 0))} total
+                </span>
+              </div>
+            )}
+            {lastRun.price && (
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground">Price</span>
+                <span className="font-medium">{String(lastRun.price)} {lastRun.currency || "UNREAL"}</span>
+              </div>
+            )}
+            {lastRun.txHash && (
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground">Tx</span>
+                <a
+                  href={getExplorerTxUrl(chainId, lastRun.txHash)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-mono hover:underline"
+                  title={lastRun.txHash}
+                >
+                  {short(lastRun.txHash)} <ExternalLink className="ml-1 inline h-3 w-3" />
+                </a>
+              </div>
+            )}
+            {lastRun.requestId && (
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground">ReqID</span>
+                <button
+                  type="button"
+                  onClick={() => void copyToClipboard(lastRun.requestId || undefined)}
+                  className="font-mono underline-offset-2 hover:underline"
+                  title="Copy request id"
+                >
+                  {short(lastRun.requestId)}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void copyToClipboard(lastRun.requestId || undefined)}
+                  className="p-1 text-muted-foreground hover:text-foreground"
+                  aria-label="Copy request id"
+                  title="Copy request id"
+                >
+                  <CopyIcon className="h-3 w-3" />
+                </button>
+              </div>
+            )}
+            <div className="ml-auto">
+              <Button variant="ghost" size="sm" onClick={() => setShowDetails((s) => !s)}>
+                {showDetails ? "Hide details" : "Show details"}
+              </Button>
+            </div>
+          </div>
+          {showDetails && (
+            <div className="mt-2 max-h-64 overflow-auto rounded bg-background/50 p-2">
+              <pre className="text-[11px] leading-tight">
+                {JSON.stringify(
+                  { model: lastRun.model, usage: lastRun.usage, headers: lastRun.headers },
+                  null,
+                  2
+                )}
+              </pre>
+            </div>
+          )}
+        </div>
+      )}
 
       {error && (
         <Alert className="mb-4 border-red-500 bg-red-500/15">
