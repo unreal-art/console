@@ -140,14 +140,17 @@ const LiveChatPlayground: React.FC<LiveChatPlaygroundProps> = ({
     [apiKey, token, messages, input, isAuthenticated]
   )
 
+  const hasAutorunRef = useRef(false)
+
   // Optional autorun for guided experiences
   useEffect(() => {
-    if (autorun && initialPrompt) {
-      const t = setTimeout(() => {
-        void sendMessage(initialPrompt)
-      }, 120)
-      return () => clearTimeout(t)
-    }
+    if (!autorun || !initialPrompt || hasAutorunRef.current) return
+    hasAutorunRef.current = true
+
+    const t = setTimeout(() => {
+      void sendMessage(initialPrompt)
+    }, 120)
+    return () => clearTimeout(t)
   }, [autorun, initialPrompt, sendMessage])
 
   return (
