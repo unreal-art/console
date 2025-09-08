@@ -87,6 +87,27 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
   const [lastRun, setLastRun] = useState<BillingMeta | null>(null)
   const [showDetails, setShowDetails] = useState(false)
 
+  // Pricing state from /v1/models/pricing
+  type PricingEntry = {
+    model: string
+    category?: string
+    input_unreal: number // UNREAL per 1M tokens
+    output_unreal: number // UNREAL per 1M tokens
+  }
+  type PricingApiItem = {
+    model?: unknown
+    category?: unknown
+    input_unreal?: unknown
+    output_unreal?: unknown
+  }
+  type PricingApiResponse = {
+    object?: unknown
+    data?: PricingApiItem[]
+  }
+  const [pricing, setPricing] = useState<Record<string, PricingEntry>>({})
+  const [isLoadingPricing, setIsLoadingPricing] = useState(false)
+  const [pricingError, setPricingError] = useState<string | null>(null)
+
   // Simple id generator for UIMessage ids
   const makeId = () =>
     typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
@@ -219,6 +240,104 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
 
     fetchModels()
   }, [apiKey, token])
+
+  // Fetch pricing table (UNREAL per 1M tokens)
+  useEffect(() => {
+    const fetchPricing = async () => {
+      setIsLoadingPricing(true)
+      setPricingError(null)
+      try {
+        const auth = apiKey || token || ""
+        const headers: Record<string, string> = auth
+          ? { Authorization: `Bearer ${auth}` }
+          : {}
+        const resp = await fetch(`${OPENAI_URL}/models/pricing?sort=model`, {
+          method: "GET",
+          headers,
+          credentials: "include",
+        })
+        if (!resp.ok) throw new Error(`Failed to fetch pricing (${resp.status})`)
+        const json = (await resp.json()) as unknown
+        let items: PricingApiItem[] = []
+        if (
+          json &&
+          typeof json === "object" &&
+          Array.isArray((json as PricingApiResponse).data)
+        ) {
+          items = ((json as PricingApiResponse).data as PricingApiItem[]) || []
+        }
+        const entries = items
+          .map((d): PricingEntry | null => {
+            const model = typeof d?.model === "string" ? (d.model as string) : undefined
+            const input_unreal =
+              typeof d?.input_unreal === "number" ? (d.input_unreal as number) : undefined
+            const output_unreal =
+              typeof d?.output_unreal === "number" ? (d.output_unreal as number) : undefined
+            if (!model || input_unreal === undefined || output_unreal === undefined) return null
+            const category = typeof d?.category === "string" ? (d.category as string) : undefined
+            const obj: PricingEntry = category
+              ? { model, category, input_unreal, output_unreal }
+              : { model, input_unreal, output_unreal }
+            return obj
+          })
+          .filter((v): v is NonNullable<typeof v> => v !== null)
+        const map: Record<string, PricingEntry> = {}
+        for (const e of entries) map[e.model] = e
+        setPricing(map)
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Failed to fetch pricing"
+        setPricingError(msg)
+      } finally {
+        setIsLoadingPricing(false)
+      }
+    }
+    void fetchPricing()
+  }, [apiKey, token])
+
+  // Helpers: pricing, estimate
+  const getSelectedPricing = useCallback((): PricingEntry | undefined => {
+    return pricing[model]
+  }, [pricing, model])
+
+  const per1k = (per1m?: number) =>
+    typeof per1m === "number" ? per1m / 1000 : undefined
+
+  const fmtNum = (n?: number) => {
+    if (typeof n !== "number" || !isFinite(n)) return "—"
+    if (n >= 1) return n.toFixed(3)
+    if (n >= 0.01) return n.toFixed(4)
+    return n.toPrecision(3)
+  }
+
+  const estimateTokens = (text: string) => {
+    // Very rough heuristic: ~4 chars per token
+    const t = Math.ceil(text.trim().length / 4)
+    return isFinite(t) ? t : 0
+  }
+
+  const selectedPricing = getSelectedPricing()
+  const estInputTokens = estimateTokens(input)
+  const estInputCost =
+    typeof selectedPricing?.input_unreal === "number"
+      ? (selectedPricing.input_unreal * estInputTokens) / 1_000_000
+      : undefined
+
+  // Cost breakdown for the last run using pricing + usage
+  const lastPricing = lastRun?.model ? pricing[lastRun.model] : undefined
+  const inTokens = lastRun?.usage?.prompt_tokens ?? undefined
+  const outTokens = lastRun?.usage?.completion_tokens ?? undefined
+  const lastInCost =
+    typeof lastPricing?.input_unreal === "number" && typeof inTokens === "number"
+      ? (lastPricing.input_unreal * inTokens) / 1_000_000
+      : undefined
+  const lastOutCost =
+    typeof lastPricing?.output_unreal === "number" && typeof outTokens === "number"
+      ? (lastPricing.output_unreal * outTokens) / 1_000_000
+      : undefined
+  const lastTotalCost =
+    typeof lastInCost === "number" && typeof lastOutCost === "number"
+      ? lastInCost + lastOutCost
+      : undefined
 
   // Helper to extract plain text from a UI message (only text parts for now)
   const getTextFromMessage = useCallback((m: UIMessage): string => {
@@ -599,6 +718,17 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
           <Badge variant="secondary" className="hidden md:inline-flex">
             {model}
           </Badge>
+          {/* Show per-1K pricing for selected model (UNREAL/1K tokens) */}
+          {selectedPricing && (
+            <div className="text-xs md:text-sm text-muted-foreground">
+              <span className="mr-2">Pricing:</span>
+              <span className="mr-2">In {fmtNum(per1k(selectedPricing.input_unreal))} UNREAL/1K</span>
+              <span>Out {fmtNum(per1k(selectedPricing.output_unreal))} UNREAL/1K</span>
+            </div>
+          )}
+          {!selectedPricing && pricingError && (
+            <div className="text-xs md:text-sm text-muted-foreground">Pricing unavailable</div>
+          )}
         </div>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -672,6 +802,15 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
               <div className="flex items-center gap-1">
                 <span className="text-muted-foreground">Price</span>
                 <span className="font-medium">{String(lastRun.price)} {lastRun.currency || "UNREAL"}</span>
+              </div>
+            )}
+            {/* Show computed cost breakdown when pricing table + usage are available */}
+            {typeof lastTotalCost === "number" && (
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground">Est. Cost</span>
+                <span className="font-medium">
+                  In {fmtNum(lastInCost)} · Out {fmtNum(lastOutCost)} · Total {fmtNum(lastTotalCost)} UNREAL
+                </span>
               </div>
             )}
             {lastRun.txHash && (
@@ -817,6 +956,17 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
             }
           }}
         />
+        {/* Predictive estimate for input tokens and cost */}
+        {selectedPricing && input.trim().length > 0 && (
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <div>
+              Est. input tokens: <span className="font-medium">{estInputTokens.toLocaleString()}</span>
+            </div>
+            <div>
+              Est. input cost: <span className="font-medium">{fmtNum(estInputCost)} UNREAL</span>
+            </div>
+          </div>
+        )}
         <div className="flex items-center justify-end">
           <Button
             onClick={() => void sendMessage()}
