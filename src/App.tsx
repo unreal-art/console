@@ -15,6 +15,7 @@ import Login from "./pages/Login"
 import SignIn from "./pages/SignIn"
 import NotFound from "./pages/NotFound"
 import Playground from "./pages/Playground"
+import PlaygroundLive from "./pages/PlaygroundLive"
 import Airdrop from "./pages/Airdrop"
 
 const queryClient = new QueryClient()
@@ -40,6 +41,7 @@ const App = () => {
               <Route path="/" element={<Home />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/playground" element={<Playground />} />
+              <Route path="/playground-live" element={<PlaygroundLive />} />
               <Route path="/airdrop" element={<Airdrop />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/login" element={<Login />} />
