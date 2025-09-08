@@ -597,6 +597,8 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
 
             completion = result.data
 
+            console.log("headers", result.response.headers)
+
             // Collect headers for transparency panel
             const headersObj: Record<string, string> = {}
             try {
