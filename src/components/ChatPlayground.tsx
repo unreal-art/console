@@ -597,15 +597,15 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
 
             completion = result.data
 
-            console.log("res headers", result.response.headers.keys())
-
             // Collect headers for transparency panel
             const headersObj: Record<string, string> = {}
             try {
               result.response.headers.forEach((v, k) => {
+                console.log(`${v}=${k}`)
                 headersObj[String(k).toLowerCase()] = String(v)
               })
             } catch (_e) {
+              console.error("error parsing headers", _e)
               // ignore header parsing errors
             }
             console.log({ headersObj })
