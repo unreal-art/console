@@ -1,5 +1,11 @@
 # unreal-console
 
+## 2.1.0
+
+### Minor Changes
+
+- 5adbf75: feat: stream playground
+
 ## 2.0.1
 
 ### Patch Changes
