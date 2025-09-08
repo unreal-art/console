@@ -27,7 +27,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 
 import {
   AlertCircle,
@@ -37,7 +41,13 @@ import {
   Square,
   RotateCcw,
 } from "lucide-react"
-import { ExternalLink, Copy as CopyIcon, FileJson, FileDown, List } from "lucide-react"
+import {
+  ExternalLink,
+  Copy as CopyIcon,
+  FileJson,
+  FileDown,
+  List,
+} from "lucide-react"
 import OpenAI from "openai"
 import type { UIMessage } from "ai"
 
@@ -143,21 +153,29 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
   }, [getCurrentChainId])
 
   // Helpers
-  const getExplorerTxUrl = useCallback((id?: number | null, tx?: string | null) => {
-    try {
-      if (!id || !tx) return "#"
-      const chain = getChainById(id) as unknown as {
-        blockExplorers?: { default?: { url?: string } }
+  const getExplorerTxUrl = useCallback(
+    (id?: number | null, tx?: string | null) => {
+      try {
+        if (!id || !tx) return "#"
+        const chain = getChainById(id) as unknown as {
+          blockExplorers?: { default?: { url?: string } }
+        }
+        const base = (chain?.blockExplorers?.default?.url || "").replace(
+          /\/$/,
+          ""
+        )
+        return base ? `${base}/tx/${tx}` : "#"
+      } catch {
+        return "#"
       }
-      const base = (chain?.blockExplorers?.default?.url || "").replace(/\/$/, "")
-      return base ? `${base}/tx/${tx}` : "#"
-    } catch {
-      return "#"
-    }
-  }, [])
+    },
+    []
+  )
 
   const short = (s?: string | null, head = 8, tail = 8) =>
-    s && s.length > head + tail ? `${s.slice(0, head)}...${s.slice(-tail)}` : s ?? ""
+    s && s.length > head + tail
+      ? `${s.slice(0, head)}...${s.slice(-tail)}`
+      : s ?? ""
 
   const copyToClipboard = async (t?: string | null) => {
     try {
@@ -258,7 +276,8 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
           headers,
           credentials: "include",
         })
-        if (!resp.ok) throw new Error(`Failed to fetch pricing (${resp.status})`)
+        if (!resp.ok)
+          throw new Error(`Failed to fetch pricing (${resp.status})`)
         const json = (await resp.json()) as unknown
         let items: PricingApiItem[] = []
         if (
@@ -270,13 +289,26 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
         }
         const entries = items
           .map((d): PricingEntry | null => {
-            const model = typeof d?.model === "string" ? (d.model as string) : undefined
+            const model =
+              typeof d?.model === "string" ? (d.model as string) : undefined
             const input_unreal =
-              typeof d?.input_unreal === "number" ? (d.input_unreal as number) : undefined
+              typeof d?.input_unreal === "number"
+                ? (d.input_unreal as number)
+                : undefined
             const output_unreal =
-              typeof d?.output_unreal === "number" ? (d.output_unreal as number) : undefined
-            if (!model || input_unreal === undefined || output_unreal === undefined) return null
-            const category = typeof d?.category === "string" ? (d.category as string) : undefined
+              typeof d?.output_unreal === "number"
+                ? (d.output_unreal as number)
+                : undefined
+            if (
+              !model ||
+              input_unreal === undefined ||
+              output_unreal === undefined
+            )
+              return null
+            const category =
+              typeof d?.category === "string"
+                ? (d.category as string)
+                : undefined
             const obj: PricingEntry = category
               ? { model, category, input_unreal, output_unreal }
               : { model, input_unreal, output_unreal }
@@ -337,11 +369,13 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
   const inTokens = lastRun?.usage?.prompt_tokens ?? undefined
   const outTokens = lastRun?.usage?.completion_tokens ?? undefined
   const lastInCost =
-    typeof lastPricing?.input_unreal === "number" && typeof inTokens === "number"
+    typeof lastPricing?.input_unreal === "number" &&
+    typeof inTokens === "number"
       ? (lastPricing.input_unreal * inTokens) / 1_000_000
       : undefined
   const lastOutCost =
-    typeof lastPricing?.output_unreal === "number" && typeof outTokens === "number"
+    typeof lastPricing?.output_unreal === "number" &&
+    typeof outTokens === "number"
       ? (lastPricing.output_unreal * outTokens) / 1_000_000
       : undefined
   const lastTotalCost =
@@ -350,7 +384,8 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
       : undefined
 
   // Optional: UNREAL -> Fiat conversion via env
-  const envObj = (import.meta as unknown as { env?: Record<string, unknown> }).env
+  const envObj = (import.meta as unknown as { env?: Record<string, unknown> })
+    .env
   const unrealFiatRate =
     typeof envObj?.VITE_UNREAL_USD === "string"
       ? Number(envObj.VITE_UNREAL_USD as string)
@@ -363,7 +398,9 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
       : "USD"
   const hasFiat = Number.isFinite(unrealFiatRate)
   const toFiat = (v?: number) =>
-    hasFiat && typeof v === "number" ? v * (unrealFiatRate as number) : undefined
+    hasFiat && typeof v === "number"
+      ? v * (unrealFiatRate as number)
+      : undefined
 
   const estInputFiat = toFiat(estInputCost)
   const estOutputFiat = toFiat(estOutputCost)
@@ -398,7 +435,19 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
       },
     }
     return obj
-  }, [lastRun, inTokens, outTokens, lastInCost, lastOutCost, lastTotalCost, lastInFiat, lastOutFiat, lastTotalFiat, hasFiat, fiatCode])
+  }, [
+    lastRun,
+    inTokens,
+    outTokens,
+    lastInCost,
+    lastOutCost,
+    lastTotalCost,
+    lastInFiat,
+    lastOutFiat,
+    lastTotalFiat,
+    hasFiat,
+    fiatCode,
+  ])
 
   const downloadFile = (name: string, content: string, mime: string) => {
     try {
@@ -419,12 +468,16 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
   const exportJson = useCallback(() => {
     const receipt = buildReceipt()
     if (!receipt) return
-    const fname = `receipt_${(receipt.model || "model")}_${receipt.timestamp}.json`
+    const fname = `receipt_${receipt.model || "model"}_${
+      receipt.timestamp
+    }.json`
     downloadFile(fname, JSON.stringify(receipt, null, 2), "application/json")
   }, [buildReceipt])
 
   const exportCsv = useCallback(() => {
-    const receipt = buildReceipt() as ReturnType<typeof buildReceipt> & { [k: string]: unknown }
+    const receipt = buildReceipt() as ReturnType<typeof buildReceipt> & {
+      [k: string]: unknown
+    }
     if (!receipt) return
     const flat = {
       timestamp: receipt.timestamp,
@@ -446,9 +499,11 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
       header_currency: receipt.headerCurrency ?? "",
     }
     const headers = Object.keys(flat)
-    const values = headers.map((k) => String((flat as Record<string, unknown>)[k] ?? ""))
+    const values = headers.map((k) =>
+      String((flat as Record<string, unknown>)[k] ?? "")
+    )
     const csv = `${headers.join(",")}\n${values.join(",")}`
-    const fname = `receipt_${(receipt.model || "model")}_${receipt.timestamp}.csv`
+    const fname = `receipt_${receipt.model || "model"}_${receipt.timestamp}.csv`
     downloadFile(fname, csv, "text/csv")
   }, [buildReceipt])
 
@@ -551,6 +606,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
             } catch (_e) {
               // ignore header parsing errors
             }
+            console.log({ headersObj })
             headersCollected = headersObj
             requestId = result.request_id
 
@@ -835,12 +891,18 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
           {selectedPricing && (
             <div className="text-xs md:text-sm text-muted-foreground">
               <span className="mr-2">Pricing:</span>
-              <span className="mr-2">In {fmtNum(per1k(selectedPricing.input_unreal))} UNREAL/1K</span>
-              <span>Out {fmtNum(per1k(selectedPricing.output_unreal))} UNREAL/1K</span>
+              <span className="mr-2">
+                In {fmtNum(per1k(selectedPricing.input_unreal))} UNREAL/1K
+              </span>
+              <span>
+                Out {fmtNum(per1k(selectedPricing.output_unreal))} UNREAL/1K
+              </span>
             </div>
           )}
           {!selectedPricing && pricingError && (
-            <div className="text-xs md:text-sm text-muted-foreground">Pricing unavailable</div>
+            <div className="text-xs md:text-sm text-muted-foreground">
+              Pricing unavailable
+            </div>
           )}
           {/* Pricing Catalog popover */}
           <Popover>
@@ -850,12 +912,18 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-[420px] p-3" align="start">
-              <div className="text-sm font-medium mb-2">Pricing Catalog (UNREAL)</div>
+              <div className="text-sm font-medium mb-2">
+                Pricing Catalog (UNREAL)
+              </div>
               {isLoadingPricing && (
-                <div className="text-xs text-muted-foreground">Loading pricing…</div>
+                <div className="text-xs text-muted-foreground">
+                  Loading pricing…
+                </div>
               )}
               {!isLoadingPricing && Object.keys(pricing).length === 0 && (
-                <div className="text-xs text-muted-foreground">No pricing available</div>
+                <div className="text-xs text-muted-foreground">
+                  No pricing available
+                </div>
               )}
               {!isLoadingPricing && Object.keys(pricing).length > 0 && (
                 <div className="max-h-72 overflow-auto">
@@ -873,8 +941,12 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                         .map((p) => (
                           <tr key={p.model} className="border-t">
                             <td className="py-1 pr-2 font-mono">{p.model}</td>
-                            <td className="py-1 pr-2">{fmtNum(per1k(p.input_unreal))}</td>
-                            <td className="py-1">{fmtNum(per1k(p.output_unreal))}</td>
+                            <td className="py-1 pr-2">
+                              {fmtNum(per1k(p.input_unreal))}
+                            </td>
+                            <td className="py-1">
+                              {fmtNum(per1k(p.output_unreal))}
+                            </td>
                           </tr>
                         ))}
                     </tbody>
@@ -941,21 +1013,30 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
             {typeof verifyData?.remaining === "number" && (
               <div className="flex items-center gap-1">
                 <span className="text-muted-foreground">Remaining</span>
-                <span className="font-medium">{verifyData.remaining.toLocaleString()}</span>
+                <span className="font-medium">
+                  {verifyData.remaining.toLocaleString()}
+                </span>
               </div>
             )}
             {lastRun.usage && (
               <div className="flex items-center gap-1">
                 <span className="text-muted-foreground">Usage</span>
                 <span className="font-medium">
-                  {lastRun.usage.prompt_tokens ?? 0} in · {lastRun.usage.completion_tokens ?? 0} out · {lastRun.usage.total_tokens ?? ((lastRun.usage.prompt_tokens ?? 0) + (lastRun.usage.completion_tokens ?? 0))} total
+                  {lastRun.usage.prompt_tokens ?? 0} in ·{" "}
+                  {lastRun.usage.completion_tokens ?? 0} out ·{" "}
+                  {lastRun.usage.total_tokens ??
+                    (lastRun.usage.prompt_tokens ?? 0) +
+                      (lastRun.usage.completion_tokens ?? 0)}{" "}
+                  total
                 </span>
               </div>
             )}
             {lastRun.price && (
               <div className="flex items-center gap-1">
                 <span className="text-muted-foreground">Price</span>
-                <span className="font-medium">{String(lastRun.price)} {lastRun.currency || "UNREAL"}</span>
+                <span className="font-medium">
+                  {String(lastRun.price)} {lastRun.currency || "UNREAL"}
+                </span>
               </div>
             )}
             {/* Show computed cost breakdown when pricing table + usage are available */}
@@ -963,7 +1044,8 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
               <div className="flex items-center gap-1">
                 <span className="text-muted-foreground">Est. Cost</span>
                 <span className="font-medium">
-                  In {fmtNum(lastInCost)} · Out {fmtNum(lastOutCost)} · Total {fmtNum(lastTotalCost)} UNREAL
+                  In {fmtNum(lastInCost)} · Out {fmtNum(lastOutCost)} · Total{" "}
+                  {fmtNum(lastTotalCost)} UNREAL
                 </span>
               </div>
             )}
@@ -977,7 +1059,8 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                   className="font-mono hover:underline"
                   title={lastRun.txHash}
                 >
-                  {short(lastRun.txHash)} <ExternalLink className="ml-1 inline h-3 w-3" />
+                  {short(lastRun.txHash)}{" "}
+                  <ExternalLink className="ml-1 inline h-3 w-3" />
                 </a>
               </div>
             )}
@@ -986,7 +1069,9 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                 <span className="text-muted-foreground">ReqID</span>
                 <button
                   type="button"
-                  onClick={() => void copyToClipboard(lastRun.requestId || undefined)}
+                  onClick={() =>
+                    void copyToClipboard(lastRun.requestId || undefined)
+                  }
                   className="font-mono underline-offset-2 hover:underline"
                   title="Copy request id"
                 >
@@ -994,7 +1079,9 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={() => void copyToClipboard(lastRun.requestId || undefined)}
+                  onClick={() =>
+                    void copyToClipboard(lastRun.requestId || undefined)
+                  }
                   className="p-1 text-muted-foreground hover:text-foreground"
                   aria-label="Copy request id"
                   title="Copy request id"
@@ -1004,13 +1091,27 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
               </div>
             )}
             <div className="ml-auto flex items-center gap-1">
-              <Button variant="ghost" size="sm" onClick={() => setShowDetails((s) => !s)}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowDetails((s) => !s)}
+              >
                 {showDetails ? "Hide details" : "Show details"}
               </Button>
-              <Button variant="ghost" size="sm" onClick={exportJson} title="Export JSON">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={exportJson}
+                title="Export JSON"
+              >
                 <FileJson className="w-4 h-4 mr-1" /> JSON
               </Button>
-              <Button variant="ghost" size="sm" onClick={exportCsv} title="Export CSV">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={exportCsv}
+                title="Export CSV"
+              >
                 <FileDown className="w-4 h-4 mr-1" /> CSV
               </Button>
             </div>
@@ -1019,7 +1120,11 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
             <div className="mt-2 max-h-64 overflow-auto rounded bg-background/50 p-2">
               <pre className="text-[11px] leading-tight">
                 {JSON.stringify(
-                  { model: lastRun.model, usage: lastRun.usage, headers: lastRun.headers },
+                  {
+                    model: lastRun.model,
+                    usage: lastRun.usage,
+                    headers: lastRun.headers,
+                  },
                   null,
                   2
                 )}
@@ -1121,16 +1226,28 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
           <div className="flex flex-col gap-1 text-xs text-muted-foreground">
             <div className="flex items-center justify-between">
               <div>
-                Est. input tokens: <span className="font-medium">{estInputTokens.toLocaleString()}</span>
+                Est. input tokens:{" "}
+                <span className="font-medium">
+                  {estInputTokens.toLocaleString()}
+                </span>
               </div>
               <div>
-                Est. input cost: <span className="font-medium">{fmtNum(estInputCost)} UNREAL{hasFiat && typeof estInputFiat === "number" ? ` · ${fmtNum(estInputFiat)} ${fiatCode}` : ""}</span>
+                Est. input cost:{" "}
+                <span className="font-medium">
+                  {fmtNum(estInputCost)} UNREAL
+                  {hasFiat && typeof estInputFiat === "number"
+                    ? ` · ${fmtNum(estInputFiat)} ${fiatCode}`
+                    : ""}
+                </span>
               </div>
             </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 Output guess:
-                <Select value={String(outputGuess)} onValueChange={(v) => setOutputGuess(Number(v))}>
+                <Select
+                  value={String(outputGuess)}
+                  onValueChange={(v) => setOutputGuess(Number(v))}
+                >
                   <SelectTrigger className="h-7 w-[140px]">
                     <SelectValue placeholder="Select" />
                   </SelectTrigger>
@@ -1143,11 +1260,23 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                 </Select>
               </div>
               <div>
-                Est. output cost: <span className="font-medium">{fmtNum(estOutputCost)} UNREAL{hasFiat && typeof estOutputFiat === "number" ? ` · ${fmtNum(estOutputFiat)} ${fiatCode}` : ""}</span>
+                Est. output cost:{" "}
+                <span className="font-medium">
+                  {fmtNum(estOutputCost)} UNREAL
+                  {hasFiat && typeof estOutputFiat === "number"
+                    ? ` · ${fmtNum(estOutputFiat)} ${fiatCode}`
+                    : ""}
+                </span>
               </div>
             </div>
             <div className="flex items-center justify-end">
-              Est. total cost: <span className="ml-1 font-medium">{fmtNum(estTotalCost)} UNREAL{hasFiat && typeof estTotalFiat === "number" ? ` · ${fmtNum(estTotalFiat)} ${fiatCode}` : ""}</span>
+              Est. total cost:{" "}
+              <span className="ml-1 font-medium">
+                {fmtNum(estTotalCost)} UNREAL
+                {hasFiat && typeof estTotalFiat === "number"
+                  ? ` · ${fmtNum(estTotalFiat)} ${fiatCode}`
+                  : ""}
+              </span>
             </div>
           </div>
         )}
