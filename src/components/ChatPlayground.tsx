@@ -27,6 +27,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
 import {
   AlertCircle,
@@ -36,7 +37,7 @@ import {
   Square,
   RotateCcw,
 } from "lucide-react"
-import { ExternalLink, Copy as CopyIcon } from "lucide-react"
+import { ExternalLink, Copy as CopyIcon, FileJson, FileDown, List } from "lucide-react"
 import OpenAI from "openai"
 import type { UIMessage } from "ai"
 
@@ -67,6 +68,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
   const abortRef = useRef<AbortController | null>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const [modelOpen, setModelOpen] = useState(false)
+  const [outputGuess, setOutputGuess] = useState<number>(300)
 
   // Chain and run metadata for transparent billing
   const [chainId, setChainId] = useState<number | null>(null)
@@ -321,6 +323,14 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
     typeof selectedPricing?.input_unreal === "number"
       ? (selectedPricing.input_unreal * estInputTokens) / 1_000_000
       : undefined
+  const estOutputCost =
+    typeof selectedPricing?.output_unreal === "number"
+      ? (selectedPricing.output_unreal * outputGuess) / 1_000_000
+      : undefined
+  const estTotalCost =
+    typeof estInputCost === "number" && typeof estOutputCost === "number"
+      ? estInputCost + estOutputCost
+      : undefined
 
   // Cost breakdown for the last run using pricing + usage
   const lastPricing = lastRun?.model ? pricing[lastRun.model] : undefined
@@ -338,6 +348,109 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
     typeof lastInCost === "number" && typeof lastOutCost === "number"
       ? lastInCost + lastOutCost
       : undefined
+
+  // Optional: UNREAL -> Fiat conversion via env
+  const envObj = (import.meta as unknown as { env?: Record<string, unknown> }).env
+  const unrealFiatRate =
+    typeof envObj?.VITE_UNREAL_USD === "string"
+      ? Number(envObj.VITE_UNREAL_USD as string)
+      : typeof envObj?.VITE_UNREAL_FIAT_RATE === "string"
+      ? Number(envObj.VITE_UNREAL_FIAT_RATE as string)
+      : NaN
+  const fiatCode =
+    typeof envObj?.VITE_FIAT_CODE === "string"
+      ? (envObj.VITE_FIAT_CODE as string)
+      : "USD"
+  const hasFiat = Number.isFinite(unrealFiatRate)
+  const toFiat = (v?: number) =>
+    hasFiat && typeof v === "number" ? v * (unrealFiatRate as number) : undefined
+
+  const estInputFiat = toFiat(estInputCost)
+  const estOutputFiat = toFiat(estOutputCost)
+  const estTotalFiat = toFiat(estTotalCost)
+  const lastInFiat = toFiat(lastInCost)
+  const lastOutFiat = toFiat(lastOutCost)
+  const lastTotalFiat = toFiat(lastTotalCost)
+
+  // Receipt export helpers
+  const buildReceipt = useCallback(() => {
+    if (!lastRun) return null
+    const obj = {
+      timestamp: lastRun.timestamp,
+      isoTime: new Date(lastRun.timestamp).toISOString(),
+      model: lastRun.model,
+      usage: lastRun.usage,
+      headers: lastRun.headers,
+      requestId: lastRun.requestId,
+      txHash: lastRun.txHash,
+      headerPrice: lastRun.price,
+      headerCurrency: lastRun.currency,
+      computed: {
+        inTokens: inTokens ?? null,
+        outTokens: outTokens ?? null,
+        inCostUNREAL: lastInCost ?? null,
+        outCostUNREAL: lastOutCost ?? null,
+        totalCostUNREAL: lastTotalCost ?? null,
+        inCostFiat: lastInFiat ?? null,
+        outCostFiat: lastOutFiat ?? null,
+        totalCostFiat: lastTotalFiat ?? null,
+        fiatCode: hasFiat ? fiatCode : null,
+      },
+    }
+    return obj
+  }, [lastRun, inTokens, outTokens, lastInCost, lastOutCost, lastTotalCost, lastInFiat, lastOutFiat, lastTotalFiat, hasFiat, fiatCode])
+
+  const downloadFile = (name: string, content: string, mime: string) => {
+    try {
+      const blob = new Blob([content], { type: mime })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = name
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (_e) {
+      // ignore
+    }
+  }
+
+  const exportJson = useCallback(() => {
+    const receipt = buildReceipt()
+    if (!receipt) return
+    const fname = `receipt_${(receipt.model || "model")}_${receipt.timestamp}.json`
+    downloadFile(fname, JSON.stringify(receipt, null, 2), "application/json")
+  }, [buildReceipt])
+
+  const exportCsv = useCallback(() => {
+    const receipt = buildReceipt() as ReturnType<typeof buildReceipt> & { [k: string]: unknown }
+    if (!receipt) return
+    const flat = {
+      timestamp: receipt.timestamp,
+      isoTime: receipt.isoTime,
+      model: receipt.model ?? "",
+      prompt_tokens: receipt.usage?.prompt_tokens ?? "",
+      completion_tokens: receipt.usage?.completion_tokens ?? "",
+      total_tokens: receipt.usage?.total_tokens ?? "",
+      in_cost_unreal: receipt.computed.inCostUNREAL ?? "",
+      out_cost_unreal: receipt.computed.outCostUNREAL ?? "",
+      total_cost_unreal: receipt.computed.totalCostUNREAL ?? "",
+      in_cost_fiat: receipt.computed.inCostFiat ?? "",
+      out_cost_fiat: receipt.computed.outCostFiat ?? "",
+      total_cost_fiat: receipt.computed.totalCostFiat ?? "",
+      fiat_code: receipt.computed.fiatCode ?? "",
+      tx_hash: receipt.txHash ?? "",
+      request_id: receipt.requestId ?? "",
+      header_price: receipt.headerPrice ?? "",
+      header_currency: receipt.headerCurrency ?? "",
+    }
+    const headers = Object.keys(flat)
+    const values = headers.map((k) => String((flat as Record<string, unknown>)[k] ?? ""))
+    const csv = `${headers.join(",")}\n${values.join(",")}`
+    const fname = `receipt_${(receipt.model || "model")}_${receipt.timestamp}.csv`
+    downloadFile(fname, csv, "text/csv")
+  }, [buildReceipt])
 
   // Helper to extract plain text from a UI message (only text parts for now)
   const getTextFromMessage = useCallback((m: UIMessage): string => {
@@ -729,6 +842,47 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
           {!selectedPricing && pricingError && (
             <div className="text-xs md:text-sm text-muted-foreground">Pricing unavailable</div>
           )}
+          {/* Pricing Catalog popover */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="ml-1">
+                <List className="w-4 h-4 mr-1" /> Catalog
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[420px] p-3" align="start">
+              <div className="text-sm font-medium mb-2">Pricing Catalog (UNREAL)</div>
+              {isLoadingPricing && (
+                <div className="text-xs text-muted-foreground">Loading pricing…</div>
+              )}
+              {!isLoadingPricing && Object.keys(pricing).length === 0 && (
+                <div className="text-xs text-muted-foreground">No pricing available</div>
+              )}
+              {!isLoadingPricing && Object.keys(pricing).length > 0 && (
+                <div className="max-h-72 overflow-auto">
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 bg-background">
+                      <tr className="text-left">
+                        <th className="py-1 pr-2">Model</th>
+                        <th className="py-1 pr-2">In/1K</th>
+                        <th className="py-1">Out/1K</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.values(pricing)
+                        .sort((a, b) => a.model.localeCompare(b.model))
+                        .map((p) => (
+                          <tr key={p.model} className="border-t">
+                            <td className="py-1 pr-2 font-mono">{p.model}</td>
+                            <td className="py-1 pr-2">{fmtNum(per1k(p.input_unreal))}</td>
+                            <td className="py-1">{fmtNum(per1k(p.output_unreal))}</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </PopoverContent>
+          </Popover>
         </div>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -849,9 +1003,15 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                 </button>
               </div>
             )}
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-1">
               <Button variant="ghost" size="sm" onClick={() => setShowDetails((s) => !s)}>
                 {showDetails ? "Hide details" : "Show details"}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={exportJson} title="Export JSON">
+                <FileJson className="w-4 h-4 mr-1" /> JSON
+              </Button>
+              <Button variant="ghost" size="sm" onClick={exportCsv} title="Export CSV">
+                <FileDown className="w-4 h-4 mr-1" /> CSV
               </Button>
             </div>
           </div>
@@ -956,14 +1116,38 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
             }
           }}
         />
-        {/* Predictive estimate for input tokens and cost */}
+        {/* Predictive estimate for input/output and total cost */}
         {selectedPricing && input.trim().length > 0 && (
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <div>
-              Est. input tokens: <span className="font-medium">{estInputTokens.toLocaleString()}</span>
+          <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+            <div className="flex items-center justify-between">
+              <div>
+                Est. input tokens: <span className="font-medium">{estInputTokens.toLocaleString()}</span>
+              </div>
+              <div>
+                Est. input cost: <span className="font-medium">{fmtNum(estInputCost)} UNREAL{hasFiat && typeof estInputFiat === "number" ? ` · ${fmtNum(estInputFiat)} ${fiatCode}` : ""}</span>
+              </div>
             </div>
-            <div>
-              Est. input cost: <span className="font-medium">{fmtNum(estInputCost)} UNREAL</span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                Output guess:
+                <Select value={String(outputGuess)} onValueChange={(v) => setOutputGuess(Number(v))}>
+                  <SelectTrigger className="h-7 w-[140px]">
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="100">Short (100)</SelectItem>
+                    <SelectItem value="300">Medium (300)</SelectItem>
+                    <SelectItem value="800">Long (800)</SelectItem>
+                    <SelectItem value="1500">Very long (1500)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                Est. output cost: <span className="font-medium">{fmtNum(estOutputCost)} UNREAL{hasFiat && typeof estOutputFiat === "number" ? ` · ${fmtNum(estOutputFiat)} ${fiatCode}` : ""}</span>
+              </div>
+            </div>
+            <div className="flex items-center justify-end">
+              Est. total cost: <span className="ml-1 font-medium">{fmtNum(estTotalCost)} UNREAL{hasFiat && typeof estTotalFiat === "number" ? ` · ${fmtNum(estTotalFiat)} ${fiatCode}` : ""}</span>
             </div>
           </div>
         )}
