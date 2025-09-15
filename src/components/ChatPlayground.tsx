@@ -604,9 +604,14 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
       header_currency: receipt.headerCurrency ?? "",
     }
     const headers = Object.keys(flat)
-    const values = headers.map((k) =>
-      String((flat as Record<string, unknown>)[k] ?? "")
-    )
+    const csvEsc = (val: unknown) => {
+      const s = String(val ?? "")
+      // Guard against CSV injection
+      const needsFormulaEscape = /^[=+\-@]/.test(s)
+      const safe = needsFormulaEscape ? `'${s}` : s
+      return `"${safe.replace(/"/g, '""')}"`
+    }
+    const values = headers.map((k) => csvEsc((flat as Record<string, unknown>)[k]))
     const csv = `${headers.join(",")}\n${values.join(",")}`
     const fname = `receipt_${receipt.model || "model"}_${receipt.timestamp}.csv`
     downloadFile(fname, csv, "text/csv")
