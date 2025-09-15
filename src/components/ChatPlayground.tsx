@@ -1243,50 +1243,57 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                   </Button>
                 )}
               </div>
-              <div className="text-muted-foreground">Tx</div>
-              <div>
-                {lastRun?.txHash ? (
-                  <a
-                    className="text-blue-500 hover:underline font-mono break-all"
-                    href={getExplorerTxUrl(chainId, lastRun?.txHash)}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {lastRun?.txHash}
-                  </a>
-                ) : (
-                  <span>-</span>
-                )}
-              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
               <div className="text-muted-foreground">Initial Price</div>
-              <div>
+              <div className="flex items-center gap-1">
                 {fmtOrDash(
                   typeof lastRun.price === "number"
                     ? `${fmtNum(lastRun.price)} UNREAL`
                     : undefined
                 )}
-              </div>
-              <div className="text-muted-foreground">Computed (UNREAL)</div>
-              <div>
-                Total{" "}
-                {fmtOrDash(
-                  typeof dispTotalCost === "number"
-                    ? `${fmtNum(dispTotalCost)}`
-                    : undefined
+                {lastRun.priceTx?.hash && (
+                  <>
+                    <span className="text-muted-foreground mx-1">-</span>
+                    <span
+                      className="font-mono cursor-pointer"
+                      title={lastRun.priceTx.hash}
+                      onClick={() => void copyToClipboard(lastRun.priceTx.hash)}
+                    >
+                      {short(lastRun.priceTx.hash)}
+                    </span>
+                    <a
+                      href={lastRun.priceTx.url || "#"}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-muted-foreground"
+                      title="Open Tx URL"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </>
                 )}
-                {hasFiat && (
-                  <span className="text-muted-foreground">
-                    {" "}
-                    ·{" "}
-                    {fmtOrDash(
-                      typeof lastTotalFiat === "number"
-                        ? `${fmtNum(lastTotalFiat)} ${fiatCode}`
-                        : undefined
-                    )}
-                  </span>
+                {lastRun.costTx?.hash && (
+                  <>
+                    <span className="text-muted-foreground mx-1">-</span>
+                    <span
+                      className="font-mono cursor-pointer"
+                      title={lastRun.costTx.hash}
+                      onClick={() => void copyToClipboard(lastRun.costTx.hash)}
+                    >
+                      {short(lastRun.costTx.hash)}
+                    </span>
+                    <a
+                      href={lastRun.costTx.url || "#"}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-muted-foreground"
+                      title="Open Tx URL"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </>
                 )}
               </div>
               <div className="text-muted-foreground pl-4">Input</div>
