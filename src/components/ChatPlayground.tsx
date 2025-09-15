@@ -668,21 +668,21 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
               const n = Number(s)
               return Number.isFinite(n) ? n : undefined
             }
-            const headerInputCost = num(h["openai-input-cost"]) // UNREAL
-            const headerOutputCost = num(h["openai-output-cost"]) // UNREAL
-            const headerTotalCost = num(h["openai-total-cost"]) // UNREAL
-            const priceTxHash = h["openai-price-tx"]
-            const priceTxUrl = h["openai-price-tx-url"]
-            const costTxHash = h["openai-cost-tx"]
-            const costTxUrl = h["openai-cost-tx-url"]
-            const refundAmount = num(h["openai-refund-amount"]) // UNREAL
-            const refundTxHash = h["openai-refund-tx"]
-            const refundTxUrl = h["openai-refund-tx-url"]
-            const paymentTokenUrl = h["openai-payment-token"]
-            const callsRemaining = num(h["openai-calls-remaining"]) ?? undefined
-            const chainName = h["openai-chain"]
+            headerInputCost = num(h["openai-input-cost"]) // UNREAL
+            headerOutputCost = num(h["openai-output-cost"]) // UNREAL
+            headerTotalCost = num(h["openai-total-cost"]) // UNREAL
+            priceTxHash = h["openai-price-tx"]
+            priceTxUrl = h["openai-price-tx-url"]
+            costTxHash = h["openai-cost-tx"]
+            costTxUrl = h["openai-cost-tx-url"]
+            refundAmount = num(h["openai-refund-amount"]) // UNREAL
+            refundTxHash = h["openai-refund-tx"]
+            refundTxUrl = h["openai-refund-tx-url"]
+            paymentTokenUrl = h["openai-payment-token"]
+            callsRemaining = num(h["openai-calls-remaining"]) ?? undefined
+            chainName = h["openai-chain"]
             const chainIdHeader = h["openai-chain-id"]
-            const chainIdParsed = chainIdHeader
+            chainIdParsed = chainIdHeader
               ? Number.isFinite(Number(chainIdHeader))
                 ? Number(chainIdHeader)
                 : undefined
@@ -1124,138 +1124,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                 </span>
               </div>
             )}
-            {/* Price action - Tooltip + Popover with details */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="link"
-                        size="sm"
-                        className="p-0 h-auto text-xs md:text-sm underline-offset-2 hover:underline"
-                      >
-                        Price
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[340px] p-3" align="start">
-                      <div className="text-sm font-medium mb-2">Price Breakdown</div>
-                      <div className="space-y-2 text-xs">
-                        <div className="flex items-center gap-1">
-                          <span className="text-muted-foreground">Initial Price</span>
-                          <span className="font-medium">
-                            {fmtOrDash(
-                              typeof lastRun.headerCosts?.total === "number"
-                                ? `${fmtNum(lastRun.headerCosts.total)} UNREAL`
-                                : undefined
-                            )}
-                          </span>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1">
-                            <span className="text-muted-foreground">Computed Cost</span>
-                            <span className="font-medium">
-                              Total {fmtOrDash(
-                                typeof dispTotalCost === "number" ? `${fmtNum(dispTotalCost)} UNREAL` : undefined
-                              )}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1 pl-4">
-                            <span className="text-muted-foreground">Input</span>
-                            <span className="font-medium">{fmtOrDash(
-                              typeof dispInCost === "number" ? `${fmtNum(dispInCost)} UNREAL` : undefined
-                            )}</span>
-                          </div>
-                          <div className="flex items-center gap-1 pl-4">
-                            <span className="text-muted-foreground">Output</span>
-                            <span className="font-medium">{fmtOrDash(
-                              typeof dispOutCost === "number" ? `${fmtNum(dispOutCost)} UNREAL` : undefined
-                            )}</span>
-                          </div>
-                          {hasFiat && (
-                            <div className="flex items-center gap-1">
-                              <span className="text-muted-foreground">Fiat Est.</span>
-                              <span className="font-medium">
-                                {fmtOrDash(
-                                  typeof lastTotalFiat === "number"
-                                    ? `${fmtNum(lastTotalFiat)} ${fiatCode}`
-                                    : undefined
-                                )}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                        {(lastRun.priceTx?.hash || lastRun.costTx?.hash || lastRun.paymentTokenUrl) && (
-                          <div className="pt-1 space-y-1">
-                            {lastRun.priceTx?.hash && (
-                              <div className="text-xs">
-                                <span className="text-muted-foreground mr-1">Price Tx:</span>
-                                <a
-                                  href={lastRun.priceTx.url || "#"}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-blue-500 hover:underline"
-                                >
-                                  {short(lastRun.priceTx.hash)}
-                                </a>
-                              </div>
-                            )}
-                            {lastRun.costTx?.hash && (
-                              <div className="text-xs">
-                                <span className="text-muted-foreground mr-1">Cost Tx:</span>
-                                <a
-                                  href={lastRun.costTx.url || "#"}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-blue-500 hover:underline"
-                                >
-                                  {short(lastRun.costTx.hash)}
-                                </a>
-                              </div>
-                            )}
-                            {lastRun.paymentTokenUrl && (
-                              <div className="text-xs">
-                                <span className="text-muted-foreground mr-1">Token:</span>
-                                <a
-                                  href={lastRun.paymentTokenUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-blue-500 hover:underline break-all"
-                                >
-                                  {lastRun.paymentTokenUrl}
-                                </a>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        {lastRun.refund?.amount && (
-                          <div className="text-xs">
-                            <span className="text-muted-foreground mr-1">Refund:</span>
-                            <span className="font-medium mr-1">{fmtNum(lastRun.refund.amount)} UNREAL</span>
-                            {lastRun.refund.tx?.hash && (
-                              <a
-                                href={lastRun.refund.tx.url || "#"}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-blue-500 hover:underline"
-                              >
-                                {short(lastRun.refund.tx.hash)}
-                              </a>
-                            )}
-                          </div>
-                        )}
-                        <div className="pt-1">
-                          <Button variant="outline" size="sm" onClick={() => setReceiptOpen(true)}>
-                            View Receipt
-                          </Button>
-                        </div>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>Click to view price breakdown</TooltipContent>
-            </Tooltip>
+            {/* Price popover removed per request; use Receipt modal instead */}
             {/* Receipt action - open modal */}
             {lastRun && (
               <Tooltip>
