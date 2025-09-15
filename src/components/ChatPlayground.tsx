@@ -585,7 +585,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
         let headersCollected: Record<string, string> | null = null
         let requestId: string | null = null
         let parsedTxHash: string | undefined = undefined
-        let parsedPrice: string | undefined = undefined
+        let parsedPrice: string | undefined
         let parsedCurrency: string | undefined = undefined
         let activeChainId: number | null = null
 
@@ -673,6 +673,11 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
 
             // Parse explicit headers for price/cost and transactions
             const h = headersObj
+
+            if (!h) {
+              return
+            }
+
             const num = (s?: string) => {
               if (s == null) return undefined
               const n = Number(s)
@@ -701,7 +706,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
             // Use costTx hash as primary txHash if present
             parsedTxHash = costTxHash || priceTxHash || undefined
             // Do not set parsedPrice from arbitrary headers; rely on headerTotalCost/computed costs
-            // parsedPrice = h ? h["openai-price"] : undefined
+            parsedPrice = h["openai-price"]
             parsedCurrency = "UNREAL"
 
             // Success - break out of retry loop
@@ -743,7 +748,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
 
           // Record transparent billing metadata for this run
           setLastRun({
-            price: Number.parseFloat(parsedPrice || "0"),
+            price: parsedPrice,
             currency: parsedCurrency || "UNREAL",
             txHash: parsedTxHash,
             requestId,
@@ -1258,7 +1263,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                     ? `${fmtNum(lastRun?.price)} UNREAL`
                     : undefined
                 )}
-                {lastRun.priceTx?.hash && (
+                {lastRun?.priceTx?.hash && (
                   <>
                     <span className="text-muted-foreground mx-1">-</span>
                     <span
@@ -1287,7 +1292,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                     ? `${fmtNum(dispTotalCost)} UNREAL`
                     : undefined
                 )}
-                {lastRun.costTx?.hash && (
+                {lastRun?.costTx?.hash && (
                   <>
                     <span className="text-muted-foreground mx-1">-</span>
                     <span
