@@ -103,6 +103,14 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
     }
     model?: string
     timestamp: number
+    // New explicit metadata parsed from headers
+    headerCosts?: { input?: number; output?: number; total?: number }
+    priceTx?: { hash?: string; url?: string }
+    costTx?: { hash?: string; url?: string }
+    refund?: { amount?: number; tx?: { hash?: string; url?: string } }
+    paymentTokenUrl?: string
+    chain?: { id?: number; name?: string }
+    callsRemaining?: number
   }
   const [lastRun, setLastRun] = useState<BillingMeta | null>(null)
   const [showDetails, setShowDetails] = useState(false)
@@ -381,19 +389,33 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
   const inTokens = lastRun?.usage?.prompt_tokens ?? undefined
   const outTokens = lastRun?.usage?.completion_tokens ?? undefined
   const lastInCost =
-    typeof lastPricing?.input_unreal === "number" &&
-    typeof inTokens === "number"
+    typeof lastPricing?.input_unreal === "number" && typeof inTokens === "number"
       ? (lastPricing.input_unreal * inTokens) / 1_000_000
       : undefined
   const lastOutCost =
-    typeof lastPricing?.output_unreal === "number" &&
-    typeof outTokens === "number"
+    typeof lastPricing?.output_unreal === "number" && typeof outTokens === "number"
       ? (lastPricing.output_unreal * outTokens) / 1_000_000
       : undefined
   const lastTotalCost =
     typeof lastInCost === "number" && typeof lastOutCost === "number"
       ? lastInCost + lastOutCost
       : undefined
+
+  // Prefer header-reported costs if present
+  const dispInCost =
+    typeof lastRun?.headerCosts?.input === "number"
+      ? lastRun.headerCosts.input
+      : lastInCost
+  const dispOutCost =
+    typeof lastRun?.headerCosts?.output === "number"
+      ? lastRun.headerCosts.output
+      : lastOutCost
+  const dispTotalCost =
+    typeof lastRun?.headerCosts?.total === "number"
+      ? lastRun.headerCosts.total
+      : typeof dispInCost === "number" && typeof dispOutCost === "number"
+      ? dispInCost + dispOutCost
+      : lastTotalCost
 
   // Optional: UNREAL -> Fiat conversion via env (1 UNREAL = $0.01 default)
   const envObj = (import.meta as unknown as { env?: Record<string, unknown> }).env
@@ -415,9 +437,9 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
   const estInputFiat = toFiat(estInputCost)
   const estOutputFiat = toFiat(estOutputCost)
   const estTotalFiat = toFiat(estTotalCost)
-  const lastInFiat = toFiat(lastInCost)
-  const lastOutFiat = toFiat(lastOutCost)
-  const lastTotalFiat = toFiat(lastTotalCost)
+  const lastInFiat = toFiat(dispInCost)
+  const lastOutFiat = toFiat(dispOutCost)
+  const lastTotalFiat = toFiat(dispTotalCost)
 
   // Receipt export helpers
   const buildReceipt = useCallback(() => {
@@ -430,14 +452,18 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
       headers: lastRun.headers,
       requestId: lastRun.requestId,
       txHash: lastRun.txHash,
+      priceTx: lastRun.priceTx,
+      costTx: lastRun.costTx,
+      refund: lastRun.refund,
+      paymentTokenUrl: lastRun.paymentTokenUrl,
       headerPrice: lastRun.price,
       headerCurrency: lastRun.currency,
       computed: {
         inTokens: inTokens ?? null,
         outTokens: outTokens ?? null,
-        inCostUNREAL: lastInCost ?? null,
-        outCostUNREAL: lastOutCost ?? null,
-        totalCostUNREAL: lastTotalCost ?? null,
+        inCostUNREAL: dispInCost ?? null,
+        outCostUNREAL: dispOutCost ?? null,
+        totalCostUNREAL: dispTotalCost ?? null,
         inCostFiat: lastInFiat ?? null,
         outCostFiat: lastOutFiat ?? null,
         totalCostFiat: lastTotalFiat ?? null,
@@ -449,9 +475,9 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
     lastRun,
     inTokens,
     outTokens,
-    lastInCost,
-    lastOutCost,
-    lastTotalCost,
+    dispInCost,
+    dispOutCost,
+    dispTotalCost,
     lastInFiat,
     lastOutFiat,
     lastTotalFiat,
@@ -553,6 +579,22 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
         let parsedCurrency: string | undefined = undefined
         let activeChainId: number | null = null
 
+        // Header-derived metadata (declared in outer scope for later use)
+        let headerInputCost: number | undefined
+        let headerOutputCost: number | undefined
+        let headerTotalCost: number | undefined
+        let priceTxHash: string | undefined
+        let priceTxUrl: string | undefined
+        let costTxHash: string | undefined
+        let costTxUrl: string | undefined
+        let refundAmount: number | undefined
+        let refundTxHash: string | undefined
+        let refundTxUrl: string | undefined
+        let paymentTokenUrl: string | undefined
+        let chainName: string | undefined
+        let chainIdParsed: number | undefined
+        let callsRemaining: number | undefined
+
         // Capture current chain id for explorer linking
         try {
           activeChainId = await getCurrentChainId()
@@ -611,26 +653,46 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
             const headersObj: Record<string, string> = {}
             try {
               result.response.headers.forEach((v, k) => {
-                console.log(`${v}=${k}`)
                 headersObj[String(k).toLowerCase()] = String(v)
               })
             } catch (_e) {
-              console.error("error parsing headers", _e)
               // ignore header parsing errors
             }
-            console.log({ headersObj })
             headersCollected = headersObj
             requestId = result.request_id
 
-            // Best-effort parse of tx hash and price from headers
-            const findKey = (re: RegExp) =>
-              Object.keys(headersObj).find((k) => re.test(k))
-            const txKey = findKey(/(tx|transaction)[-_]?hash/)
-            const priceKey = findKey(/(price|cost)/)
-            const currencyKey = findKey(/(currency|token|unit|symbol)/)
-            parsedTxHash = txKey ? headersObj[txKey] : undefined
-            parsedPrice = priceKey ? headersObj[priceKey] : undefined
-            parsedCurrency = currencyKey ? headersObj[currencyKey] : undefined
+            // Parse explicit headers for price/cost and transactions
+            const h = headersObj
+            const num = (s?: string) => {
+              if (s == null) return undefined
+              const n = Number(s)
+              return Number.isFinite(n) ? n : undefined
+            }
+            const headerInputCost = num(h["openai-input-cost"]) // UNREAL
+            const headerOutputCost = num(h["openai-output-cost"]) // UNREAL
+            const headerTotalCost = num(h["openai-total-cost"]) // UNREAL
+            const priceTxHash = h["openai-price-tx"]
+            const priceTxUrl = h["openai-price-tx-url"]
+            const costTxHash = h["openai-cost-tx"]
+            const costTxUrl = h["openai-cost-tx-url"]
+            const refundAmount = num(h["openai-refund-amount"]) // UNREAL
+            const refundTxHash = h["openai-refund-tx"]
+            const refundTxUrl = h["openai-refund-tx-url"]
+            const paymentTokenUrl = h["openai-payment-token"]
+            const callsRemaining = num(h["openai-calls-remaining"]) ?? undefined
+            const chainName = h["openai-chain"]
+            const chainIdHeader = h["openai-chain-id"]
+            const chainIdParsed = chainIdHeader
+              ? Number.isFinite(Number(chainIdHeader))
+                ? Number(chainIdHeader)
+                : undefined
+              : undefined
+
+            // Use costTx hash as primary txHash if present
+            parsedTxHash = costTxHash || priceTxHash || undefined
+            // Do not set parsedPrice from arbitrary headers; rely on headerTotalCost/computed costs
+            parsedPrice = undefined
+            parsedCurrency = "UNREAL"
 
             // Success - break out of retry loop
             break
@@ -679,6 +741,20 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
             usage: completion.usage,
             model: completion.model,
             timestamp: Date.now(),
+            headerCosts: {
+              input: headerInputCost,
+              output: headerOutputCost,
+              total: headerTotalCost,
+            },
+            priceTx: { hash: priceTxHash, url: priceTxUrl },
+            costTx: { hash: costTxHash, url: costTxUrl },
+            refund: {
+              amount: refundAmount,
+              tx: { hash: refundTxHash, url: refundTxUrl },
+            },
+            paymentTokenUrl,
+            chain: { id: chainIdParsed, name: chainName },
+            callsRemaining,
           })
         }
       } catch (err) {
@@ -1022,11 +1098,16 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
         <div className="mb-4 rounded-md border bg-muted/30 p-3">
           <div className="flex flex-wrap items-center gap-3 text-xs md:text-sm">
             <Badge variant="secondary">Transparency</Badge>
-            {typeof verifyData?.remaining === "number" && (
+            {(typeof lastRun.callsRemaining === "number" ||
+              typeof verifyData?.remaining === "number") && (
               <div className="flex items-center gap-1">
                 <span className="text-muted-foreground">Remaining</span>
                 <span className="font-medium">
-                  {verifyData.remaining.toLocaleString()}
+                  {Number(
+                    (typeof lastRun.callsRemaining === "number"
+                      ? lastRun.callsRemaining
+                      : verifyData?.remaining) as number
+                  ).toLocaleString()}
                 </span>
               </div>
             )}
@@ -1064,7 +1145,9 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                           <span className="text-muted-foreground">Initial Price</span>
                           <span className="font-medium">
                             {fmtOrDash(
-                              lastRun.price ? `${lastRun.price} ${lastRun.currency || "UNREAL"}` : undefined
+                              typeof lastRun.headerCosts?.total === "number"
+                                ? `${fmtNum(lastRun.headerCosts.total)} UNREAL`
+                                : undefined
                             )}
                           </span>
                         </div>
@@ -1073,20 +1156,20 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                             <span className="text-muted-foreground">Computed Cost</span>
                             <span className="font-medium">
                               Total {fmtOrDash(
-                                typeof lastTotalCost === "number" ? `${fmtNum(lastTotalCost)} UNREAL` : undefined
+                                typeof dispTotalCost === "number" ? `${fmtNum(dispTotalCost)} UNREAL` : undefined
                               )}
                             </span>
                           </div>
                           <div className="flex items-center gap-1 pl-4">
                             <span className="text-muted-foreground">Input</span>
                             <span className="font-medium">{fmtOrDash(
-                              typeof lastInCost === "number" ? `${fmtNum(lastInCost)} UNREAL` : undefined
+                              typeof dispInCost === "number" ? `${fmtNum(dispInCost)} UNREAL` : undefined
                             )}</span>
                           </div>
                           <div className="flex items-center gap-1 pl-4">
                             <span className="text-muted-foreground">Output</span>
                             <span className="font-medium">{fmtOrDash(
-                              typeof lastOutCost === "number" ? `${fmtNum(lastOutCost)} UNREAL` : undefined
+                              typeof dispOutCost === "number" ? `${fmtNum(dispOutCost)} UNREAL` : undefined
                             )}</span>
                           </div>
                           {hasFiat && (
@@ -1102,6 +1185,65 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                             </div>
                           )}
                         </div>
+                        {(lastRun.priceTx?.hash || lastRun.costTx?.hash || lastRun.paymentTokenUrl) && (
+                          <div className="pt-1 space-y-1">
+                            {lastRun.priceTx?.hash && (
+                              <div className="text-xs">
+                                <span className="text-muted-foreground mr-1">Price Tx:</span>
+                                <a
+                                  href={lastRun.priceTx.url || "#"}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-blue-500 hover:underline"
+                                >
+                                  {short(lastRun.priceTx.hash)}
+                                </a>
+                              </div>
+                            )}
+                            {lastRun.costTx?.hash && (
+                              <div className="text-xs">
+                                <span className="text-muted-foreground mr-1">Cost Tx:</span>
+                                <a
+                                  href={lastRun.costTx.url || "#"}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-blue-500 hover:underline"
+                                >
+                                  {short(lastRun.costTx.hash)}
+                                </a>
+                              </div>
+                            )}
+                            {lastRun.paymentTokenUrl && (
+                              <div className="text-xs">
+                                <span className="text-muted-foreground mr-1">Token:</span>
+                                <a
+                                  href={lastRun.paymentTokenUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-blue-500 hover:underline break-all"
+                                >
+                                  {lastRun.paymentTokenUrl}
+                                </a>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {lastRun.refund?.amount && (
+                          <div className="text-xs">
+                            <span className="text-muted-foreground mr-1">Refund:</span>
+                            <span className="font-medium mr-1">{fmtNum(lastRun.refund.amount)} UNREAL</span>
+                            {lastRun.refund.tx?.hash && (
+                              <a
+                                href={lastRun.refund.tx.url || "#"}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-blue-500 hover:underline"
+                              >
+                                {short(lastRun.refund.tx.hash)}
+                              </a>
+                            )}
+                          </div>
+                        )}
                         <div className="pt-1">
                           <Button variant="outline" size="sm" onClick={() => setReceiptOpen(true)}>
                             View Receipt
@@ -1178,18 +1320,158 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
             </div>
           </div>
           {showDetails && (
-            <div className="mt-2 max-h-64 overflow-auto rounded bg-background/50 p-2">
-              <pre className="text-[11px] leading-tight">
-                {JSON.stringify(
-                  {
-                    model: lastRun.model,
-                    usage: lastRun.usage,
-                    headers: lastRun.headers,
-                  },
-                  null,
-                  2
-                )}
-              </pre>
+            <div className="mt-2 rounded border bg-background/50 p-3 space-y-3 max-h-64 overflow-auto">
+              <div className="space-y-2 text-xs">
+                <div className="text-muted-foreground uppercase tracking-wide text-[10px]">Details</div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                  <div className="text-muted-foreground">Model</div>
+                  <div className="font-mono">{fmtOrDash(lastRun.model)}</div>
+                  {lastRun.requestId && (
+                    <>
+                      <div className="text-muted-foreground">Request ID</div>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span
+                          className="font-mono truncate"
+                          title={lastRun.requestId || undefined}
+                        >
+                          {lastRun.requestId}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => void copyToClipboard(lastRun.requestId || undefined)}
+                          className="p-1 text-muted-foreground hover:text-foreground"
+                          aria-label="Copy request id"
+                          title="Copy request id"
+                        >
+                          <CopyIcon className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </>
+                  )}
+                  {lastRun.usage && (
+                    <>
+                      <div className="text-muted-foreground">Usage</div>
+                      <div>
+                        {(lastRun.usage.prompt_tokens ?? 0)} in · {(lastRun.usage.completion_tokens ?? 0)} out · {(
+                          lastRun.usage.total_tokens ??
+                          (lastRun.usage.prompt_tokens ?? 0) + (lastRun.usage.completion_tokens ?? 0)
+                        )} total
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <div className="pt-1">
+                  <div className="text-muted-foreground mb-1">Price</div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1">
+                      <span className="text-muted-foreground">Initial Price</span>
+                      <span className="font-medium">
+                        {fmtOrDash(
+                          typeof lastRun.headerCosts?.total === "number"
+                            ? `${fmtNum(lastRun.headerCosts.total)} UNREAL`
+                            : undefined
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-muted-foreground">Computed</span>
+                      <span className="font-medium">
+                        Total {fmtOrDash(
+                          typeof dispTotalCost === "number" ? `${fmtNum(dispTotalCost)} UNREAL` : undefined
+                        )}
+                      </span>
+                      {hasFiat && (
+                        <span className="text-muted-foreground">
+                          · {fmtOrDash(
+                            typeof lastTotalFiat === "number" ? `${fmtNum(lastTotalFiat)} ${fiatCode}` : undefined
+                          )}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 pl-4">
+                      <span className="text-muted-foreground">Input</span>
+                      <span className="font-medium">
+                        {fmtOrDash(typeof dispInCost === "number" ? `${fmtNum(dispInCost)} UNREAL` : undefined)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 pl-4">
+                      <span className="text-muted-foreground">Output</span>
+                      <span className="font-medium">
+                        {fmtOrDash(typeof dispOutCost === "number" ? `${fmtNum(dispOutCost)} UNREAL` : undefined)}
+                      </span>
+                    </div>
+                    {(lastRun.priceTx?.hash || lastRun.costTx?.hash || lastRun.paymentTokenUrl) && (
+                      <div className="pt-1 space-y-1">
+                        {lastRun.priceTx?.hash && (
+                          <div>
+                            <span className="text-muted-foreground mr-1">Price Tx:</span>
+                            <a
+                              href={lastRun.priceTx.url || "#"}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-blue-500 hover:underline"
+                            >
+                              {short(lastRun.priceTx.hash)}
+                            </a>
+                          </div>
+                        )}
+                        {lastRun.costTx?.hash && (
+                          <div>
+                            <span className="text-muted-foreground mr-1">Cost Tx:</span>
+                            <a
+                              href={lastRun.costTx.url || "#"}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-blue-500 hover:underline"
+                            >
+                              {short(lastRun.costTx.hash)}
+                            </a>
+                          </div>
+                        )}
+                        {lastRun.paymentTokenUrl && (
+                          <div>
+                            <span className="text-muted-foreground mr-1">Token:</span>
+                            <a
+                              href={lastRun.paymentTokenUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-blue-500 hover:underline break-all"
+                            >
+                              {lastRun.paymentTokenUrl}
+                            </a>
+                          </div>
+                        )}
+                        {typeof lastRun.refund?.amount === "number" && (
+                          <div>
+                            <span className="text-muted-foreground mr-1">Refund:</span>
+                            <span className="font-medium mr-1">{fmtNum(lastRun.refund.amount)} UNREAL</span>
+                            {lastRun.refund.tx?.hash && (
+                              <a
+                                href={lastRun.refund.tx.url || "#"}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-blue-500 hover:underline"
+                              >
+                                {short(lastRun.refund.tx.hash)}
+                              </a>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <div className="text-muted-foreground mb-1">Raw headers</div>
+                  <div className="max-h-48 overflow-auto rounded bg-muted/50 p-2">
+                    <pre className="text-[11px] leading-tight">
+{JSON.stringify(lastRun.headers ?? {}, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -1244,13 +1526,15 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
               <div className="text-muted-foreground">Initial Price</div>
               <div>
                 {fmtOrDash(
-                  lastRun?.price ? `${lastRun.price} ${lastRun.currency || "UNREAL"}` : undefined
+                  typeof lastRun?.headerCosts?.total === "number"
+                    ? `${fmtNum(lastRun.headerCosts.total)} UNREAL`
+                    : undefined
                 )}
               </div>
               <div className="text-muted-foreground">Computed (UNREAL)</div>
               <div>
                 Total {fmtOrDash(
-                  typeof lastTotalCost === "number" ? `${fmtNum(lastTotalCost)}` : undefined
+                  typeof dispTotalCost === "number" ? `${fmtNum(dispTotalCost)}` : undefined
                 )}
                 {hasFiat && (
                   <span className="text-muted-foreground"> · {fmtOrDash(
@@ -1260,12 +1544,34 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
               </div>
               <div className="text-muted-foreground pl-4">Input</div>
               <div>{fmtOrDash(
-                typeof lastInCost === "number" ? `${fmtNum(lastInCost)} UNREAL` : undefined
+                typeof dispInCost === "number" ? `${fmtNum(dispInCost)} UNREAL` : undefined
               )}</div>
               <div className="text-muted-foreground pl-4">Output</div>
               <div>{fmtOrDash(
-                typeof lastOutCost === "number" ? `${fmtNum(lastOutCost)} UNREAL` : undefined
+                typeof dispOutCost === "number" ? `${fmtNum(dispOutCost)} UNREAL` : undefined
               )}</div>
+
+              {typeof lastRun?.refund?.amount === "number" && (
+                <>
+                  <div className="text-muted-foreground">Refund</div>
+                  <div>
+                    {fmtNum(lastRun.refund.amount)} UNREAL
+                    {lastRun.refund.tx?.hash && (
+                      <>
+                        <span className="mx-1">·</span>
+                        <a
+                          href={lastRun.refund.tx.url || "#"}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-blue-500 hover:underline"
+                        >
+                          {short(lastRun.refund.tx.hash)}
+                        </a>
+                      </>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
 
             <div>
