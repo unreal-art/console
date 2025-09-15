@@ -383,20 +383,18 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
       ? lastInCost + lastOutCost
       : undefined
 
-  // Optional: UNREAL -> Fiat conversion via env
-  const envObj = (import.meta as unknown as { env?: Record<string, unknown> })
-    .env
-  const unrealFiatRate =
+  // Optional: UNREAL -> Fiat conversion via env (1 UNREAL = $0.01 default)
+  const envObj = (import.meta as unknown as { env?: Record<string, unknown> }).env
+  const parsedUnrealUsd =
     typeof envObj?.VITE_UNREAL_USD === "string"
       ? Number(envObj.VITE_UNREAL_USD as string)
-      : typeof envObj?.VITE_UNREAL_FIAT_RATE === "string"
-      ? Number(envObj.VITE_UNREAL_FIAT_RATE as string)
       : NaN
+  const unrealFiatRate = Number.isFinite(parsedUnrealUsd) ? parsedUnrealUsd : 0.01
   const fiatCode =
     typeof envObj?.VITE_FIAT_CODE === "string"
       ? (envObj.VITE_FIAT_CODE as string)
       : "USD"
-  const hasFiat = Number.isFinite(unrealFiatRate)
+  const hasFiat = Number.isFinite(unrealFiatRate) && unrealFiatRate > 0
   const toFiat = (v?: number) =>
     hasFiat && typeof v === "number"
       ? v * (unrealFiatRate as number)
@@ -1033,38 +1031,105 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                 </span>
               </div>
             )}
-            {lastRun.price && (
-              <div className="flex items-center gap-1">
-                <span className="text-muted-foreground">Price</span>
-                <span className="font-medium">
-                  {String(lastRun.price)} {lastRun.currency || "UNREAL"}
-                </span>
-              </div>
+            {/* Compact Price - opens Popover with details */}
+            {(lastRun.price || typeof lastTotalCost === "number") && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="link"
+                    size="sm"
+                    className="p-0 h-auto text-xs md:text-sm underline-offset-2 hover:underline"
+                  >
+                    Price: {lastRun.price
+                      ? `${String(lastRun.price)} ${lastRun.currency || "UNREAL"}`
+                      : typeof lastTotalCost === "number"
+                      ? `${fmtNum(lastTotalCost)} UNREAL`
+                      : "View"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[320px] p-3" align="start">
+                  <div className="text-sm font-medium mb-2">Price Breakdown</div>
+                  <div className="space-y-2 text-xs">
+                    {lastRun.price && (
+                      <div className="flex items-center gap-1">
+                        <span className="text-muted-foreground">Initial Price</span>
+                        <span className="font-medium">
+                          {String(lastRun.price)} {lastRun.currency || "UNREAL"}
+                        </span>
+                      </div>
+                    )}
+                    {typeof lastTotalCost === "number" && (
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1">
+                          <span className="text-muted-foreground">Computed Cost</span>
+                          <span className="font-medium">
+                            Total {fmtNum(lastTotalCost)} UNREAL
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1 pl-4">
+                          <span className="text-muted-foreground">Input</span>
+                          <span className="font-medium">{fmtNum(lastInCost)} UNREAL</span>
+                        </div>
+                        <div className="flex items-center gap-1 pl-4">
+                          <span className="text-muted-foreground">Output</span>
+                          <span className="font-medium">{fmtNum(lastOutCost)} UNREAL</span>
+                        </div>
+                        {hasFiat && typeof lastTotalFiat === "number" && (
+                          <div className="flex items-center gap-1">
+                            <span className="text-muted-foreground">Fiat Est.</span>
+                            <span className="font-medium">
+                              Total {fmtNum(lastTotalFiat)} {fiatCode}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
             )}
-            {/* Show computed cost breakdown when pricing table + usage are available */}
-            {typeof lastTotalCost === "number" && (
-              <div className="flex items-center gap-1">
-                <span className="text-muted-foreground">Est. Cost</span>
-                <span className="font-medium">
-                  In {fmtNum(lastInCost)} · Out {fmtNum(lastOutCost)} · Total{" "}
-                  {fmtNum(lastTotalCost)} UNREAL
-                </span>
-              </div>
-            )}
+            {/* Compact Tx - opens Popover with details */}
             {lastRun.txHash && (
-              <div className="flex items-center gap-1">
-                <span className="text-muted-foreground">Tx</span>
-                <a
-                  href={getExplorerTxUrl(chainId, lastRun.txHash)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="font-mono hover:underline"
-                  title={lastRun.txHash}
-                >
-                  {short(lastRun.txHash)}{" "}
-                  <ExternalLink className="ml-1 inline h-3 w-3" />
-                </a>
-              </div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="link"
+                    size="sm"
+                    className="p-0 h-auto text-xs md:text-sm underline-offset-2 hover:underline"
+                    title={lastRun.txHash}
+                  >
+                    Tx: {short(lastRun.txHash)}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[320px] p-3" align="start">
+                  <div className="text-sm font-medium mb-2">Transaction Details</div>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex items-center gap-1">
+                      <span className="text-muted-foreground">Hash</span>
+                      <span className="font-mono flex-1 truncate">{lastRun.txHash}</span>
+                      <button
+                        type="button"
+                        onClick={() => void copyToClipboard(lastRun.txHash || undefined)}
+                        className="p-1 text-muted-foreground hover:text-foreground"
+                        aria-label="Copy transaction hash"
+                        title="Copy transaction hash"
+                      >
+                        <CopyIcon className="h-3 w-3" />
+                      </button>
+                    </div>
+                    <div>
+                      <a
+                        href={getExplorerTxUrl(chainId, lastRun.txHash)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-blue-500 hover:underline inline-flex items-center gap-1"
+                      >
+                        View in Explorer <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
             )}
             {lastRun.requestId && (
               <div className="flex items-center gap-1">
