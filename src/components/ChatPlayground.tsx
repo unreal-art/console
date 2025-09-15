@@ -194,6 +194,11 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
       ? `${s.slice(0, head)}...${s.slice(-tail)}`
       : s ?? ""
 
+  const shortHash = (s?: string | null, head = 4, tail = 4) =>
+    s && s.length > head + tail
+      ? `${s.slice(0, head)}...${s.slice(-tail)}`
+      : s ?? ""
+
   const copyToClipboard = async (t?: string | null) => {
     try {
       if (!t) return
@@ -696,7 +701,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
             // Use costTx hash as primary txHash if present
             parsedTxHash = costTxHash || priceTxHash || undefined
             // Do not set parsedPrice from arbitrary headers; rely on headerTotalCost/computed costs
-            parsedPrice = undefined
+            // parsedPrice = h ? h["openai-price"] : undefined
             parsedCurrency = "UNREAL"
 
             // Success - break out of retry loop
@@ -738,7 +743,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
 
           // Record transparent billing metadata for this run
           setLastRun({
-            price: parsedPrice,
+            price: Number.parseFloat(parsedPrice || "0"),
             currency: parsedCurrency || "UNREAL",
             txHash: parsedTxHash,
             requestId,
@@ -1249,8 +1254,8 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
               <div className="text-muted-foreground">Initial Price</div>
               <div className="flex items-center gap-1">
                 {fmtOrDash(
-                  typeof lastRun.price === "number"
-                    ? `${fmtNum(lastRun.price)} UNREAL`
+                  typeof lastRun?.price === "number"
+                    ? `${fmtNum(lastRun?.price)} UNREAL`
                     : undefined
                 )}
                 {lastRun.priceTx?.hash && (
@@ -1258,10 +1263,10 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                     <span className="text-muted-foreground mx-1">-</span>
                     <span
                       className="font-mono cursor-pointer"
-                      title={lastRun.priceTx.hash}
+                      title={lastRun.priceTx.hash?.slice(0, 8)}
                       onClick={() => void copyToClipboard(lastRun.priceTx.hash)}
                     >
-                      {short(lastRun.priceTx.hash)}
+                      {shortHash(lastRun.priceTx.hash)}
                     </span>
                     <a
                       href={lastRun.priceTx.url || "#"}
@@ -1287,10 +1292,10 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                     <span className="text-muted-foreground mx-1">-</span>
                     <span
                       className="font-mono cursor-pointer"
-                      title={lastRun.costTx.hash}
+                      title={lastRun.costTx.hash?.slice(0, 8)}
                       onClick={() => void copyToClipboard(lastRun.costTx.hash)}
                     >
-                      {short(lastRun.costTx.hash)}
+                      {shortHash(lastRun.costTx.hash)}
                     </span>
                     <a
                       href={lastRun.costTx.url || "#"}
@@ -1331,10 +1336,12 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                         <span className="text-muted-foreground mx-1">-</span>
                         <span
                           className="font-mono cursor-pointer"
-                          title={lastRun.refund.tx.hash}
-                          onClick={() => void copyToClipboard(lastRun.refund.tx.hash)}
+                          title={lastRun.refund.tx.hash?.slice(0, 8)}
+                          onClick={() =>
+                            void copyToClipboard(lastRun.refund.tx.hash)
+                          }
                         >
-                          {short(lastRun.refund.tx.hash)}
+                          {shortHash(lastRun.refund.tx.hash)}
                         </span>
                         <a
                           href={lastRun.refund.tx.url || "#"}
