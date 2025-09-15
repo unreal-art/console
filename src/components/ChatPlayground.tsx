@@ -32,6 +32,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 import {
   AlertCircle,
@@ -98,6 +106,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
   }
   const [lastRun, setLastRun] = useState<BillingMeta | null>(null)
   const [showDetails, setShowDetails] = useState(false)
+  const [receiptOpen, setReceiptOpen] = useState(false)
 
   // Pricing state from /v1/models/pricing
   type PricingEntry = {
@@ -342,6 +351,9 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
     if (n >= 0.01) return n.toFixed(4)
     return n.toPrecision(3)
   }
+
+  const fmtOrDash = (v?: string | number | null) =>
+    v === undefined || v === null || v === "" ? "-" : String(v)
 
   const estimateTokens = (text: string) => {
     // Very rough heuristic: ~4 chars per token
@@ -1031,105 +1043,87 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                 </span>
               </div>
             )}
-            {/* Compact Price - opens Popover with details */}
-            {(lastRun.price || typeof lastTotalCost === "number") && (
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="link"
-                    size="sm"
-                    className="p-0 h-auto text-xs md:text-sm underline-offset-2 hover:underline"
-                  >
-                    Price: {lastRun.price
-                      ? `${String(lastRun.price)} ${lastRun.currency || "UNREAL"}`
-                      : typeof lastTotalCost === "number"
-                      ? `${fmtNum(lastTotalCost)} UNREAL`
-                      : "View"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[320px] p-3" align="start">
-                  <div className="text-sm font-medium mb-2">Price Breakdown</div>
-                  <div className="space-y-2 text-xs">
-                    {lastRun.price && (
-                      <div className="flex items-center gap-1">
-                        <span className="text-muted-foreground">Initial Price</span>
-                        <span className="font-medium">
-                          {String(lastRun.price)} {lastRun.currency || "UNREAL"}
-                        </span>
-                      </div>
-                    )}
-                    {typeof lastTotalCost === "number" && (
-                      <div className="space-y-1">
+            {/* Price action - Tooltip + Popover with details */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="p-0 h-auto text-xs md:text-sm underline-offset-2 hover:underline"
+                      >
+                        Price
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[340px] p-3" align="start">
+                      <div className="text-sm font-medium mb-2">Price Breakdown</div>
+                      <div className="space-y-2 text-xs">
                         <div className="flex items-center gap-1">
-                          <span className="text-muted-foreground">Computed Cost</span>
+                          <span className="text-muted-foreground">Initial Price</span>
                           <span className="font-medium">
-                            Total {fmtNum(lastTotalCost)} UNREAL
+                            {fmtOrDash(
+                              lastRun.price ? `${lastRun.price} ${lastRun.currency || "UNREAL"}` : undefined
+                            )}
                           </span>
                         </div>
-                        <div className="flex items-center gap-1 pl-4">
-                          <span className="text-muted-foreground">Input</span>
-                          <span className="font-medium">{fmtNum(lastInCost)} UNREAL</span>
-                        </div>
-                        <div className="flex items-center gap-1 pl-4">
-                          <span className="text-muted-foreground">Output</span>
-                          <span className="font-medium">{fmtNum(lastOutCost)} UNREAL</span>
-                        </div>
-                        {hasFiat && typeof lastTotalFiat === "number" && (
+                        <div className="space-y-1">
                           <div className="flex items-center gap-1">
-                            <span className="text-muted-foreground">Fiat Est.</span>
+                            <span className="text-muted-foreground">Computed Cost</span>
                             <span className="font-medium">
-                              Total {fmtNum(lastTotalFiat)} {fiatCode}
+                              Total {fmtOrDash(
+                                typeof lastTotalCost === "number" ? `${fmtNum(lastTotalCost)} UNREAL` : undefined
+                              )}
                             </span>
                           </div>
-                        )}
+                          <div className="flex items-center gap-1 pl-4">
+                            <span className="text-muted-foreground">Input</span>
+                            <span className="font-medium">{fmtOrDash(
+                              typeof lastInCost === "number" ? `${fmtNum(lastInCost)} UNREAL` : undefined
+                            )}</span>
+                          </div>
+                          <div className="flex items-center gap-1 pl-4">
+                            <span className="text-muted-foreground">Output</span>
+                            <span className="font-medium">{fmtOrDash(
+                              typeof lastOutCost === "number" ? `${fmtNum(lastOutCost)} UNREAL` : undefined
+                            )}</span>
+                          </div>
+                          {hasFiat && (
+                            <div className="flex items-center gap-1">
+                              <span className="text-muted-foreground">Fiat Est.</span>
+                              <span className="font-medium">
+                                {fmtOrDash(
+                                  typeof lastTotalFiat === "number"
+                                    ? `${fmtNum(lastTotalFiat)} ${fiatCode}`
+                                    : undefined
+                                )}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="pt-1">
+                          <Button variant="outline" size="sm" onClick={() => setReceiptOpen(true)}>
+                            View Receipt
+                          </Button>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                </PopoverContent>
-              </Popover>
-            )}
-            {/* Compact Tx - opens Popover with details */}
-            {lastRun.txHash && (
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="link"
-                    size="sm"
-                    className="p-0 h-auto text-xs md:text-sm underline-offset-2 hover:underline"
-                    title={lastRun.txHash}
-                  >
-                    Tx: {short(lastRun.txHash)}
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>Click to view price breakdown</TooltipContent>
+            </Tooltip>
+            {/* Receipt action - open modal */}
+            {lastRun && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" size="sm" onClick={() => setReceiptOpen(true)}>
+                    Receipt
                   </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[320px] p-3" align="start">
-                  <div className="text-sm font-medium mb-2">Transaction Details</div>
-                  <div className="space-y-2 text-xs">
-                    <div className="flex items-center gap-1">
-                      <span className="text-muted-foreground">Hash</span>
-                      <span className="font-mono flex-1 truncate">{lastRun.txHash}</span>
-                      <button
-                        type="button"
-                        onClick={() => void copyToClipboard(lastRun.txHash || undefined)}
-                        className="p-1 text-muted-foreground hover:text-foreground"
-                        aria-label="Copy transaction hash"
-                        title="Copy transaction hash"
-                      >
-                        <CopyIcon className="h-3 w-3" />
-                      </button>
-                    </div>
-                    <div>
-                      <a
-                        href={getExplorerTxUrl(chainId, lastRun.txHash)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-blue-500 hover:underline inline-flex items-center gap-1"
-                      >
-                        View in Explorer <ExternalLink className="h-3 w-3" />
-                      </a>
-                    </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
+                </TooltipTrigger>
+                <TooltipContent>Open the latest receipt</TooltipContent>
+              </Tooltip>
             )}
             {lastRun.requestId && (
               <div className="flex items-center gap-1">
@@ -1200,6 +1194,113 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
           )}
         </div>
       )}
+
+      {/* Receipt Modal */}
+      <Dialog open={receiptOpen} onOpenChange={setReceiptOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh]">
+          <DialogHeader>
+            <DialogTitle>Receipt</DialogTitle>
+            <DialogDescription>Details for the last run</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 text-sm max-h-[65vh] overflow-y-auto pr-1">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="text-muted-foreground">Model</div>
+              <div className="font-mono">{fmtOrDash(lastRun?.model)}</div>
+              <div className="text-muted-foreground">Request ID</div>
+              <div className="flex items-center gap-2">
+                <span className="font-mono truncate" title={fmtOrDash(lastRun?.requestId)}>
+                  {fmtOrDash(lastRun?.requestId)}
+                </span>
+                {lastRun?.requestId && (
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => void copyToClipboard(lastRun?.requestId || undefined)}
+                    title="Copy request id"
+                  >
+                    <CopyIcon className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
+              <div className="text-muted-foreground">Tx</div>
+              <div>
+                {lastRun?.txHash ? (
+                  <a
+                    className="text-blue-500 hover:underline font-mono break-all"
+                    href={getExplorerTxUrl(chainId, lastRun?.txHash)}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {lastRun?.txHash}
+                  </a>
+                ) : (
+                  <span>-</span>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div className="text-muted-foreground">Initial Price</div>
+              <div>
+                {fmtOrDash(
+                  lastRun?.price ? `${lastRun.price} ${lastRun.currency || "UNREAL"}` : undefined
+                )}
+              </div>
+              <div className="text-muted-foreground">Computed (UNREAL)</div>
+              <div>
+                Total {fmtOrDash(
+                  typeof lastTotalCost === "number" ? `${fmtNum(lastTotalCost)}` : undefined
+                )}
+                {hasFiat && (
+                  <span className="text-muted-foreground"> · {fmtOrDash(
+                    typeof lastTotalFiat === "number" ? `${fmtNum(lastTotalFiat)} ${fiatCode}` : undefined
+                  )}</span>
+                )}
+              </div>
+              <div className="text-muted-foreground pl-4">Input</div>
+              <div>{fmtOrDash(
+                typeof lastInCost === "number" ? `${fmtNum(lastInCost)} UNREAL` : undefined
+              )}</div>
+              <div className="text-muted-foreground pl-4">Output</div>
+              <div>{fmtOrDash(
+                typeof lastOutCost === "number" ? `${fmtNum(lastOutCost)} UNREAL` : undefined
+              )}</div>
+            </div>
+
+            <div>
+              <div className="text-muted-foreground mb-1">Usage</div>
+              <div className="text-xs">
+                {fmtOrDash(lastRun?.usage?.prompt_tokens)} in · {fmtOrDash(lastRun?.usage?.completion_tokens)} out · {fmtOrDash(
+                  lastRun?.usage?.total_tokens ?? ((lastRun?.usage?.prompt_tokens ?? 0) + (lastRun?.usage?.completion_tokens ?? 0))
+                )} total
+              </div>
+            </div>
+
+            <div>
+              <div className="text-muted-foreground mb-1">Raw headers</div>
+              <div className="max-h-64 overflow-auto rounded bg-background/50 p-2">
+                <pre className="text-[11px] leading-tight">
+{JSON.stringify(lastRun?.headers ?? {}, null, 2)}
+                </pre>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <div className="flex items-center gap-2 ml-auto">
+              <Button variant="outline" size="sm" onClick={exportJson}>
+                <FileJson className="w-4 h-4 mr-1" /> JSON
+              </Button>
+              <Button variant="outline" size="sm" onClick={exportCsv}>
+                <FileDown className="w-4 h-4 mr-1" /> CSV
+              </Button>
+              <Button variant="default" size="sm" onClick={() => setReceiptOpen(false)}>
+                Close
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {error && (
         <Alert className="mb-4 border-red-500 bg-red-500/15">
