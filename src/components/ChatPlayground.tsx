@@ -746,9 +746,10 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
             setMessages((prev) => [...prev, newMessage])
           }
 
+          // console.log("parsedPrice", parsedPrice)
           // Record transparent billing metadata for this run
           setLastRun({
-            price: parsedPrice,
+            price: parsedPrice ? Number(parsedPrice) : undefined,
             currency: parsedCurrency || "UNREAL",
             txHash: parsedTxHash,
             requestId,
