@@ -1274,6 +1274,14 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                     </a>
                   </>
                 )}
+              </div>
+              <div className="text-muted-foreground">Total Cost</div>
+              <div className="flex items-center gap-1">
+                {fmtOrDash(
+                  typeof dispTotalCost === "number"
+                    ? `${fmtNum(dispTotalCost)} UNREAL`
+                    : undefined
+                )}
                 {lastRun.costTx?.hash && (
                   <>
                     <span className="text-muted-foreground mx-1">-</span>
@@ -1316,18 +1324,26 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
               {typeof lastRun?.refund?.amount === "number" && (
                 <>
                   <div className="text-muted-foreground">Refund</div>
-                  <div>
-                    {fmtNum(lastRun.refund.amount)} UNREAL
+                  <div className="flex items-center gap-1">
+                    <span>{fmtNum(lastRun.refund.amount)} UNREAL</span>
                     {lastRun.refund.tx?.hash && (
                       <>
-                        <span className="mx-1">·</span>
+                        <span className="text-muted-foreground mx-1">-</span>
+                        <span
+                          className="font-mono cursor-pointer"
+                          title={lastRun.refund.tx.hash}
+                          onClick={() => void copyToClipboard(lastRun.refund.tx.hash)}
+                        >
+                          {short(lastRun.refund.tx.hash)}
+                        </span>
                         <a
                           href={lastRun.refund.tx.url || "#"}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-blue-500 hover:underline"
+                          className="text-muted-foreground"
+                          title="Open Refund Tx URL"
                         >
-                          {short(lastRun.refund.tx.hash)}
+                          <ExternalLink className="h-3 w-3" />
                         </a>
                       </>
                     )}
