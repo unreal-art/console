@@ -389,11 +389,13 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
   const inTokens = lastRun?.usage?.prompt_tokens ?? undefined
   const outTokens = lastRun?.usage?.completion_tokens ?? undefined
   const lastInCost =
-    typeof lastPricing?.input_unreal === "number" && typeof inTokens === "number"
+    typeof lastPricing?.input_unreal === "number" &&
+    typeof inTokens === "number"
       ? (lastPricing.input_unreal * inTokens) / 1_000_000
       : undefined
   const lastOutCost =
-    typeof lastPricing?.output_unreal === "number" && typeof outTokens === "number"
+    typeof lastPricing?.output_unreal === "number" &&
+    typeof outTokens === "number"
       ? (lastPricing.output_unreal * outTokens) / 1_000_000
       : undefined
   const lastTotalCost =
@@ -418,12 +420,15 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
       : lastTotalCost
 
   // Optional: UNREAL -> Fiat conversion via env (1 UNREAL = $0.01 default)
-  const envObj = (import.meta as unknown as { env?: Record<string, unknown> }).env
+  const envObj = (import.meta as unknown as { env?: Record<string, unknown> })
+    .env
   const parsedUnrealUsd =
     typeof envObj?.VITE_UNREAL_USD === "string"
       ? Number(envObj.VITE_UNREAL_USD as string)
       : NaN
-  const unrealFiatRate = Number.isFinite(parsedUnrealUsd) ? parsedUnrealUsd : 0.01
+  const unrealFiatRate = Number.isFinite(parsedUnrealUsd)
+    ? parsedUnrealUsd
+    : 0.01
   const fiatCode =
     typeof envObj?.VITE_FIAT_CODE === "string"
       ? (envObj.VITE_FIAT_CODE as string)
@@ -1129,7 +1134,11 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
             {lastRun && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="outline" size="sm" onClick={() => setReceiptOpen(true)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setReceiptOpen(true)}
+                  >
                     Receipt
                   </Button>
                 </TooltipTrigger>
@@ -1191,7 +1200,9 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
           {showDetails && (
             <div className="mt-2 rounded border bg-background/50 p-3 space-y-3 max-h-64 overflow-auto">
               <div className="space-y-2 text-xs">
-                <div className="text-muted-foreground uppercase tracking-wide text-[10px]">Details</div>
+                <div className="text-muted-foreground uppercase tracking-wide text-[10px]">
+                  Details
+                </div>
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1">
                   <div className="text-muted-foreground">Model</div>
                   <div className="font-mono">{fmtOrDash(lastRun.model)}</div>
@@ -1207,7 +1218,9 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                         </span>
                         <button
                           type="button"
-                          onClick={() => void copyToClipboard(lastRun.requestId || undefined)}
+                          onClick={() =>
+                            void copyToClipboard(lastRun.requestId || undefined)
+                          }
                           className="p-1 text-muted-foreground hover:text-foreground"
                           aria-label="Copy request id"
                           title="Copy request id"
@@ -1221,10 +1234,12 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                     <>
                       <div className="text-muted-foreground">Usage</div>
                       <div>
-                        {(lastRun.usage.prompt_tokens ?? 0)} in · {(lastRun.usage.completion_tokens ?? 0)} out · {(
-                          lastRun.usage.total_tokens ??
-                          (lastRun.usage.prompt_tokens ?? 0) + (lastRun.usage.completion_tokens ?? 0)
-                        )} total
+                        {lastRun.usage.prompt_tokens ?? 0} in ·{" "}
+                        {lastRun.usage.completion_tokens ?? 0} out ·{" "}
+                        {lastRun.usage.total_tokens ??
+                          (lastRun.usage.prompt_tokens ?? 0) +
+                            (lastRun.usage.completion_tokens ?? 0)}{" "}
+                        total
                       </div>
                     </>
                   )}
@@ -1234,11 +1249,13 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                   <div className="text-muted-foreground mb-1">Price</div>
                   <div className="space-y-1">
                     <div className="flex items-center gap-1">
-                      <span className="text-muted-foreground">Initial Price</span>
+                      <span className="text-muted-foreground">
+                        Initial Price
+                      </span>
                       <span className="font-medium">
                         {fmtOrDash(
-                          typeof lastRun.headerCosts?.total === "number"
-                            ? `${fmtNum(lastRun.headerCosts.total)} UNREAL`
+                          typeof lastRun.price === "number"
+                            ? `${fmtNum(lastRun.price)} UNREAL`
                             : undefined
                         )}
                       </span>
@@ -1246,14 +1263,20 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                     <div className="flex items-center gap-1">
                       <span className="text-muted-foreground">Computed</span>
                       <span className="font-medium">
-                        Total {fmtOrDash(
-                          typeof dispTotalCost === "number" ? `${fmtNum(dispTotalCost)} UNREAL` : undefined
+                        Total{" "}
+                        {fmtOrDash(
+                          typeof dispTotalCost === "number"
+                            ? `${fmtNum(dispTotalCost)} UNREAL`
+                            : undefined
                         )}
                       </span>
                       {hasFiat && (
                         <span className="text-muted-foreground">
-                          · {fmtOrDash(
-                            typeof lastTotalFiat === "number" ? `${fmtNum(lastTotalFiat)} ${fiatCode}` : undefined
+                          ·{" "}
+                          {fmtOrDash(
+                            typeof lastTotalFiat === "number"
+                              ? `${fmtNum(lastTotalFiat)} ${fiatCode}`
+                              : undefined
                           )}
                         </span>
                       )}
@@ -1261,20 +1284,32 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                     <div className="flex items-center gap-1 pl-4">
                       <span className="text-muted-foreground">Input</span>
                       <span className="font-medium">
-                        {fmtOrDash(typeof dispInCost === "number" ? `${fmtNum(dispInCost)} UNREAL` : undefined)}
+                        {fmtOrDash(
+                          typeof dispInCost === "number"
+                            ? `${fmtNum(dispInCost)} UNREAL`
+                            : undefined
+                        )}
                       </span>
                     </div>
                     <div className="flex items-center gap-1 pl-4">
                       <span className="text-muted-foreground">Output</span>
                       <span className="font-medium">
-                        {fmtOrDash(typeof dispOutCost === "number" ? `${fmtNum(dispOutCost)} UNREAL` : undefined)}
+                        {fmtOrDash(
+                          typeof dispOutCost === "number"
+                            ? `${fmtNum(dispOutCost)} UNREAL`
+                            : undefined
+                        )}
                       </span>
                     </div>
-                    {(lastRun.priceTx?.hash || lastRun.costTx?.hash || lastRun.paymentTokenUrl) && (
+                    {(lastRun.priceTx?.hash ||
+                      lastRun.costTx?.hash ||
+                      lastRun.paymentTokenUrl) && (
                       <div className="pt-1 space-y-1">
                         {lastRun.priceTx?.hash && (
                           <div>
-                            <span className="text-muted-foreground mr-1">Price Tx:</span>
+                            <span className="text-muted-foreground mr-1">
+                              Price Tx:
+                            </span>
                             <a
                               href={lastRun.priceTx.url || "#"}
                               target="_blank"
@@ -1287,7 +1322,9 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                         )}
                         {lastRun.costTx?.hash && (
                           <div>
-                            <span className="text-muted-foreground mr-1">Cost Tx:</span>
+                            <span className="text-muted-foreground mr-1">
+                              Cost Tx:
+                            </span>
                             <a
                               href={lastRun.costTx.url || "#"}
                               target="_blank"
@@ -1300,7 +1337,9 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                         )}
                         {lastRun.paymentTokenUrl && (
                           <div>
-                            <span className="text-muted-foreground mr-1">Token:</span>
+                            <span className="text-muted-foreground mr-1">
+                              Token:
+                            </span>
                             <a
                               href={lastRun.paymentTokenUrl}
                               target="_blank"
@@ -1313,8 +1352,12 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                         )}
                         {typeof lastRun.refund?.amount === "number" && (
                           <div>
-                            <span className="text-muted-foreground mr-1">Refund:</span>
-                            <span className="font-medium mr-1">{fmtNum(lastRun.refund.amount)} UNREAL</span>
+                            <span className="text-muted-foreground mr-1">
+                              Refund:
+                            </span>
+                            <span className="font-medium mr-1">
+                              {fmtNum(lastRun.refund.amount)} UNREAL
+                            </span>
                             {lastRun.refund.tx?.hash && (
                               <a
                                 href={lastRun.refund.tx.url || "#"}
@@ -1336,7 +1379,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                   <div className="text-muted-foreground mb-1">Raw headers</div>
                   <div className="max-h-48 overflow-auto rounded bg-muted/50 p-2">
                     <pre className="text-[11px] leading-tight">
-{JSON.stringify(lastRun.headers ?? {}, null, 2)}
+                      {JSON.stringify(lastRun.headers ?? {}, null, 2)}
                     </pre>
                   </div>
                 </div>
@@ -1359,7 +1402,10 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
               <div className="font-mono">{fmtOrDash(lastRun?.model)}</div>
               <div className="text-muted-foreground">Request ID</div>
               <div className="flex items-center gap-2">
-                <span className="font-mono truncate" title={fmtOrDash(lastRun?.requestId)}>
+                <span
+                  className="font-mono truncate"
+                  title={fmtOrDash(lastRun?.requestId)}
+                >
                   {fmtOrDash(lastRun?.requestId)}
                 </span>
                 {lastRun?.requestId && (
@@ -1367,7 +1413,9 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                     variant="outline"
                     size="icon"
                     className="h-6 w-6"
-                    onClick={() => void copyToClipboard(lastRun?.requestId || undefined)}
+                    onClick={() =>
+                      void copyToClipboard(lastRun?.requestId || undefined)
+                    }
                     title="Copy request id"
                   >
                     <CopyIcon className="h-3 w-3" />
@@ -1395,30 +1443,47 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
               <div className="text-muted-foreground">Initial Price</div>
               <div>
                 {fmtOrDash(
-                  typeof lastRun?.headerCosts?.total === "number"
-                    ? `${fmtNum(lastRun.headerCosts.total)} UNREAL`
+                  typeof lastRun.price === "number"
+                    ? `${fmtNum(lastRun.price)} UNREAL`
                     : undefined
                 )}
               </div>
               <div className="text-muted-foreground">Computed (UNREAL)</div>
               <div>
-                Total {fmtOrDash(
-                  typeof dispTotalCost === "number" ? `${fmtNum(dispTotalCost)}` : undefined
+                Total{" "}
+                {fmtOrDash(
+                  typeof dispTotalCost === "number"
+                    ? `${fmtNum(dispTotalCost)}`
+                    : undefined
                 )}
                 {hasFiat && (
-                  <span className="text-muted-foreground"> · {fmtOrDash(
-                    typeof lastTotalFiat === "number" ? `${fmtNum(lastTotalFiat)} ${fiatCode}` : undefined
-                  )}</span>
+                  <span className="text-muted-foreground">
+                    {" "}
+                    ·{" "}
+                    {fmtOrDash(
+                      typeof lastTotalFiat === "number"
+                        ? `${fmtNum(lastTotalFiat)} ${fiatCode}`
+                        : undefined
+                    )}
+                  </span>
                 )}
               </div>
               <div className="text-muted-foreground pl-4">Input</div>
-              <div>{fmtOrDash(
-                typeof dispInCost === "number" ? `${fmtNum(dispInCost)} UNREAL` : undefined
-              )}</div>
+              <div>
+                {fmtOrDash(
+                  typeof dispInCost === "number"
+                    ? `${fmtNum(dispInCost)} UNREAL`
+                    : undefined
+                )}
+              </div>
               <div className="text-muted-foreground pl-4">Output</div>
-              <div>{fmtOrDash(
-                typeof dispOutCost === "number" ? `${fmtNum(dispOutCost)} UNREAL` : undefined
-              )}</div>
+              <div>
+                {fmtOrDash(
+                  typeof dispOutCost === "number"
+                    ? `${fmtNum(dispOutCost)} UNREAL`
+                    : undefined
+                )}
+              </div>
 
               {typeof lastRun?.refund?.amount === "number" && (
                 <>
@@ -1446,9 +1511,14 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
             <div>
               <div className="text-muted-foreground mb-1">Usage</div>
               <div className="text-xs">
-                {fmtOrDash(lastRun?.usage?.prompt_tokens)} in · {fmtOrDash(lastRun?.usage?.completion_tokens)} out · {fmtOrDash(
-                  lastRun?.usage?.total_tokens ?? ((lastRun?.usage?.prompt_tokens ?? 0) + (lastRun?.usage?.completion_tokens ?? 0))
-                )} total
+                {fmtOrDash(lastRun?.usage?.prompt_tokens)} in ·{" "}
+                {fmtOrDash(lastRun?.usage?.completion_tokens)} out ·{" "}
+                {fmtOrDash(
+                  lastRun?.usage?.total_tokens ??
+                    (lastRun?.usage?.prompt_tokens ?? 0) +
+                      (lastRun?.usage?.completion_tokens ?? 0)
+                )}{" "}
+                total
               </div>
             </div>
 
@@ -1456,7 +1526,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
               <div className="text-muted-foreground mb-1">Raw headers</div>
               <div className="max-h-64 overflow-auto rounded bg-background/50 p-2">
                 <pre className="text-[11px] leading-tight">
-{JSON.stringify(lastRun?.headers ?? {}, null, 2)}
+                  {JSON.stringify(lastRun?.headers ?? {}, null, 2)}
                 </pre>
               </div>
             </div>
@@ -1469,7 +1539,11 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
               <Button variant="outline" size="sm" onClick={exportCsv}>
                 <FileDown className="w-4 h-4 mr-1" /> CSV
               </Button>
-              <Button variant="default" size="sm" onClick={() => setReceiptOpen(false)}>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => setReceiptOpen(false)}
+              >
                 Close
               </Button>
             </div>
