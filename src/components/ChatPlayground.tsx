@@ -9,6 +9,7 @@ import {
   isSupportedModel,
 } from "@/config/models"
 import type { UnrealModelId } from "@/config/models"
+import { getChainById } from "@utils/web3/chains"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -26,6 +27,19 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 import {
   AlertCircle,
@@ -34,6 +48,13 @@ import {
   Trash2,
   Square,
   RotateCcw,
+} from "lucide-react"
+import {
+  ExternalLink,
+  Copy as CopyIcon,
+  FileJson,
+  FileDown,
+  List,
 } from "lucide-react"
 import OpenAI from "openai"
 import type { UIMessage } from "ai"
@@ -47,7 +68,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
   initialPrompt,
   autorun,
 }) => {
-  const { apiKey, token } = useApi()
+  const { apiKey, token, getCurrentChainId, verifyData } = useApi()
   const navigate = useNavigate()
 
   const [messages, setMessages] = useState<UIMessage[]>([])
@@ -65,6 +86,115 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
   const abortRef = useRef<AbortController | null>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const [modelOpen, setModelOpen] = useState(false)
+  const [outputGuess, setOutputGuess] = useState<number>(300)
+
+  // Chain and run metadata for transparent billing
+  const [chainId, setChainId] = useState<number | null>(null)
+  type BillingMeta = {
+    price?: string | number
+    currency?: string
+    txHash?: string
+    requestId?: string | null
+    headers?: Record<string, string>
+    usage?: {
+      prompt_tokens?: number
+      completion_tokens?: number
+      total_tokens?: number
+    }
+    model?: string
+    timestamp: number
+    // New explicit metadata parsed from headers
+    headerCosts?: { input?: number; output?: number; total?: number }
+    priceTx?: { hash?: string; url?: string }
+    costTx?: { hash?: string; url?: string }
+    refund?: { amount?: number; tx?: { hash?: string; url?: string } }
+    paymentTokenUrl?: string
+    chain?: { id?: number; name?: string }
+    callsRemaining?: number
+  }
+  const [lastRun, setLastRun] = useState<BillingMeta | null>(null)
+  const [showDetails, setShowDetails] = useState(false)
+  const [receiptOpen, setReceiptOpen] = useState(false)
+  const [expandedHash, setExpandedHash] = useState<{
+    type: 'price' | 'cost' | 'refund'
+    hash: string
+  } | null>(null)
+  
+  // Toggle hash expansion
+  const toggleHashExpansion = (type: 'price' | 'cost' | 'refund', hash: string) => {
+    if (expandedHash?.type === type && expandedHash.hash === hash) {
+      setExpandedHash(null)
+    } else {
+      setExpandedHash({ type, hash })
+    }
+  }
+  
+  // Component for expandable hash display
+  const ExpandableHash = ({
+    hash,
+    url,
+    type,
+  }: {
+    hash: string
+    url?: string
+    type: 'price' | 'cost' | 'refund'
+  }) => (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="flex items-center gap-1">
+          <span
+            className="font-mono cursor-pointer hover:underline"
+            onClick={(e) => {
+              e.stopPropagation()
+              toggleHashExpansion(type, hash)
+            }}
+          >
+            {expandedHash?.type === type && expandedHash.hash === hash
+              ? hash
+              : shortHash(hash)}
+          </span>
+          {url && (
+            <a
+              href={url}
+              target="_blank"
+              rel="noreferrer"
+              className="text-muted-foreground hover:text-foreground"
+              title="View on explorer"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>
+        {expandedHash?.type === type && expandedHash.hash === hash
+          ? 'Click to collapse'
+          : 'Click to expand'}
+      </TooltipContent>
+    </Tooltip>
+  )
+
+  // Pricing state from /v1/models/pricing
+  type PricingEntry = {
+    model: string
+    category?: string
+    input_unreal: number // UNREAL per 1M tokens
+    output_unreal: number // UNREAL per 1M tokens
+  }
+  type PricingApiItem = {
+    model?: unknown
+    category?: unknown
+    input_unreal?: unknown
+    output_unreal?: unknown
+  }
+  type PricingApiResponse = {
+    object?: unknown
+    data?: PricingApiItem[]
+  }
+  const [pricing, setPricing] = useState<Record<string, PricingEntry>>({})
+  const [isLoadingPricing, setIsLoadingPricing] = useState(false)
+  const [pricingError, setPricingError] = useState<string | null>(null)
 
   // Simple id generator for UIMessage ids
   const makeId = () =>
@@ -81,6 +211,61 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
       el.scrollTop = el.scrollHeight
     }
   }, [messages])
+
+  // Fetch current chain id for explorer links
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      try {
+        const id = await getCurrentChainId()
+        if (mounted) setChainId(id)
+      } catch (_e) {
+        // ignore; fallback to null
+      }
+    })()
+    return () => {
+      mounted = false
+    }
+  }, [getCurrentChainId])
+
+  // Helpers
+  const getExplorerTxUrl = useCallback(
+    (id?: number | null, tx?: string | null) => {
+      try {
+        if (!id || !tx) return "#"
+        const chain = getChainById(id) as unknown as {
+          blockExplorers?: { default?: { url?: string } }
+        }
+        const base = (chain?.blockExplorers?.default?.url || "").replace(
+          /\/$/,
+          ""
+        )
+        return base ? `${base}/tx/${tx}` : "#"
+      } catch {
+        return "#"
+      }
+    },
+    []
+  )
+
+  const short = (s?: string | null, head = 8, tail = 8) =>
+    s && s.length > head + tail
+      ? `${s.slice(0, head)}...${s.slice(-tail)}`
+      : s ?? ""
+
+  const shortHash = (s?: string | null, head = 4, tail = 4) =>
+    s && s.length > head + tail
+      ? `${s.slice(0, head)}...${s.slice(-tail)}`
+      : s ?? ""
+
+  const copyToClipboard = async (t?: string | null) => {
+    try {
+      if (!t) return
+      await navigator.clipboard.writeText(t)
+    } catch (_e) {
+      // noop
+    }
+  }
 
   // Dynamically fetch models from API and filter to allowlist
   useEffect(() => {
@@ -157,6 +342,281 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
     fetchModels()
   }, [apiKey, token])
 
+  // Fetch pricing table (UNREAL per 1M tokens)
+  useEffect(() => {
+    const fetchPricing = async () => {
+      setIsLoadingPricing(true)
+      setPricingError(null)
+      try {
+        const auth = apiKey || token || ""
+        const headers: Record<string, string> = auth
+          ? { Authorization: `Bearer ${auth}` }
+          : {}
+        const resp = await fetch(`${OPENAI_URL}/models/pricing?sort=model`, {
+          method: "GET",
+          headers,
+          credentials: "include",
+        })
+        if (!resp.ok)
+          throw new Error(`Failed to fetch pricing (${resp.status})`)
+        const json = (await resp.json()) as unknown
+        let items: PricingApiItem[] = []
+        if (
+          json &&
+          typeof json === "object" &&
+          Array.isArray((json as PricingApiResponse).data)
+        ) {
+          items = ((json as PricingApiResponse).data as PricingApiItem[]) || []
+        }
+        const entries = items
+          .map((d): PricingEntry | null => {
+            const model =
+              typeof d?.model === "string" ? (d.model as string) : undefined
+            const input_unreal =
+              typeof d?.input_unreal === "number"
+                ? (d.input_unreal as number)
+                : undefined
+            const output_unreal =
+              typeof d?.output_unreal === "number"
+                ? (d.output_unreal as number)
+                : undefined
+            if (
+              !model ||
+              input_unreal === undefined ||
+              output_unreal === undefined
+            )
+              return null
+            const category =
+              typeof d?.category === "string"
+                ? (d.category as string)
+                : undefined
+            const obj: PricingEntry = category
+              ? { model, category, input_unreal, output_unreal }
+              : { model, input_unreal, output_unreal }
+            return obj
+          })
+          .filter((v): v is NonNullable<typeof v> => v !== null)
+        const map: Record<string, PricingEntry> = {}
+        for (const e of entries) map[e.model] = e
+        setPricing(map)
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Failed to fetch pricing"
+        setPricingError(msg)
+      } finally {
+        setIsLoadingPricing(false)
+      }
+    }
+    void fetchPricing()
+  }, [apiKey, token])
+
+  // Helpers: pricing, estimate
+  const getSelectedPricing = useCallback((): PricingEntry | undefined => {
+    return pricing[model]
+  }, [pricing, model])
+
+  const per1k = (per1m?: number) =>
+    typeof per1m === "number" ? per1m / 1000 : undefined
+
+  const fmtNum = (n?: number) => {
+    if (typeof n !== "number" || !isFinite(n)) return "—"
+    if (n >= 1) return n.toFixed(3)
+    if (n >= 0.01) return n.toFixed(4)
+    return n.toPrecision(3)
+  }
+
+  const fmtOrDash = (v?: string | number | null) =>
+    v === undefined || v === null || v === "" ? "-" : String(v)
+
+  const estimateTokens = (text: string) => {
+    // Very rough heuristic: ~4 chars per token
+    const t = Math.ceil(text.trim().length / 4)
+    return isFinite(t) ? t : 0
+  }
+
+  const selectedPricing = getSelectedPricing()
+  const estInputTokens = estimateTokens(input)
+  const estInputCost =
+    typeof selectedPricing?.input_unreal === "number"
+      ? (selectedPricing.input_unreal * estInputTokens) / 1_000_000
+      : undefined
+  const estOutputCost =
+    typeof selectedPricing?.output_unreal === "number"
+      ? (selectedPricing.output_unreal * outputGuess) / 1_000_000
+      : undefined
+  const estTotalCost =
+    typeof estInputCost === "number" && typeof estOutputCost === "number"
+      ? estInputCost + estOutputCost
+      : undefined
+
+  // Cost breakdown for the last run using pricing + usage
+  const lastPricing = lastRun?.model ? pricing[lastRun.model] : undefined
+  const inTokens = lastRun?.usage?.prompt_tokens ?? undefined
+  const outTokens = lastRun?.usage?.completion_tokens ?? undefined
+  const lastInCost =
+    typeof lastPricing?.input_unreal === "number" &&
+    typeof inTokens === "number"
+      ? (lastPricing.input_unreal * inTokens) / 1_000_000
+      : undefined
+  const lastOutCost =
+    typeof lastPricing?.output_unreal === "number" &&
+    typeof outTokens === "number"
+      ? (lastPricing.output_unreal * outTokens) / 1_000_000
+      : undefined
+  const lastTotalCost =
+    typeof lastInCost === "number" && typeof lastOutCost === "number"
+      ? lastInCost + lastOutCost
+      : undefined
+
+  // Prefer header-reported costs if present
+  const dispInCost =
+    typeof lastRun?.headerCosts?.input === "number"
+      ? lastRun.headerCosts.input
+      : lastInCost
+  const dispOutCost =
+    typeof lastRun?.headerCosts?.output === "number"
+      ? lastRun.headerCosts.output
+      : lastOutCost
+  const dispTotalCost =
+    typeof lastRun?.headerCosts?.total === "number"
+      ? lastRun.headerCosts.total
+      : typeof dispInCost === "number" && typeof dispOutCost === "number"
+      ? dispInCost + dispOutCost
+      : lastTotalCost
+
+  // Optional: UNREAL -> Fiat conversion via env (1 UNREAL = $0.01 default)
+  const envObj = (import.meta as unknown as { env?: Record<string, unknown> })
+    .env
+  const parsedUnrealUsd =
+    typeof envObj?.VITE_UNREAL_USD === "string"
+      ? Number(envObj.VITE_UNREAL_USD as string)
+      : NaN
+  const unrealFiatRate = Number.isFinite(parsedUnrealUsd)
+    ? parsedUnrealUsd
+    : 0.01
+  const fiatCode =
+    typeof envObj?.VITE_FIAT_CODE === "string"
+      ? (envObj.VITE_FIAT_CODE as string)
+      : "USD"
+  const hasFiat = Number.isFinite(unrealFiatRate) && unrealFiatRate > 0
+  const toFiat = (v?: number) =>
+    hasFiat && typeof v === "number"
+      ? v * (unrealFiatRate as number)
+      : undefined
+
+  const estInputFiat = toFiat(estInputCost)
+  const estOutputFiat = toFiat(estOutputCost)
+  const estTotalFiat = toFiat(estTotalCost)
+  const lastInFiat = toFiat(dispInCost)
+  const lastOutFiat = toFiat(dispOutCost)
+  const lastTotalFiat = toFiat(dispTotalCost)
+
+  // Receipt export helpers
+  const buildReceipt = useCallback(() => {
+    if (!lastRun) return null
+    const obj = {
+      timestamp: lastRun.timestamp,
+      isoTime: new Date(lastRun.timestamp).toISOString(),
+      model: lastRun.model,
+      usage: lastRun.usage,
+      headers: lastRun.headers,
+      requestId: lastRun.requestId,
+      txHash: lastRun.txHash,
+      priceTx: lastRun.priceTx,
+      costTx: lastRun.costTx,
+      refund: lastRun.refund,
+      paymentTokenUrl: lastRun.paymentTokenUrl,
+      headerPrice: lastRun.price,
+      headerCurrency: lastRun.currency,
+      computed: {
+        inTokens: inTokens ?? null,
+        outTokens: outTokens ?? null,
+        inCostUNREAL: dispInCost ?? null,
+        outCostUNREAL: dispOutCost ?? null,
+        totalCostUNREAL: dispTotalCost ?? null,
+        inCostFiat: lastInFiat ?? null,
+        outCostFiat: lastOutFiat ?? null,
+        totalCostFiat: lastTotalFiat ?? null,
+        fiatCode: hasFiat ? fiatCode : null,
+      },
+    }
+    return obj
+  }, [
+    lastRun,
+    inTokens,
+    outTokens,
+    dispInCost,
+    dispOutCost,
+    dispTotalCost,
+    lastInFiat,
+    lastOutFiat,
+    lastTotalFiat,
+    hasFiat,
+    fiatCode,
+  ])
+
+  const downloadFile = (name: string, content: string, mime: string) => {
+    try {
+      const blob = new Blob([content], { type: mime })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = name
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (_e) {
+      // ignore
+    }
+  }
+
+  const exportJson = useCallback(() => {
+    const receipt = buildReceipt()
+    if (!receipt) return
+    const fname = `receipt_${receipt.model || "model"}_${
+      receipt.timestamp
+    }.json`
+    downloadFile(fname, JSON.stringify(receipt, null, 2), "application/json")
+  }, [buildReceipt])
+
+  const exportCsv = useCallback(() => {
+    const receipt = buildReceipt() as ReturnType<typeof buildReceipt> & {
+      [k: string]: unknown
+    }
+    if (!receipt) return
+    const flat = {
+      timestamp: receipt.timestamp,
+      isoTime: receipt.isoTime,
+      model: receipt.model ?? "",
+      prompt_tokens: receipt.usage?.prompt_tokens ?? "",
+      completion_tokens: receipt.usage?.completion_tokens ?? "",
+      total_tokens: receipt.usage?.total_tokens ?? "",
+      in_cost_unreal: receipt.computed.inCostUNREAL ?? "",
+      out_cost_unreal: receipt.computed.outCostUNREAL ?? "",
+      total_cost_unreal: receipt.computed.totalCostUNREAL ?? "",
+      in_cost_fiat: receipt.computed.inCostFiat ?? "",
+      out_cost_fiat: receipt.computed.outCostFiat ?? "",
+      total_cost_fiat: receipt.computed.totalCostFiat ?? "",
+      fiat_code: receipt.computed.fiatCode ?? "",
+      tx_hash: receipt.txHash ?? "",
+      request_id: receipt.requestId ?? "",
+      header_price: receipt.headerPrice ?? "",
+      header_currency: receipt.headerCurrency ?? "",
+    }
+    const headers = Object.keys(flat)
+    const csvEsc = (val: unknown) => {
+      const s = String(val ?? "")
+      // Guard against CSV injection
+      const needsFormulaEscape = /^[=+\-@]/.test(s)
+      const safe = needsFormulaEscape ? `'${s}` : s
+      return `"${safe.replace(/"/g, '""')}"`
+    }
+    const values = headers.map((k) => csvEsc((flat as Record<string, unknown>)[k]))
+    const csv = `${headers.join(",")}\n${values.join(",")}`
+    const fname = `receipt_${receipt.model || "model"}_${receipt.timestamp}.csv`
+    downloadFile(fname, csv, "text/csv")
+  }, [buildReceipt])
+
   // Helper to extract plain text from a UI message (only text parts for now)
   const getTextFromMessage = useCallback((m: UIMessage): string => {
     const parts = (m as unknown as { parts?: TextPart[] }).parts
@@ -185,7 +645,37 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
 
         const maxAttempts = 3
         let attempt = 0
-        let response: OpenAI.Chat.ChatCompletion | null = null
+        let completion: OpenAI.Chat.ChatCompletion | null = null
+        let headersCollected: Record<string, string> | null = null
+        let requestId: string | null = null
+        let parsedTxHash: string | undefined = undefined
+        let parsedPrice: string | undefined
+        let parsedCurrency: string | undefined = undefined
+        let activeChainId: number | null = null
+
+        // Header-derived metadata (declared in outer scope for later use)
+        let headerInputCost: number | undefined
+        let headerOutputCost: number | undefined
+        let headerTotalCost: number | undefined
+        let priceTxHash: string | undefined
+        let priceTxUrl: string | undefined
+        let costTxHash: string | undefined
+        let costTxUrl: string | undefined
+        let refundAmount: number | undefined
+        let refundTxHash: string | undefined
+        let refundTxUrl: string | undefined
+        let paymentTokenUrl: string | undefined
+        let chainName: string | undefined
+        let chainIdParsed: number | undefined
+        let callsRemaining: number | undefined
+
+        // Capture current chain id for explorer linking
+        try {
+          activeChainId = await getCurrentChainId()
+          setChainId(activeChainId)
+        } catch (_e) {
+          // ignore
+        }
 
         for (; attempt < maxAttempts; attempt++) {
           try {
@@ -220,14 +710,68 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
             }))
 
             // Use non-streamed chat completions
-            response = await client.chat.completions.create(
-              {
-                model,
-                messages: openaiMessages,
-                stream: false,
-              },
-              { signal: controller.signal }
-            )
+            const result = await client.chat.completions
+              .create(
+                {
+                  model,
+                  messages: openaiMessages,
+                  stream: false,
+                },
+                { signal: controller.signal }
+              )
+              .withResponse()
+
+            completion = result.data
+
+            // Collect headers for transparency panel
+            const headersObj: Record<string, string> = {}
+            try {
+              result.response.headers.forEach((v, k) => {
+                headersObj[String(k).toLowerCase()] = String(v)
+              })
+            } catch (_e) {
+              // ignore header parsing errors
+            }
+            headersCollected = headersObj
+            requestId = result.request_id
+
+            // Parse explicit headers for price/cost and transactions
+            const h = headersObj
+
+            if (!h) {
+              return
+            }
+
+            const num = (s?: string) => {
+              if (s == null) return undefined
+              const n = Number(s)
+              return Number.isFinite(n) ? n : undefined
+            }
+            headerInputCost = num(h["openai-input-cost"]) // UNREAL
+            headerOutputCost = num(h["openai-output-cost"]) // UNREAL
+            headerTotalCost = num(h["openai-total-cost"]) // UNREAL
+            priceTxHash = h["openai-price-tx"]
+            priceTxUrl = h["openai-price-tx-url"]
+            costTxHash = h["openai-cost-tx"]
+            costTxUrl = h["openai-cost-tx-url"]
+            refundAmount = num(h["openai-refund-amount"]) // UNREAL
+            refundTxHash = h["openai-refund-tx"]
+            refundTxUrl = h["openai-refund-tx-url"]
+            paymentTokenUrl = h["openai-payment-token"]
+            callsRemaining = num(h["openai-calls-remaining"]) ?? undefined
+            chainName = h["openai-chain"]
+            const chainIdHeader = h["openai-chain-id"]
+            chainIdParsed = chainIdHeader
+              ? Number.isFinite(Number(chainIdHeader))
+                ? Number(chainIdHeader)
+                : undefined
+              : undefined
+
+            // Use costTx hash as primary txHash if present
+            parsedTxHash = costTxHash || priceTxHash || undefined
+            // Do not set parsedPrice from arbitrary headers; rely on headerTotalCost/computed costs
+            parsedPrice = h["openai-price"]
+            parsedCurrency = "UNREAL"
 
             // Success - break out of retry loop
             break
@@ -255,8 +799,8 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
         }
 
         // Process the response
-        if (response && response.choices && response.choices.length > 0) {
-          const assistantMessage = response.choices[0].message
+        if (completion && completion.choices && completion.choices.length > 0) {
+          const assistantMessage = completion.choices[0].message
           if (assistantMessage && assistantMessage.content) {
             const newMessage: UIMessage = {
               id: makeId(),
@@ -265,6 +809,33 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
             }
             setMessages((prev) => [...prev, newMessage])
           }
+
+          // console.log("parsedPrice", parsedPrice)
+          // Record transparent billing metadata for this run
+          setLastRun({
+            price: parsedPrice ? Number(parsedPrice) : undefined,
+            currency: parsedCurrency || "UNREAL",
+            txHash: parsedTxHash,
+            requestId,
+            headers: headersCollected || undefined,
+            usage: completion.usage,
+            model: completion.model,
+            timestamp: Date.now(),
+            headerCosts: {
+              input: headerInputCost,
+              output: headerOutputCost,
+              total: headerTotalCost,
+            },
+            priceTx: { hash: priceTxHash, url: priceTxUrl },
+            costTx: { hash: costTxHash, url: costTxUrl },
+            refund: {
+              amount: refundAmount,
+              tx: { hash: refundTxHash, url: refundTxUrl },
+            },
+            paymentTokenUrl,
+            chain: { id: chainIdParsed, name: chainName },
+            callsRemaining,
+          })
         }
       } catch (err) {
         console.error("Chat completion error:", err)
@@ -293,7 +864,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
         setIsStreaming(false)
       }
     },
-    [apiKey, token, model, getTextFromMessage]
+    [apiKey, token, model, getTextFromMessage, getCurrentChainId]
   )
 
   const sendMessage = useCallback(
@@ -323,7 +894,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
       }, 100)
       return () => clearTimeout(t)
     }
-  }, [])
+  }, [autorun, initialPrompt, sendMessage])
 
   // Actions
   const handleClear = useCallback(() => {
@@ -484,6 +1055,74 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
           <Badge variant="secondary" className="hidden md:inline-flex">
             {model}
           </Badge>
+          {/* Show per-1K pricing for selected model (UNREAL/1K tokens) */}
+          {selectedPricing && (
+            <div className="text-xs md:text-sm text-muted-foreground">
+              <span className="mr-2">Pricing:</span>
+              <span className="mr-2">
+                In {fmtNum(per1k(selectedPricing.input_unreal))} UNREAL/1K
+              </span>
+              <span>
+                Out {fmtNum(per1k(selectedPricing.output_unreal))} UNREAL/1K
+              </span>
+            </div>
+          )}
+          {!selectedPricing && pricingError && (
+            <div className="text-xs md:text-sm text-muted-foreground">
+              Pricing unavailable
+            </div>
+          )}
+          {/* Pricing Catalog popover */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="ml-1">
+                <List className="w-4 h-4 mr-1" /> Catalog
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[420px] p-3" align="start">
+              <div className="text-sm font-medium mb-2">
+                Pricing Catalog (UNREAL)
+              </div>
+              {isLoadingPricing && (
+                <div className="text-xs text-muted-foreground">
+                  Loading pricing…
+                </div>
+              )}
+              {!isLoadingPricing && Object.keys(pricing).length === 0 && (
+                <div className="text-xs text-muted-foreground">
+                  No pricing available
+                </div>
+              )}
+              {!isLoadingPricing && Object.keys(pricing).length > 0 && (
+                <div className="max-h-72 overflow-auto">
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 bg-background">
+                      <tr className="text-left">
+                        <th className="py-1 pr-2">Model</th>
+                        <th className="py-1 pr-2">In/1K</th>
+                        <th className="py-1">Out/1K</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.values(pricing)
+                        .sort((a, b) => a.model.localeCompare(b.model))
+                        .map((p) => (
+                          <tr key={p.model} className="border-t">
+                            <td className="py-1 pr-2 font-mono">{p.model}</td>
+                            <td className="py-1 pr-2">
+                              {fmtNum(per1k(p.input_unreal))}
+                            </td>
+                            <td className="py-1">
+                              {fmtNum(per1k(p.output_unreal))}
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </PopoverContent>
+          </Popover>
         </div>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -533,6 +1172,270 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
           )}
         </div>
       </div>
+
+      {/* Transparency panel: price, tx hash, usage, request id */}
+      {lastRun && (
+        <div className="mb-4 rounded-md border bg-muted/30 p-3">
+          <div className="flex flex-wrap items-center gap-3 text-xs md:text-sm">
+            <Badge variant="secondary">Transparency</Badge>
+            {(typeof lastRun.callsRemaining === "number" ||
+              typeof verifyData?.remaining === "number") && (
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground">Remaining</span>
+                <span className="font-medium">
+                  {Number(
+                    (typeof lastRun.callsRemaining === "number"
+                      ? lastRun.callsRemaining
+                      : verifyData?.remaining) as number
+                  ).toLocaleString()}
+                </span>
+              </div>
+            )}
+            {lastRun.usage && (
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground">Usage</span>
+                <span className="font-medium">
+                  {lastRun.usage.prompt_tokens ?? 0} in ·{" "}
+                  {lastRun.usage.completion_tokens ?? 0} out ·{" "}
+                  {lastRun.usage.total_tokens ??
+                    (lastRun.usage.prompt_tokens ?? 0) +
+                      (lastRun.usage.completion_tokens ?? 0)}{" "}
+                  total
+                </span>
+              </div>
+            )}
+            {/* Price popover removed per request; use Receipt modal instead */}
+            {/* Receipt action - open modal */}
+            {lastRun && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setReceiptOpen(true)}
+                  >
+                    Receipt
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Open the latest receipt</TooltipContent>
+              </Tooltip>
+            )}
+            {lastRun.requestId && (
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground">ReqID</span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    void copyToClipboard(lastRun.requestId || undefined)
+                  }
+                  className="font-mono underline-offset-2 hover:underline"
+                  title="Copy request id"
+                >
+                  {short(lastRun.requestId)}
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    void copyToClipboard(lastRun.requestId || undefined)
+                  }
+                  className="p-1 text-muted-foreground hover:text-foreground"
+                  aria-label="Copy request id"
+                  title="Copy request id"
+                >
+                  <CopyIcon className="h-3 w-3" />
+                </button>
+              </div>
+            )}
+            <div className="ml-auto flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowDetails((s) => !s)}
+              >
+                {showDetails ? "Hide details" : "Show details"}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={exportJson}
+                title="Export JSON"
+              >
+                <FileJson className="w-4 h-4 mr-1" /> JSON
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={exportCsv}
+                title="Export CSV"
+              >
+                <FileDown className="w-4 h-4 mr-1" /> CSV
+              </Button>
+            </div>
+          </div>
+          {showDetails && (
+            <div className="mt-2 rounded border bg-background/50 p-3 max-h-64 overflow-auto">
+              <div className="text-muted-foreground mb-1">Raw headers</div>
+              <div className="max-h-48 overflow-auto rounded bg-muted/50 p-2">
+                <pre className="text-[11px] leading-tight">
+                  {JSON.stringify(lastRun.headers ?? {}, null, 2)}
+                </pre>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Receipt Modal */}
+      <Dialog open={receiptOpen} onOpenChange={setReceiptOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh]">
+          <DialogHeader>
+            <DialogTitle>Receipt</DialogTitle>
+            <DialogDescription>Details for the last run</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 text-sm max-h-[65vh] overflow-y-auto pr-1">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="text-muted-foreground">Model</div>
+              <div className="font-mono">{fmtOrDash(lastRun?.model)}</div>
+              <div className="text-muted-foreground">Request ID</div>
+              <div className="flex items-center gap-2">
+                <span
+                  className="font-mono truncate"
+                  title={fmtOrDash(lastRun?.requestId)}
+                >
+                  {fmtOrDash(lastRun?.requestId)}
+                </span>
+                {lastRun?.requestId && (
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() =>
+                      void copyToClipboard(lastRun?.requestId || undefined)
+                    }
+                    title="Copy request id"
+                  >
+                    <CopyIcon className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div className="text-muted-foreground">Initial Price</div>
+              <div className="flex items-center gap-1">
+                {fmtOrDash(
+                  typeof lastRun?.price === "number"
+                    ? `${fmtNum(lastRun?.price)} UNREAL`
+                    : undefined
+                )}
+                {lastRun?.priceTx?.hash && (
+                  <div className="flex items-center gap-1">
+                    <span className="text-muted-foreground">-</span>
+                    <ExpandableHash 
+                      hash={lastRun.priceTx.hash} 
+                      url={lastRun.priceTx.url}
+                      type="price"
+                    />
+                  </div>
+                )}
+              </div>
+              <div className="text-muted-foreground">Total Cost</div>
+              <div className="flex items-center gap-1">
+                {fmtOrDash(
+                  typeof dispTotalCost === "number"
+                    ? `${fmtNum(dispTotalCost)} UNREAL`
+                    : undefined
+                )}
+                {lastRun?.costTx?.hash && (
+                  <div className="flex items-center gap-1">
+                    <span className="text-muted-foreground">-</span>
+                    <ExpandableHash 
+                      hash={lastRun.costTx.hash} 
+                      url={lastRun.costTx.url}
+                      type="cost"
+                    />
+                  </div>
+                )}
+              </div>
+              <div className="text-muted-foreground pl-4">Input</div>
+              <div>
+                {fmtOrDash(
+                  typeof dispInCost === "number"
+                    ? `${fmtNum(dispInCost)} UNREAL`
+                    : undefined
+                )}
+              </div>
+              <div className="text-muted-foreground pl-4">Output</div>
+              <div>
+                {fmtOrDash(
+                  typeof dispOutCost === "number"
+                    ? `${fmtNum(dispOutCost)} UNREAL`
+                    : undefined
+                )}
+              </div>
+
+              {typeof lastRun?.refund?.amount === "number" && (
+                <>
+                  <div className="text-muted-foreground">Refund</div>
+                  <div className="flex items-center gap-1">
+                    <span>{fmtNum(lastRun.refund.amount)} UNREAL</span>
+                    {lastRun.refund.tx?.hash && (
+                      <div className="flex items-center gap-1">
+                        <span className="text-muted-foreground">-</span>
+                        <ExpandableHash 
+                          hash={lastRun.refund.tx.hash} 
+                          url={lastRun.refund.tx.url}
+                          type="refund"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div>
+              <div className="text-muted-foreground mb-1">Usage</div>
+              <div className="text-xs">
+                {fmtOrDash(lastRun?.usage?.prompt_tokens)} in ·{" "}
+                {fmtOrDash(lastRun?.usage?.completion_tokens)} out ·{" "}
+                {fmtOrDash(
+                  lastRun?.usage?.total_tokens ??
+                    (lastRun?.usage?.prompt_tokens ?? 0) +
+                      (lastRun?.usage?.completion_tokens ?? 0)
+                )}{" "}
+                total
+              </div>
+            </div>
+
+            <div>
+              <div className="text-muted-foreground mb-1">Raw headers</div>
+              <div className="max-h-64 overflow-auto rounded bg-background/50 p-2">
+                <pre className="text-[11px] leading-tight">
+                  {JSON.stringify(lastRun?.headers ?? {}, null, 2)}
+                </pre>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <div className="flex items-center gap-2 ml-auto">
+              <Button variant="outline" size="sm" onClick={exportJson}>
+                <FileJson className="w-4 h-4 mr-1" /> JSON
+              </Button>
+              <Button variant="outline" size="sm" onClick={exportCsv}>
+                <FileDown className="w-4 h-4 mr-1" /> CSV
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => setReceiptOpen(false)}
+              >
+                Close
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {error && (
         <Alert className="mb-4 border-red-500 bg-red-500/15">
@@ -621,6 +1524,65 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
             }
           }}
         />
+        {/* Predictive estimate for input/output and total cost */}
+        {selectedPricing && input.trim().length > 0 && (
+          <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+            <div className="flex items-center justify-between">
+              <div>
+                Est. input tokens:{" "}
+                <span className="font-medium">
+                  {estInputTokens.toLocaleString()}
+                </span>
+              </div>
+              <div>
+                Est. input cost:{" "}
+                <span className="font-medium">
+                  {fmtNum(estInputCost)} UNREAL
+                  {hasFiat && typeof estInputFiat === "number"
+                    ? ` · ${fmtNum(estInputFiat)} ${fiatCode}`
+                    : ""}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                Output guess:
+                <Select
+                  value={String(outputGuess)}
+                  onValueChange={(v) => setOutputGuess(Number(v))}
+                >
+                  <SelectTrigger className="h-7 w-[140px]">
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="100">Short (100)</SelectItem>
+                    <SelectItem value="300">Medium (300)</SelectItem>
+                    <SelectItem value="800">Long (800)</SelectItem>
+                    <SelectItem value="1500">Very long (1500)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                Est. output cost:{" "}
+                <span className="font-medium">
+                  {fmtNum(estOutputCost)} UNREAL
+                  {hasFiat && typeof estOutputFiat === "number"
+                    ? ` · ${fmtNum(estOutputFiat)} ${fiatCode}`
+                    : ""}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center justify-end">
+              Est. total cost:{" "}
+              <span className="ml-1 font-medium">
+                {fmtNum(estTotalCost)} UNREAL
+                {hasFiat && typeof estTotalFiat === "number"
+                  ? ` · ${fmtNum(estTotalFiat)} ${fiatCode}`
+                  : ""}
+              </span>
+            </div>
+          </div>
+        )}
         <div className="flex items-center justify-end">
           <Button
             onClick={() => void sendMessage()}
