@@ -115,6 +115,65 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
   const [lastRun, setLastRun] = useState<BillingMeta | null>(null)
   const [showDetails, setShowDetails] = useState(false)
   const [receiptOpen, setReceiptOpen] = useState(false)
+  const [expandedHash, setExpandedHash] = useState<{
+    type: 'price' | 'cost' | 'refund'
+    hash: string
+  } | null>(null)
+  
+  // Toggle hash expansion
+  const toggleHashExpansion = (type: 'price' | 'cost' | 'refund', hash: string) => {
+    if (expandedHash?.type === type && expandedHash.hash === hash) {
+      setExpandedHash(null)
+    } else {
+      setExpandedHash({ type, hash })
+    }
+  }
+  
+  // Component for expandable hash display
+  const ExpandableHash = ({
+    hash,
+    url,
+    type,
+  }: {
+    hash: string
+    url?: string
+    type: 'price' | 'cost' | 'refund'
+  }) => (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="flex items-center gap-1">
+          <span
+            className="font-mono cursor-pointer hover:underline"
+            onClick={(e) => {
+              e.stopPropagation()
+              toggleHashExpansion(type, hash)
+            }}
+          >
+            {expandedHash?.type === type && expandedHash.hash === hash
+              ? hash
+              : shortHash(hash)}
+          </span>
+          {url && (
+            <a
+              href={url}
+              target="_blank"
+              rel="noreferrer"
+              className="text-muted-foreground hover:text-foreground"
+              title="View on explorer"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>
+        {expandedHash?.type === type && expandedHash.hash === hash
+          ? 'Click to collapse'
+          : 'Click to expand'}
+      </TooltipContent>
+    </Tooltip>
+  )
 
   // Pricing state from /v1/models/pricing
   type PricingEntry = {
@@ -1265,25 +1324,14 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                     : undefined
                 )}
                 {lastRun?.priceTx?.hash && (
-                  <>
-                    <span className="text-muted-foreground mx-1">-</span>
-                    <span
-                      className="font-mono cursor-pointer"
-                      title={lastRun.priceTx.hash?.slice(0, 8)}
-                      onClick={() => void copyToClipboard(lastRun.priceTx.hash)}
-                    >
-                      {shortHash(lastRun.priceTx.hash)}
-                    </span>
-                    <a
-                      href={lastRun.priceTx.url || "#"}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-muted-foreground"
-                      title="Open Tx URL"
-                    >
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                  </>
+                  <div className="flex items-center gap-1">
+                    <span className="text-muted-foreground">-</span>
+                    <ExpandableHash 
+                      hash={lastRun.priceTx.hash} 
+                      url={lastRun.priceTx.url}
+                      type="price"
+                    />
+                  </div>
                 )}
               </div>
               <div className="text-muted-foreground">Total Cost</div>
@@ -1294,25 +1342,14 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                     : undefined
                 )}
                 {lastRun?.costTx?.hash && (
-                  <>
-                    <span className="text-muted-foreground mx-1">-</span>
-                    <span
-                      className="font-mono cursor-pointer"
-                      title={lastRun.costTx.hash?.slice(0, 8)}
-                      onClick={() => void copyToClipboard(lastRun.costTx.hash)}
-                    >
-                      {shortHash(lastRun.costTx.hash)}
-                    </span>
-                    <a
-                      href={lastRun.costTx.url || "#"}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-muted-foreground"
-                      title="Open Tx URL"
-                    >
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                  </>
+                  <div className="flex items-center gap-1">
+                    <span className="text-muted-foreground">-</span>
+                    <ExpandableHash 
+                      hash={lastRun.costTx.hash} 
+                      url={lastRun.costTx.url}
+                      type="cost"
+                    />
+                  </div>
                 )}
               </div>
               <div className="text-muted-foreground pl-4">Input</div>
@@ -1338,27 +1375,14 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                   <div className="flex items-center gap-1">
                     <span>{fmtNum(lastRun.refund.amount)} UNREAL</span>
                     {lastRun.refund.tx?.hash && (
-                      <>
-                        <span className="text-muted-foreground mx-1">-</span>
-                        <span
-                          className="font-mono cursor-pointer"
-                          title={lastRun.refund.tx.hash?.slice(0, 8)}
-                          onClick={() =>
-                            void copyToClipboard(lastRun.refund.tx.hash)
-                          }
-                        >
-                          {shortHash(lastRun.refund.tx.hash)}
-                        </span>
-                        <a
-                          href={lastRun.refund.tx.url || "#"}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-muted-foreground"
-                          title="Open Refund Tx URL"
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                      </>
+                      <div className="flex items-center gap-1">
+                        <span className="text-muted-foreground">-</span>
+                        <ExpandableHash 
+                          hash={lastRun.refund.tx.hash} 
+                          url={lastRun.refund.tx.url}
+                          type="refund"
+                        />
+                      </div>
                     )}
                   </div>
                 </>
