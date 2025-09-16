@@ -794,6 +794,8 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
             return undefined
           }
 
+          let finished = false
+
           while (true) {
             const { done, value } = await reader.read()
             if (done) break
@@ -808,11 +810,19 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
               if (status === "DONE") {
                 // Drain remaining
                 buffer = ""
+                finished = true
                 break
               }
             }
+            if (finished) break
           }
 
+          // Flush any remaining decoded bytes (in case the final chunk wasn't newline-terminated)
+          const tail = decoder.decode()
+          if (tail) {
+            buffer += tail
+            if (buffer) void flushEvents(buffer)
+          }
           // Finalize receipt from headers and observed model
           setLastRun({
             price: undefined,
