@@ -72,23 +72,20 @@ const OpenAIStreamingPlayground: React.FC<OpenAIStreamingPlaygroundProps> = ({ i
         ? initialPrompt
         : "Write a concise TypeScript function called `toTitleCase` that converts a string to Title Case, followed by a short usage example."
 
-      // Start a streaming chat completion
-      const stream = await client.chat.completions.create({
+      // Start a streaming response using Responses API
+      const stream = await client.responses.create({
         model: CODING_MODEL,
-        messages: [
-          { role: "system", content: "You are a helpful coding assistant." },
-          { role: "user", content: userPrompt },
-        ],
+        instructions: "You are a helpful coding assistant.",
+        input: userPrompt,
         stream: true,
       })
 
       console.log("Stream created, reading chunks...")
 
       // Read incremental deltas and append to response
-      for await (const chunk of stream) {
-        const delta = chunk.choices?.[0]?.delta?.content
-        if (delta) {
-          setResponse((prev) => prev + delta)
+      for await (const event of stream) {
+        if (event.type === 'response.output_text.delta') {
+          setResponse((prev) => prev + event.delta)
         }
       }
 

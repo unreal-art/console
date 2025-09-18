@@ -14,7 +14,7 @@ const MarketingContent: React.FC = () => {
 
   const codeExamples = {
     curl: `curl -X POST "https://openai.unreal.art/v1/chat/completions" \\\n  -H "Authorization: Bearer your-api-key-here" \\\n  -H "Content-Type: application/json" \\\n  -d '{
-    "model": "unreal::mixtral-8x22b-instruct",
+    "model": "mixtral-8x22b-instruct",
     "messages": [{"role": "user", "content": "Hello world!"}]
   }'`,
     python: `import openai
@@ -25,7 +25,7 @@ client = openai.OpenAI(
 )
 
 response = client.chat.completions.create(
-    model="unreal::mixtral-8x22b-instruct",
+    model="mixtral-8x22b-instruct",
     messages=[{"role": "user", "content": "Hello world!"}]
 )
 
@@ -38,7 +38,7 @@ const client = new OpenAI({
 });
 
 const response = await client.chat.completions.create({
-  model: 'unreal::mixtral-8x22b-instruct',
+  model: 'mixtral-8x22b-instruct',
   messages: [{ role: 'user', content: 'Hello world!' }]
 });
 

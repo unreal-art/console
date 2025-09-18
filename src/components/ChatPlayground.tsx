@@ -700,14 +700,15 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
             { id: makeId(), role: "assistant", parts: [{ type: "text", text: "" }] },
           ])
 
-          const resp = await fetch(`${OPENAI_URL}/chat/completions`, {
+          const resp = await fetch(`${OPENAI_URL}/responses`, {
             method: "POST",
             headers,
             credentials: "include",
             signal: controller.signal,
             body: JSON.stringify({
               model,
-              messages: openaiMessages,
+              instructions: openaiMessages.find(m => m.role === "system")?.content || "You are a helpful assistant.",
+              input: openaiMessages.filter(m => m.role !== "system").map(m => `${m.role}: ${m.content}`).join("\n"),
               stream: true,
             }),
           })
@@ -778,14 +779,13 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
               if (data === "[DONE]") return "DONE" as const
               try {
                 const json = JSON.parse(data) as {
-                  id?: string
+                  type?: string
+                  delta?: string
                   model?: string
-                  choices?: Array<{ delta?: { content?: string }; text?: string }>
                 }
                 if (json?.model && !modelSeen) modelSeen = json.model
-                // OpenAI chat.completions: choices[0].delta.content
-                const delta = json?.choices?.[0]?.delta?.content
-                const plain = typeof delta === "string" ? delta : ""
+                // OpenAI Responses API: event.delta for response.output_text.delta
+                const plain = json?.type === 'response.output_text.delta' && typeof json.delta === "string" ? json.delta : ""
                 if (plain) appendChunk(assistantIndex, plain)
               } catch (_e) {
                 // ignore malformed chunks
@@ -958,12 +958,15 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
               content: getTextFromMessage(m),
             }))
 
-            // Use non-streamed chat completions
-            const result = await client.chat.completions
+            // Use non-streamed responses API
+            const systemMessage = openaiMessages.find(m => m.role === "system")
+            const userMessages = openaiMessages.filter(m => m.role !== "system")
+            const result = await client.responses
               .create(
                 {
                   model,
-                  messages: openaiMessages,
+                  instructions: systemMessage?.content || "You are a helpful assistant.",
+                  input: userMessages.map(m => `${m.role}: ${m.content}`).join("\n"),
                   stream: false,
                 },
                 { signal: controller.signal }
@@ -1048,16 +1051,13 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
         }
 
         // Process the response
-        if (completion && completion.choices && completion.choices.length > 0) {
-          const assistantMessage = completion.choices[0].message
-          if (assistantMessage && assistantMessage.content) {
-            const newMessage: UIMessage = {
-              id: makeId(),
-              role: "assistant",
-              parts: [{ type: "text", text: assistantMessage.content }],
-            }
-            setMessages((prev) => [...prev, newMessage])
+        if (completion && completion.output_text) {
+          const newMessage: UIMessage = {
+            id: makeId(),
+            role: "assistant",
+            parts: [{ type: "text", text: completion.output_text }],
           }
+          setMessages((prev) => [...prev, newMessage])
 
           // console.log("parsedPrice", parsedPrice)
           // Record transparent billing metadata for this run

@@ -119,7 +119,7 @@ const Index = () => {
   -H "Authorization: Bearer your-api-key-here" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "model": "unreal::mixtral-8x22b-instruct",
+    "model": "mixtral-8x22b-instruct",
     "messages": [{"role": "user", "content": "Hello world!"}]
   }'`,
     python: `import openai
@@ -130,7 +130,7 @@ client = openai.OpenAI(
 )
 
 response = client.chat.completions.create(
-    model="unreal::mixtral-8x22b-instruct",
+    model="mixtral-8x22b-instruct",
     messages=[{"role": "user", "content": "Hello world!"}]
 )
 
@@ -143,7 +143,7 @@ const client = new OpenAI({
 });
 
 const response = await client.chat.completions.create({
-  model: 'unreal::mixtral-8x22b-instruct',
+  model: 'mixtral-8x22b-instruct',
   messages: [{ role: 'user', content: 'Hello world!' }]
 });
 
