@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Send, AlertCircle } from 'lucide-react';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
-import { DEFAULT_MODEL, SUPPORTED_MODELS, isSupportedModel } from '@/config/models';
+import { DEFAULT_MODEL, getAvailableModels } from '@/config/models';
 import type { UnrealModelId } from '@/config/models';
 import { OPENAI_URL } from '@/config/unreal';
 
@@ -15,23 +15,7 @@ interface Message {
   content: string;
 }
 
-type ApiModelLike = {
-  id?: unknown;
-  model?: unknown;
-  name?: unknown;
-} | string | null | undefined;
-
-const extractModelId = (m: ApiModelLike): string | undefined => {
-  if (typeof m === 'string') return m;
-  if (m && typeof m === 'object') {
-    const obj = m as { id?: unknown; model?: unknown; name?: unknown };
-    const candidate = [obj.id, obj.model, obj.name].find(
-      (v): v is string => typeof v === 'string'
-    );
-    return candidate;
-  }
-  return undefined;
-};
+// Models are loaded from /v1/models with a 10-minute in-memory cache
 
 const ChatCompletion: React.FC = () => {
   const [prompt, setPrompt] = useState('');
@@ -41,50 +25,22 @@ const ChatCompletion: React.FC = () => {
 
   const { isAuthenticated, apiKey } = useApi();
   const [model, setModel] = useState<UnrealModelId>(DEFAULT_MODEL);
-  const [availableModels, setAvailableModels] = useState<UnrealModelId[]>([...SUPPORTED_MODELS]);
+  const [availableModels, setAvailableModels] = useState<UnrealModelId[]>([DEFAULT_MODEL]);
   const [isLoadingModels, setIsLoadingModels] = useState(false);
 
-  // Dynamically fetch models from API (filtered to the supported allowlist)
+  // Dynamically fetch models from API using shared 10-minute cache
   useEffect(() => {
     const fetchModels = async () => {
-      if (!apiKey) return;
       setIsLoadingModels(true);
       try {
-        const response = await fetch(`${OPENAI_URL}/models`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-          },
-          credentials: 'include',
-        });
-        if (!response.ok) {
-          // Silently fallback to static list
-          return;
-        }
-        const data: unknown = await response.json();
-        let ids: string[] = [];
-        if (data && typeof data === 'object' && Array.isArray((data as Record<string, unknown>).data)) {
-          ids = ((data as Record<string, unknown>).data as unknown[])
-            .map((m) => extractModelId(m as ApiModelLike))
-            .filter((v): v is string => Boolean(v));
-        } else if (data && typeof data === 'object' && Array.isArray((data as Record<string, unknown>).models)) {
-          ids = ((data as Record<string, unknown>).models as unknown[])
-            .map((m) => extractModelId(m as ApiModelLike))
-            .filter((v): v is string => Boolean(v));
-        } else if (Array.isArray(data)) {
-          ids = (data as unknown[])
-            .map((m) => extractModelId(m as ApiModelLike))
-            .filter((v): v is string => Boolean(v));
-        }
-
-        const filtered = ids.filter(isSupportedModel) as UnrealModelId[];
-        if (filtered.length > 0) {
-          setAvailableModels(filtered);
-          setModel((prev) => (filtered.includes(prev) ? prev : filtered[0] ?? DEFAULT_MODEL));
+        const auth = apiKey || '';
+        const models = await getAvailableModels(auth);
+        if (models && models.length > 0) {
+          setAvailableModels(models as UnrealModelId[]);
+          setModel((prev) => ((models as string[]).includes(prev) ? prev : (models[0] as UnrealModelId)));
         }
       } catch (err) {
-        // Fallback to the static SUPPORTED_MODELS list on any error
-        console.warn('Failed to fetch models, using static list', err);
+        console.warn('Failed to load models', err);
       } finally {
         setIsLoadingModels(false);
       }

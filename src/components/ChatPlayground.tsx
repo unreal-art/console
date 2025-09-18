@@ -5,8 +5,7 @@ import { useApi } from "@/lib/ApiContext"
 import { OPENAI_URL } from "@/config/unreal"
 import {
   DEFAULT_MODEL,
-  SUPPORTED_MODELS,
-  isSupportedModel,
+  getAvailableModels,
 } from "@/config/models"
 import type { UnrealModelId } from "@/config/models"
 import { getChainById } from "@utils/web3/chains"
@@ -79,7 +78,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
 
   const [model, setModel] = useState<UnrealModelId>(DEFAULT_MODEL)
   const [availableModels, setAvailableModels] = useState<UnrealModelId[]>([
-    ...SUPPORTED_MODELS,
+    DEFAULT_MODEL,
   ])
   const [isLoadingModels, setIsLoadingModels] = useState(false)
 
@@ -269,79 +268,28 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
     }
   }
 
-  // Dynamically fetch models from API and filter to allowlist
+  // Dynamically fetch models from API using shared 10-minute cache
   useEffect(() => {
-    const fetchModels = async () => {
+    const load = async () => {
       setIsLoadingModels(true)
       try {
         const auth = apiKey || token || ""
-        const headers: Record<string, string> = auth
-          ? { Authorization: `Bearer ${auth}` }
-          : {}
-        const response = await fetch(`${OPENAI_URL}/models`, {
-          method: "GET",
-          headers,
-          credentials: "include",
-        })
-        if (!response.ok) return // fallback silently
-        const data: unknown = await response.json()
-
-        // Extract ids from multiple possible shapes
-        type ApiModelLike =
-          | { id?: unknown; model?: unknown; name?: unknown }
-          | string
-          | null
-          | undefined
-        const extractModelId = (m: ApiModelLike): string | undefined => {
-          if (typeof m === "string") return m
-          if (m && typeof m === "object") {
-            const obj = m as { id?: unknown; model?: unknown; name?: unknown }
-            const candidate = [obj.id, obj.model, obj.name].find(
-              (v): v is string => typeof v === "string"
-            )
-            return candidate
-          }
-          return undefined
-        }
-
-        let ids: string[] = []
-        if (
-          data &&
-          typeof data === "object" &&
-          Array.isArray((data as Record<string, unknown>).data)
-        ) {
-          ids = ((data as Record<string, unknown>).data as unknown[])
-            .map((m) => extractModelId(m as ApiModelLike))
-            .filter((v): v is string => Boolean(v))
-        } else if (
-          data &&
-          typeof data === "object" &&
-          Array.isArray((data as Record<string, unknown>).models)
-        ) {
-          ids = ((data as Record<string, unknown>).models as unknown[])
-            .map((m) => extractModelId(m as ApiModelLike))
-            .filter((v): v is string => Boolean(v))
-        } else if (Array.isArray(data)) {
-          ids = (data as unknown[])
-            .map((m) => extractModelId(m as ApiModelLike))
-            .filter((v): v is string => Boolean(v))
-        }
-
-        const filtered = ids.filter(isSupportedModel) as UnrealModelId[]
-        if (filtered.length > 0) {
-          setAvailableModels(filtered)
+        const models = await getAvailableModels(auth)
+        if (models && models.length > 0) {
+          setAvailableModels(models as UnrealModelId[])
           setModel((prev) =>
-            filtered.includes(prev) ? prev : filtered[0] ?? DEFAULT_MODEL
+            (models as string[]).includes(prev)
+              ? prev
+              : (models[0] as UnrealModelId)
           )
         }
       } catch (err) {
-        console.warn("Failed to fetch models, using static list", err)
+        console.warn("Failed to load models", err)
       } finally {
         setIsLoadingModels(false)
       }
     }
-
-    fetchModels()
+    void load()
   }, [apiKey, token])
 
   // Fetch pricing table (UNREAL per 1M tokens)
