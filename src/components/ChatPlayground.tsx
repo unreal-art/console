@@ -5,8 +5,7 @@ import { useApi } from "@/lib/ApiContext"
 import { OPENAI_URL } from "@/config/unreal"
 import {
   DEFAULT_MODEL,
-  SUPPORTED_MODELS,
-  isSupportedModel,
+  getAvailableModels,
 } from "@/config/models"
 import type { UnrealModelId } from "@/config/models"
 import { getChainById } from "@utils/web3/chains"
@@ -58,6 +57,7 @@ import {
 } from "lucide-react"
 import OpenAI from "openai"
 import type { UIMessage } from "ai"
+import { Switch } from "@/components/ui/switch"
 
 interface ChatPlaygroundProps {
   initialPrompt?: string
@@ -78,7 +78,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
 
   const [model, setModel] = useState<UnrealModelId>(DEFAULT_MODEL)
   const [availableModels, setAvailableModels] = useState<UnrealModelId[]>([
-    ...SUPPORTED_MODELS,
+    DEFAULT_MODEL,
   ])
   const [isLoadingModels, setIsLoadingModels] = useState(false)
 
@@ -87,6 +87,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const [modelOpen, setModelOpen] = useState(false)
   const [outputGuess, setOutputGuess] = useState<number>(300)
+  const [enableStreaming, setEnableStreaming] = useState(false)
 
   // Chain and run metadata for transparent billing
   const [chainId, setChainId] = useState<number | null>(null)
@@ -267,79 +268,28 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
     }
   }
 
-  // Dynamically fetch models from API and filter to allowlist
+  // Dynamically fetch models from API using shared 10-minute cache
   useEffect(() => {
-    const fetchModels = async () => {
+    const load = async () => {
       setIsLoadingModels(true)
       try {
         const auth = apiKey || token || ""
-        const headers: Record<string, string> = auth
-          ? { Authorization: `Bearer ${auth}` }
-          : {}
-        const response = await fetch(`${OPENAI_URL}/models`, {
-          method: "GET",
-          headers,
-          credentials: "include",
-        })
-        if (!response.ok) return // fallback silently
-        const data: unknown = await response.json()
-
-        // Extract ids from multiple possible shapes
-        type ApiModelLike =
-          | { id?: unknown; model?: unknown; name?: unknown }
-          | string
-          | null
-          | undefined
-        const extractModelId = (m: ApiModelLike): string | undefined => {
-          if (typeof m === "string") return m
-          if (m && typeof m === "object") {
-            const obj = m as { id?: unknown; model?: unknown; name?: unknown }
-            const candidate = [obj.id, obj.model, obj.name].find(
-              (v): v is string => typeof v === "string"
-            )
-            return candidate
-          }
-          return undefined
-        }
-
-        let ids: string[] = []
-        if (
-          data &&
-          typeof data === "object" &&
-          Array.isArray((data as Record<string, unknown>).data)
-        ) {
-          ids = ((data as Record<string, unknown>).data as unknown[])
-            .map((m) => extractModelId(m as ApiModelLike))
-            .filter((v): v is string => Boolean(v))
-        } else if (
-          data &&
-          typeof data === "object" &&
-          Array.isArray((data as Record<string, unknown>).models)
-        ) {
-          ids = ((data as Record<string, unknown>).models as unknown[])
-            .map((m) => extractModelId(m as ApiModelLike))
-            .filter((v): v is string => Boolean(v))
-        } else if (Array.isArray(data)) {
-          ids = (data as unknown[])
-            .map((m) => extractModelId(m as ApiModelLike))
-            .filter((v): v is string => Boolean(v))
-        }
-
-        const filtered = ids.filter(isSupportedModel) as UnrealModelId[]
-        if (filtered.length > 0) {
-          setAvailableModels(filtered)
+        const models = await getAvailableModels(auth)
+        if (models && models.length > 0) {
+          setAvailableModels(models as UnrealModelId[])
           setModel((prev) =>
-            filtered.includes(prev) ? prev : filtered[0] ?? DEFAULT_MODEL
+            (models as string[]).includes(prev)
+              ? prev
+              : (models[0] as UnrealModelId)
           )
         }
       } catch (err) {
-        console.warn("Failed to fetch models, using static list", err)
+        console.warn("Failed to load models", err)
       } finally {
         setIsLoadingModels(false)
       }
     }
-
-    fetchModels()
+    void load()
   }, [apiKey, token])
 
   // Fetch pricing table (UNREAL per 1M tokens)
@@ -633,6 +583,253 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
       setError(null)
       setIsStreaming(true)
 
+      // Streaming mode (beta) using native fetch + SSE
+      if (enableStreaming) {
+        // Track whether we've received any streamed content
+        let hasStreamed = false
+        // Helper to append streamed text to the placeholder assistant message
+        const appendChunk = (assistantIndex: number, chunk: string) => {
+          if (!chunk) return
+          hasStreamed = true
+          setMessages((prev) => {
+            const next = [...prev]
+            const current = next[assistantIndex]
+            if (!current || current.role !== "assistant") return prev
+            const existing = (current as unknown as { parts?: TextPart[] }).parts || []
+            const existingText = existing
+              .filter((p): p is TextPart => Boolean(p) && p.type === "text")
+              .map((p) => p.text ?? "")
+              .join("")
+            const updated: UIMessage = {
+              ...current,
+              parts: [{ type: "text", text: existingText + chunk }],
+            }
+            next[assistantIndex] = updated
+            return next
+          })
+        }
+
+        try {
+          // Abort setup
+          const controller = new AbortController()
+          try {
+            abortRef.current?.abort()
+          } catch (_e) {
+            // ignore: no active request to abort
+            void _e
+          }
+          abortRef.current = controller
+
+          // Capture chain for explorer links
+          try {
+            const id = await getCurrentChainId()
+            setChainId(id)
+          } catch (_e) {
+            // ignore chain fetch errors
+            void _e
+          }
+
+          // Prepare request
+          const auth = apiKey || token || ""
+          const headers: Record<string, string> = {
+            "Content-Type": "application/json",
+          }
+          if (auth) headers["Authorization"] = `Bearer ${auth}`
+
+          const openaiMessages = history.map((m) => ({
+            role: m.role as "system" | "user" | "assistant",
+            content: getTextFromMessage(m),
+          }))
+
+          // Add placeholder assistant message
+          const assistantIndex = history.length
+          setMessages((prev) => [
+            ...history,
+            { id: makeId(), role: "assistant", parts: [{ type: "text", text: "" }] },
+          ])
+
+          const resp = await fetch(`${OPENAI_URL}/responses`, {
+            method: "POST",
+            headers,
+            credentials: "include",
+            signal: controller.signal,
+            body: JSON.stringify({
+              model,
+              instructions: openaiMessages.find(m => m.role === "system")?.content || "You are a helpful assistant.",
+              input: openaiMessages.filter(m => m.role !== "system").map(m => `${m.role}: ${m.content}`).join("\n"),
+              stream: true,
+            }),
+          })
+
+          if (!resp.ok || !resp.body) {
+            let msg = `Streaming request failed (${resp.status})`
+            try {
+              const t = await resp.text()
+              if (t) msg = `${msg}: ${t}`
+            } catch (_e) {
+              // ignore body read error
+              void _e
+            }
+            throw new Error(msg)
+          }
+
+          // Collect headers for transparency
+          const headersObj: Record<string, string> = {}
+          try {
+            resp.headers.forEach((v, k) => {
+              headersObj[String(k).toLowerCase()] = String(v)
+            })
+          } catch (_e) {
+            // ignore header iteration errors
+            void _e
+          }
+
+          // Parse explicit headers for price/cost and transactions
+          const num = (s?: string) => {
+            if (s == null) return undefined
+            const n = Number(s)
+            return Number.isFinite(n) ? n : undefined
+          }
+          const headerInputCost = num(headersObj["openai-input-cost"]) // UNREAL
+          const headerOutputCost = num(headersObj["openai-output-cost"]) // UNREAL
+          const headerTotalCost = num(headersObj["openai-total-cost"]) // UNREAL
+          const priceTxHash = headersObj["openai-price-tx"]
+          const priceTxUrl = headersObj["openai-price-tx-url"]
+          const costTxHash = headersObj["openai-cost-tx"]
+          const costTxUrl = headersObj["openai-cost-tx-url"]
+          const refundAmount = num(headersObj["openai-refund-amount"]) // UNREAL
+          const refundTxHash = headersObj["openai-refund-tx"]
+          const refundTxUrl = headersObj["openai-refund-tx-url"]
+          const paymentTokenUrl = headersObj["openai-payment-token"]
+          const chainName = headersObj["openai-chain"]
+          const chainIdHeader = headersObj["openai-chain-id"]
+          const chainIdParsed = chainIdHeader
+            ? Number.isFinite(Number(chainIdHeader))
+              ? Number(chainIdHeader)
+              : undefined
+            : undefined
+          const callsRemaining = num(headersObj["openai-calls-remaining"]) ?? undefined
+          const requestIdHeader =
+            headersObj["x-request-id"] || headersObj["openai-request-id"] || null
+
+          // Stream parse (SSE)
+          const reader = resp.body.getReader()
+          const decoder = new TextDecoder("utf-8")
+          let buffer = ""
+          let modelSeen: string | undefined
+          const flushEvents = (block: string) => {
+            const lines = block.split("\n")
+            for (const line of lines) {
+              const trimmed = line.trim()
+              if (!trimmed.startsWith("data:")) continue
+              const data = trimmed.slice(5).trim()
+              if (!data) continue
+              if (data === "[DONE]") return "DONE" as const
+              try {
+                const json = JSON.parse(data) as {
+                  type?: string
+                  delta?: string
+                  model?: string
+                }
+                if (json?.model && !modelSeen) modelSeen = json.model
+                // OpenAI Responses API: event.delta for response.output_text.delta
+                const plain = json?.type === 'response.output_text.delta' && typeof json.delta === "string" ? json.delta : ""
+                if (plain) appendChunk(assistantIndex, plain)
+              } catch (_e) {
+                // ignore malformed chunks
+              }
+            }
+            return undefined
+          }
+
+          let finished = false
+
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            buffer += decoder.decode(value, { stream: true })
+            // Process complete SSE events separated by blank lines
+            let idx
+            // Loop to handle multiple events per chunk
+            while ((idx = buffer.indexOf("\n\n")) !== -1) {
+              const block = buffer.slice(0, idx)
+              buffer = buffer.slice(idx + 2)
+              const status = flushEvents(block)
+              if (status === "DONE") {
+                // Drain remaining
+                buffer = ""
+                finished = true
+                break
+              }
+            }
+            if (finished) break
+          }
+
+          // Flush any remaining decoded bytes (in case the final chunk wasn't newline-terminated)
+          const tail = decoder.decode()
+          if (tail) {
+            buffer += tail
+            if (buffer) void flushEvents(buffer)
+          }
+          // Finalize receipt from headers and observed model
+          setLastRun({
+            price: undefined,
+            currency: "UNREAL",
+            txHash: costTxHash || priceTxHash || undefined,
+            requestId: requestIdHeader,
+            headers: headersObj,
+            usage: undefined,
+            model: modelSeen || model,
+            timestamp: Date.now(),
+            headerCosts: {
+              input: headerInputCost,
+              output: headerOutputCost,
+              total: headerTotalCost,
+            },
+            priceTx: { hash: priceTxHash, url: priceTxUrl },
+            costTx: { hash: costTxHash, url: costTxUrl },
+            refund: {
+              amount: refundAmount,
+              tx: { hash: refundTxHash, url: refundTxUrl },
+            },
+            paymentTokenUrl,
+            chain: { id: chainIdParsed, name: chainName },
+            callsRemaining,
+          })
+
+          setIsStreaming(false)
+          return
+        } catch (e) {
+          const err = e as { name?: string; message?: string }
+          const name = err?.name ?? ""
+          const msgText = err?.message ?? (e instanceof Error ? e.message : String(e ?? ""))
+          if (
+            name === "AbortError" ||
+            /abort(ed)?/i.test(msgText)
+          ) {
+            // User-initiated stop
+            setIsStreaming(false)
+            return
+          }
+          console.error("Streaming error:", e)
+          // If no chunks arrived, remove the placeholder assistant message
+          if (!hasStreamed) {
+            setMessages((prev) => {
+              const next = [...prev]
+              const last = next[next.length - 1] as UIMessage | undefined
+              const isEmptyAssistant =
+                last && last.role === "assistant" &&
+                !getTextFromMessage(last as UIMessage)
+              if (isEmptyAssistant) next.pop()
+              return next
+            })
+          }
+          setError(msgText || "Streaming failed. Please try again.")
+          setIsStreaming(false)
+          return
+        }
+      }
+
       try {
         // Helper functions for retry logic
         const isTransient = (err: unknown) => {
@@ -709,12 +906,15 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
               content: getTextFromMessage(m),
             }))
 
-            // Use non-streamed chat completions
-            const result = await client.chat.completions
+            // Use non-streamed responses API
+            const systemMessage = openaiMessages.find(m => m.role === "system")
+            const userMessages = openaiMessages.filter(m => m.role !== "system")
+            const result = await client.responses
               .create(
                 {
                   model,
-                  messages: openaiMessages,
+                  instructions: systemMessage?.content || "You are a helpful assistant.",
+                  input: userMessages.map(m => `${m.role}: ${m.content}`).join("\n"),
                   stream: false,
                 },
                 { signal: controller.signal }
@@ -799,16 +999,13 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
         }
 
         // Process the response
-        if (completion && completion.choices && completion.choices.length > 0) {
-          const assistantMessage = completion.choices[0].message
-          if (assistantMessage && assistantMessage.content) {
-            const newMessage: UIMessage = {
-              id: makeId(),
-              role: "assistant",
-              parts: [{ type: "text", text: assistantMessage.content }],
-            }
-            setMessages((prev) => [...prev, newMessage])
+        if (completion && completion.output_text) {
+          const newMessage: UIMessage = {
+            id: makeId(),
+            role: "assistant",
+            parts: [{ type: "text", text: completion.output_text }],
           }
+          setMessages((prev) => [...prev, newMessage])
 
           // console.log("parsedPrice", parsedPrice)
           // Record transparent billing metadata for this run
@@ -864,7 +1061,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
         setIsStreaming(false)
       }
     },
-    [apiKey, token, model, getTextFromMessage, getCurrentChainId]
+    [apiKey, token, model, getTextFromMessage, getCurrentChainId, enableStreaming]
   )
 
   const sendMessage = useCallback(
@@ -1123,6 +1320,24 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
               )}
             </PopoverContent>
           </Popover>
+          {/* Streaming toggle */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center gap-2 ml-2 select-none">
+                <span className="hidden md:inline text-xs text-muted-foreground">
+                  Stream (beta)
+                </span>
+                <Switch
+                  checked={enableStreaming}
+                  onCheckedChange={(c) => setEnableStreaming(Boolean(c))}
+                  aria-label="Toggle streaming"
+                />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              Stream tokens live via SSE. Receipts still use response headers.
+            </TooltipContent>
+          </Tooltip>
         </div>
         <Tooltip>
           <TooltipTrigger asChild>

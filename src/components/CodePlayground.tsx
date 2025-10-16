@@ -7,8 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { DEFAULT_MODEL } from "@/config/models"
 import { useApi } from "@/lib/ApiContext"
-import { createOpenAI } from "@ai-sdk/openai"
-import { streamText } from "ai"
+import OpenAI from "openai"
 import { OPENAI_URL } from "@/config/unreal"
 import { useNavigate } from "react-router-dom"
 
@@ -25,7 +24,7 @@ const CodePlayground = () => {
     if (el) el.scrollTop = el.scrollHeight
   }, [response])
 
-  const sampleCode = `const response = await fetch('${OPENAI_URL}/chat/completions', {
+  const sampleCode = `const response = await fetch('${OPENAI_URL}/responses', {
   method: 'POST',
   headers: {
     'Authorization': 'Bearer your-api-key-here',
@@ -33,15 +32,13 @@ const CodePlayground = () => {
   },
   body: JSON.stringify({
     model: '${DEFAULT_MODEL}',
-    messages: [{
-      role: 'user', 
-      content: 'Explain quantum computing in simple terms'
-    }]
+    instructions: 'You are a helpful assistant.',
+    input: 'Explain quantum computing in simple terms'
   })
 });
 
 const data = await response.json();
-console.log(data.choices[0].message.content);`
+console.log(data.output_text);`
 
   const handleRunCode = async () => {
     // Require explicit API key; show alert instead of auto-redirect
@@ -54,23 +51,26 @@ console.log(data.choices[0].message.content);`
     setResponse("")
     setError(null)
     try {
-      const openai = createOpenAI({
+      const openai = new OpenAI({
         apiKey,
         baseURL: OPENAI_URL,
+        dangerouslyAllowBrowser: true,
         fetch: (input, init) =>
           fetch(input as RequestInfo, {
             ...(init || {}),
             credentials: "include",
           }),
       })
-      const { textStream } = await streamText({
-        model: openai(DEFAULT_MODEL),
-        messages: [
-          { role: "user", content: "Explain quantum computing in simple terms" },
-        ],
+      const stream = await openai.responses.create({
+        model: DEFAULT_MODEL,
+        instructions: "You are a helpful assistant.",
+        input: "Explain quantum computing in simple terms",
+        stream: true,
       })
-      for await (const chunk of textStream) {
-        setResponse((prev) => prev + chunk)
+      for await (const event of stream) {
+        if (event.type === 'response.output_text.delta') {
+          setResponse((prev) => prev + event.delta)
+        }
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Request failed"

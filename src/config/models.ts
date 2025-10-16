@@ -1,73 +1,104 @@
 // Centralized Unreal AI model configuration
 // Source of truth: aidocs/models.md and GET /v1/models
 
-export type UnrealModelId =
-  | "unreal::reel"
-  | "unreal::reel-v1"
-  | "unreal::r1-1776"
-  | "unreal::flux-1-dev-fp8"
-  | "unreal::llama4-scout-instruct-basic"
-  | "unreal::llama4-maverick-instruct-basic"
-  | "unreal::firesearch-ocr-v6"
-  | "unreal::llama-v3p1-405b-instruct"
-  | "unreal::mixtral-8x22b-instruct"
-  | "unreal::flux-kontext-max"
-  | "unreal::qwen3-coder-480b-a35b-instruct"
-  | "unreal::qwen3-235b-a22b-instruct-2507"
-  | "unreal::deepseek-r1-0528"
-  | "unreal::deepseek-r1-basic"
-  | "unreal::llama-v3p1-70b-instruct"
-  | "unreal::llama-v3p3-70b-instruct"
-  | "unreal::deepseek-r1"
-  | "unreal::qwen3-30b-a3b"
-  | "unreal::qwen3-30b-a3b-thinking-2507"
-  | "unreal::glm-4p5"
-  | "unreal::dobby-unhinged-llama-3-3-70b-new"
-  | "unreal::flux-1-schnell-fp8"
-  | "unreal::flux-kontext-pro"
-  | "unreal::dobby-mini-unhinged-plus-llama-3-1-8b"
-  | "unreal::deepseek-v3"
-  | "unreal::qwen3-235b-a22b"
-  | "unreal::kimi-k2-instruct"
-  | "unreal::qwen2p5-vl-32b-instruct"
-  | "unreal::playground-v2-5-1024px-aesthetic"
+import { OPENAI_URL } from "@/config/unreal"
 
-export const SUPPORTED_MODELS: Readonly<UnrealModelId[]> = [
-  // "unreal::reel",
-  // "unreal::reel-v1",
-  "unreal::r1-1776",
-  "unreal::flux-1-dev-fp8",
-  "unreal::llama4-scout-instruct-basic",
-  "unreal::llama4-maverick-instruct-basic",
-  "unreal::firesearch-ocr-v6",
-  "unreal::llama-v3p1-405b-instruct",
-  "unreal::mixtral-8x22b-instruct",
-  "unreal::flux-kontext-max",
-  "unreal::qwen3-coder-480b-a35b-instruct",
-  "unreal::qwen3-235b-a22b-instruct-2507",
-  "unreal::deepseek-r1-0528",
-  "unreal::deepseek-r1-basic",
-  "unreal::llama-v3p1-70b-instruct",
-  "unreal::llama-v3p3-70b-instruct",
-  "unreal::deepseek-r1",
-  "unreal::qwen3-30b-a3b",
-  "unreal::qwen3-30b-a3b-thinking-2507",
-  "unreal::glm-4p5",
-  "unreal::dobby-unhinged-llama-3-3-70b-new",
-  "unreal::flux-1-schnell-fp8",
-  "unreal::flux-kontext-pro",
-  "unreal::dobby-mini-unhinged-plus-llama-3-1-8b",
-  "unreal::deepseek-v3",
-  "unreal::qwen3-235b-a22b",
-  "unreal::kimi-k2-instruct",
-  "unreal::qwen2p5-vl-32b-instruct",
-  // "unreal::playground-v2-5-1024px-aesthetic", //FIXME: later after UI support for image
-] as const
+// Model identifiers are determined at runtime from /v1/models
+export type UnrealModelId = string
+// 10-minute in-memory cache for available models
+const TEN_MIN = 10 * 60 * 1000
+let _modelsCache: { models: UnrealModelId[]; expiresAt: number } | null = null
 
-export const DEFAULT_MODEL: UnrealModelId = "unreal::mixtral-8x22b-instruct"
-export const CODING_MODEL: UnrealModelId =
-  "unreal::qwen3-coder-480b-a35b-instruct"
+type ApiModelLike =
+  | { id?: unknown; model?: unknown; name?: unknown }
+  | string
+  | null
+  | undefined
 
-export function isSupportedModel(model: string): model is UnrealModelId {
-  return (SUPPORTED_MODELS as readonly string[]).includes(model)
+const extractModelId = (m: ApiModelLike): string | undefined => {
+  if (typeof m === "string") return m
+  if (m && typeof m === "object") {
+    const obj = m as { id?: unknown; model?: unknown; name?: unknown }
+    const candidate = [obj.id, obj.model, obj.name].find(
+      (v): v is string => typeof v === "string"
+    )
+    return candidate
+  }
+  return undefined
 }
+
+async function fetchModelsFromApi(auth?: string): Promise<UnrealModelId[]> {
+  const headers: Record<string, string> = auth
+    ? { Authorization: `Bearer ${auth}` }
+    : {}
+  const resp = await fetch(`${OPENAI_URL}/models`, {
+    method: "GET",
+    headers,
+    credentials: "include",
+  })
+  if (!resp.ok) {
+    // Return empty to allow callers to fallback to defaults
+    return []
+  }
+  const data: unknown = await resp.json()
+
+  let ids: string[] = []
+  if (
+    data &&
+    typeof data === "object" &&
+    Array.isArray((data as Record<string, unknown>).data)
+  ) {
+    ids = ((data as Record<string, unknown>).data as unknown[])
+      .map((m) => extractModelId(m as ApiModelLike))
+      .filter((v): v is string => Boolean(v))
+  } else if (
+    data &&
+    typeof data === "object" &&
+    Array.isArray((data as Record<string, unknown>).models)
+  ) {
+    ids = ((data as Record<string, unknown>).models as unknown[])
+      .map((m) => extractModelId(m as ApiModelLike))
+      .filter((v): v is string => Boolean(v))
+  } else if (Array.isArray(data)) {
+    ids = (data as unknown[])
+      .map((m) => extractModelId(m as ApiModelLike))
+      .filter((v): v is string => Boolean(v))
+  }
+
+  // De-duplicate
+  const unique = Array.from(new Set(ids)) as UnrealModelId[]
+  return unique
+}
+
+export async function getAvailableModels(
+  auth?: string
+): Promise<UnrealModelId[]> {
+  const now = Date.now()
+  if (
+    _modelsCache &&
+    _modelsCache.expiresAt > now &&
+    _modelsCache.models.length > 0
+  ) {
+    return _modelsCache.models
+  }
+  try {
+    const models = await fetchModelsFromApi(auth)
+    if (models.length > 0) {
+      _modelsCache = { models, expiresAt: now + TEN_MIN }
+      return models
+    }
+  } catch (e) {
+    // Swallow and fallback below
+    console.warn("getAvailableModels: failed to fetch from API", e)
+  }
+  // Fallback to conservative default if API fails/empty
+  _modelsCache = { models: [DEFAULT_MODEL], expiresAt: now + TEN_MIN }
+  return _modelsCache.models
+}
+
+export function invalidateModelsCache(): void {
+  _modelsCache = null
+}
+
+export const DEFAULT_MODEL: UnrealModelId = "gpt-4.1-mini"
+export const CODING_MODEL: UnrealModelId = "qwen3-coder-480b-a35b-instruct"
