@@ -17,7 +17,7 @@ import trustModule from "@web3-onboard/trust"
 import frontierModule from "@web3-onboard/frontier"
 import keepkeyModule from "@web3-onboard/keepkey"
 import { toHex, type EIP1193Provider } from "viem"
-import { torusMainnet, amoyTestnet, titanAITestnet } from "@/config/wallet"
+import { torusMainnet, amoyTestnet, titanAITestnet, somniaTestnet } from "@/config/wallet"
 import { getUnrealTokenAddress } from "@utils/web3/chains"
 
 // Minimal chain type for web3-onboard
@@ -53,6 +53,16 @@ export const DEFAULT_CHAINS: OnboardChain[] = [
     rpcUrl: amoyTestnet.rpcUrls.default.http[0],
     secondaryTokens: [{ address: getUnrealTokenAddress(amoyTestnet.id) }],
   },
+
+    {
+    id: toHex(somniaTestnet.id), // 8192
+    token: somniaTestnet.nativeCurrency.symbol,
+    label: somniaTestnet.name,
+    rpcUrl: somniaTestnet.rpcUrls.default.http[0],
+    secondaryTokens: [{ address: getUnrealTokenAddress(somniaTestnet.id) }],
+  },
+
+  
   // Add more defaults here if desired, e.g. Ethereum mainnet
   // { id: '0x1', token: 'ETH', label: 'Ethereum Mainnet', rpcUrl: 'https://rpc.ankr.com/eth' }
 ]
