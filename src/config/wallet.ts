@@ -162,6 +162,53 @@ export const amoyTestnet = defineChain({
   },
 })
 
+
+export const somniaTestnet = defineChain({
+  id: 50312,
+  name: "Somnia Shanon Testnet",
+  nativeCurrency: {
+    decimals: 18,
+    name: "Somnia Testnet Token",
+    symbol: "STT",
+  },
+  rpcUrls: {
+    default: {
+      http: [
+        "https://dream-rpc.somnia.network"
+      ],
+    },
+    public: {
+      http: ["https://dream-rpc.somnia.network"],
+    },
+  },
+  blockExplorers: {
+    default: { name: "Somnia Shanon Explorer", url: "https://shannon-explorer.somnia.network/" },
+  },
+  testnet: true,
+  custom: {
+    maxRPS: 3,
+
+    tokens: {
+      UnrealToken: {
+        address: "0xd1fB2a15545032a8170370d7eC47C0FC69A00eed",
+        symbol: "UNREAL",
+        name: "Unreal Token",
+        decimals: 18,
+      },
+    },
+  },
+  contracts: {
+    UnrealToken: {
+      address: "0xd1fB2a15545032a8170370d7eC47C0FC69A00eed",
+      symbol: "UNREAL",
+      name: "Unreal Token",
+      decimals: 18,
+      abi: erc20Abi,
+    },
+  },
+})
+
+
 // Chain configuration map
 const CHAIN_MAP = new Map<number, Chain>([
   [torusMainnet.id, torusMainnet],
