@@ -214,6 +214,7 @@ const CHAIN_MAP = new Map<number, Chain>([
   [torusMainnet.id, torusMainnet],
   [amoyTestnet.id, amoyTestnet],
   [titanAITestnet.id, titanAITestnet],
+  [somniaTestnet.id, somniaTestnet],
 ])
 
 /**
