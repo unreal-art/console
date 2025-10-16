@@ -1,5 +1,17 @@
 # unreal-console
 
+## 2.1.0
+
+### Minor Changes
+
+- 5adbf75: feat: stream playground
+- e2008ac: support :deploy to somnia testnet
+- 3ee583a: show pricing and the flow elegantly in the ui
+
+### Patch Changes
+
+- 2dc2d60: attempt: to stream openai playground chat
+
 ## 2.0.1
 
 ### Patch Changes
