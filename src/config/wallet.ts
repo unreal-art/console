@@ -210,7 +210,7 @@ export const somniaTestnet = defineChain({
 
 
 // Chain configuration map
-const CHAIN_MAP = new Map<number, Chain>([
+export const CHAIN_MAP = new Map<number, Chain>([
   [torusMainnet.id, torusMainnet],
   [amoyTestnet.id, amoyTestnet],
   [titanAITestnet.id, titanAITestnet],

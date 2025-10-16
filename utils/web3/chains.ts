@@ -1,5 +1,6 @@
 import { defineChain, type Chain } from "viem"
 import { ChainError, type ExtendedChain } from "./types"
+import { CHAIN_MAP } from "@/config/wallet"
 
 // Torus Mainnet configuration
 export const torusMainnet = defineChain({
@@ -103,12 +104,7 @@ export const amoyTestnet = defineChain({
   },
 }) as ExtendedChain
 
-// Chain registry
-const CHAIN_MAP = new Map<number, ExtendedChain>([
-  [torusMainnet.id, torusMainnet],
-  [amoyTestnet.id, amoyTestnet],
-  [titanAITestnet.id, titanAITestnet],
-])
+
 
 // Export all chains as array
 export const SUPPORTED_CHAINS = Array.from(CHAIN_MAP.values())
