@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react"
+import { useNavigate } from "react-router-dom"
 import { apiClient } from "@/lib/api"
 import { getUnrealBalance } from "@utils/web3/unreal"
 import { formatEther, type Address } from "viem"
@@ -39,6 +40,7 @@ interface OnboardingFlowProps {
 }
 
 const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
+  const navigate = useNavigate()
   const [currentStep, setCurrentStep] = useState(0)
   const [completedSteps, setCompletedSteps] = useState<number[]>([])
   const [showApiKeyDialog, setShowApiKeyDialog] = useState(false)
@@ -61,6 +63,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
     apiKey,
     apiKeyHash,
     getCurrentChainId,
+    logout,
   } = useApi()
 
   // State for calls amount (number of API calls user can make based on UNREAL balance)
@@ -330,6 +333,16 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
 
           // Move to next step
           handleStepComplete(2)
+          
+          // Logout user after successful airdrop (already claimed)
+          setTimeout(async () => {
+            try {
+              await logout()
+              navigate('/sign-in')
+            } catch (error) {
+              console.error("Error during logout after airdrop:", error)
+            }
+          }, 3000) // Wait 3 seconds to let user see the success message and step completion
         } else {
           // If not confirmed, wait for transaction confirmation as normal
           setIsConfirming(true)
@@ -374,6 +387,16 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
 
             // Move to the next step (which should now be the API key step).
             handleStepComplete(2)
+            
+            // Logout user after successful airdrop confirmation
+            setTimeout(async () => {
+              try {
+                await logout()
+                navigate('/sign-in')
+              } catch (error) {
+                console.error("Error during logout after airdrop:", error)
+              }
+            }, 3000) // Wait 3 seconds to let user see the success message and step completion
           } catch (confirmationError) {
             console.error(
               "Error waiting for transaction confirmation:",
