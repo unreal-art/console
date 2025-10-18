@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react"
+import { useNavigate } from "react-router-dom"
 import { apiClient } from "@/lib/api"
 import { getUnrealBalance } from "@utils/web3/unreal"
 import { formatEther, type Address } from "viem"
@@ -39,6 +40,7 @@ interface OnboardingFlowProps {
 }
 
 const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
+  const navigate = useNavigate()
   const [currentStep, setCurrentStep] = useState(0)
   const [completedSteps, setCompletedSteps] = useState<number[]>([])
   const [showApiKeyDialog, setShowApiKeyDialog] = useState(false)
@@ -336,6 +338,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
           setTimeout(async () => {
             try {
               await logout()
+              navigate('/sign-in')
             } catch (error) {
               console.error("Error during logout after airdrop:", error)
             }
@@ -389,6 +392,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
             setTimeout(async () => {
               try {
                 await logout()
+                navigate('/sign-in')
               } catch (error) {
                 console.error("Error during logout after airdrop:", error)
               }

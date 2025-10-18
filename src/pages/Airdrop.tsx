@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useNavigate } from "react-router-dom"
 import Layout from "@/components/Layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -13,6 +14,7 @@ const X_URL = "https://x.com/ideomind"
 const LINKEDIN_URL = "https://www.linkedin.com/company/unreal-art"
 
 const Airdrop: React.FC = () => {
+  const navigate = useNavigate()
   const { isAuthenticated, connectWallet, getCurrentChainId, logout } = useApi()
 
   // Follow + verification state
@@ -120,6 +122,7 @@ const Airdrop: React.FC = () => {
           setTimeout(async () => {
             try {
               await logout()
+              navigate('/sign-in')
             } catch (error) {
               console.error("Error during logout after airdrop:", error)
             }
@@ -158,6 +161,7 @@ const Airdrop: React.FC = () => {
           setTimeout(async () => {
             try {
               await logout()
+              navigate('/sign-in')
             } catch (error) {
               console.error("Error during logout after airdrop:", error)
             }
