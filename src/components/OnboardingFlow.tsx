@@ -61,6 +61,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
     apiKey,
     apiKeyHash,
     getCurrentChainId,
+    logout,
   } = useApi()
 
   // State for calls amount (number of API calls user can make based on UNREAL balance)
@@ -330,6 +331,15 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
 
           // Move to next step
           handleStepComplete(2)
+          
+          // Logout user after successful airdrop (already claimed)
+          setTimeout(async () => {
+            try {
+              await logout()
+            } catch (error) {
+              console.error("Error during logout after airdrop:", error)
+            }
+          }, 3000) // Wait 3 seconds to let user see the success message and step completion
         } else {
           // If not confirmed, wait for transaction confirmation as normal
           setIsConfirming(true)
@@ -374,6 +384,15 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
 
             // Move to the next step (which should now be the API key step).
             handleStepComplete(2)
+            
+            // Logout user after successful airdrop confirmation
+            setTimeout(async () => {
+              try {
+                await logout()
+              } catch (error) {
+                console.error("Error during logout after airdrop:", error)
+              }
+            }, 3000) // Wait 3 seconds to let user see the success message and step completion
           } catch (confirmationError) {
             console.error(
               "Error waiting for transaction confirmation:",
