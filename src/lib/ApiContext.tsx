@@ -597,7 +597,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
 
   // Logout
   const logout = async () => {
-    // // Reset authentication state
+    // Reset authentication state
     setIsAuthenticated(false)
     setToken(null)
     setVerifyData(null)
@@ -607,14 +607,39 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     // Clear API client token
     apiClient.clearToken()
 
-    // Remove all related items from localStorage
-    localStorage.removeItem("unreal_token")
+    // Clear ALL localStorage items for complete clean slate
+    try {
+      localStorage.removeItem("unreal_token")
+      localStorage.removeItem("unreal_wallet_address")
+      localStorage.removeItem("unreal_last_chain")
+      localStorage.removeItem("unreal_onboarding_seen")
+      localStorage.removeItem("onboard")
+      localStorage.removeItem("connectedWallets")
+      
+      // Clear any WalletConnect related items
+      const keysToClear: string[] = []
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i)
+        if (!k) continue
+        const low = k.toLowerCase()
+        if (
+          low.startsWith("wc@") ||
+          low.includes("walletconnect") ||
+          low.includes("_walletconnect")
+        ) {
+          keysToClear.push(k)
+        }
+      }
+      keysToClear.forEach((k) => localStorage.removeItem(k))
+    } catch (e) {
+      console.warn("Error clearing localStorage:", e)
+    }
 
     // Reset wallet address state
     setWalletAddress(null)
     setOpenaiAddress(null)
 
-    console.debug("[ApiContext] Logout complete; refreshing app")
+    console.debug("[ApiContext] Logout complete; clean slate achieved")
 
     // Disconnect local WalletService state
     try {
@@ -623,7 +648,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
       console.warn("WalletService.disconnect warning:", e)
     }
 
-    // If a thirdweb disconnector is registered, call it before reload
+    // If a thirdweb disconnector is registered, call it
     try {
       if (walletDisconnectRef.current) {
         await walletDisconnectRef.current()
@@ -631,7 +656,8 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({
     } catch (e) {
       console.warn("thirdweb disconnect warning:", e)
     }
-    window.location.reload()
+    
+    // No window.location.reload() - let the navigation handle the redirect
   }
 
   // Clear current API key (after copy)
