@@ -34,7 +34,7 @@ test.describe("Unreal Console E2E Tests", () => {
 
     // Verify the URL contains the docs URL
     const url = newPage.url()
-    expect(url).toContain("docs.unreal.art")
+    expect(url).toContain("docs.ideomind.org")
   })
 
   test("should show wallet connect button in nav bar", async ({ page }) => {

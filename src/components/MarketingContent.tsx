@@ -13,7 +13,7 @@ const MarketingContent: React.FC = () => {
   const [copied, setCopied] = useState(false)
 
   const codeExamples = {
-    curl: `curl -X POST "https://openai.unreal.art/v1/chat/completions" \\\n  -H "Authorization: Bearer your-api-key-here" \\\n  -H "Content-Type: application/json" \\\n  -d '{
+    curl: `curl -X POST "https://openai.ideomind.org/v1/chat/completions" \\\n  -H "Authorization: Bearer your-api-key-here" \\\n  -H "Content-Type: application/json" \\\n  -d '{
     "model": "mixtral-8x22b-instruct",
     "messages": [{"role": "user", "content": "Hello world!"}]
   }'`,
@@ -21,7 +21,7 @@ const MarketingContent: React.FC = () => {
 
 client = openai.OpenAI(
     api_key="your-api-key-here",
-    base_url="https://openai.unreal.art/v1"
+    base_url="https://openai.ideomind.org/v1"
 )
 
 response = client.chat.completions.create(
@@ -34,7 +34,7 @@ print(response.choices[0].message.content)`,
 
 const client = new OpenAI({
   apiKey: 'your-api-key-here',
-  baseURL: 'https://openai.unreal.art/v1'
+  baseURL: 'https://openai.ideomind.org/v1'
 });
 
 const response = await client.chat.completions.create({

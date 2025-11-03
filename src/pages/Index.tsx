@@ -115,7 +115,7 @@ const Index = () => {
   ]
 
   const codeExamples = {
-    curl: `curl -X POST "https://openai.unreal.art/v1/chat/completions" \\
+    curl: `curl -X POST "https://openai.ideomind.org/v1/chat/completions" \\
   -H "Authorization: Bearer your-api-key-here" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -126,7 +126,7 @@ const Index = () => {
 
 client = openai.OpenAI(
     api_key="your-api-key-here",
-    base_url="https://openai.unreal.art/v1"
+    base_url="https://openai.ideomind.org/v1"
 )
 
 response = client.chat.completions.create(
@@ -139,7 +139,7 @@ print(response.choices[0].message.content)`,
 
 const client = new OpenAI({
   apiKey: 'your-api-key-here',
-  baseURL: 'https://openai.unreal.art/v1'
+  baseURL: 'https://openai.ideomind.org/v1'
 });
 
 const response = await client.chat.completions.create({
