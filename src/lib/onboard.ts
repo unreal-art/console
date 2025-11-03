@@ -107,8 +107,8 @@ export function initOnboard(chains?: OnboardChain[]) {
     })
     const trezor = trezorModule({
       appUrl:
-        import.meta.env.VITE_TREZOR_APP_URL || "https://console.unreal.art",
-      email: import.meta.env.VITE_TREZOR_EMAIL || "team@unreal.art",
+        import.meta.env.VITE_TREZOR_APP_URL || "https://console.ideomind.org",
+      email: import.meta.env.VITE_TREZOR_EMAIL || "team@ideomind.org",
     })
     let particle: ReturnType<typeof particleModule> | null = null
     if (
