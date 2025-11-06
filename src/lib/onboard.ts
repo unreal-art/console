@@ -33,6 +33,13 @@ export type OnboardChain = {
 
 export const DEFAULT_CHAINS: OnboardChain[] = [
   {
+  id: toHex(somniaTestnet.id), // 50312
+  token: somniaTestnet.nativeCurrency.symbol,
+  label: somniaTestnet.name,
+  rpcUrl: somniaTestnet.rpcUrls.default.http[0],
+  secondaryTokens: [{ address: getUnrealTokenAddress(somniaTestnet.id) }],
+  },
+  {
     id: toHex(titanAITestnet.id), // 8192
     token: titanAITestnet.nativeCurrency.symbol,
     label: titanAITestnet.name,
@@ -54,13 +61,6 @@ export const DEFAULT_CHAINS: OnboardChain[] = [
     secondaryTokens: [{ address: getUnrealTokenAddress(amoyTestnet.id) }],
   },
 
-    {
-    id: toHex(somniaTestnet.id), // 8192
-    token: somniaTestnet.nativeCurrency.symbol,
-    label: somniaTestnet.name,
-    rpcUrl: somniaTestnet.rpcUrls.default.http[0],
-    secondaryTokens: [{ address: getUnrealTokenAddress(somniaTestnet.id) }],
-  },
 
   
   // Add more defaults here if desired, e.g. Ethereum mainnet

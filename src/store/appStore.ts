@@ -219,7 +219,29 @@ export const useAppStore = create<AppStore>((set, get) => ({
       // ignore
     }
     try {
+      // Clear ALL localStorage items for complete clean slate
       localStorage.removeItem("unreal_token")
+      localStorage.removeItem("unreal_wallet_address")
+      localStorage.removeItem("unreal_last_chain")
+      localStorage.removeItem("unreal_onboarding_seen")
+      localStorage.removeItem("onboard")
+      localStorage.removeItem("connectedWallets")
+      
+      // Clear any WalletConnect related items
+      const keysToClear: string[] = []
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i)
+        if (!k) continue
+        const low = k.toLowerCase()
+        if (
+          low.startsWith("wc@") ||
+          low.includes("walletconnect") ||
+          low.includes("_walletconnect")
+        ) {
+          keysToClear.push(k)
+        }
+      }
+      keysToClear.forEach((k) => localStorage.removeItem(k))
     } catch {
       // ignore
     }

@@ -219,9 +219,14 @@ const SignIn = () => {
   // Redirect to dashboard if already authenticated
   useEffect(() => {
     if (!apiLoading && isAuthenticated) {
-      navigate("/dashboard")
+      // If user has 0 UNREAL balance, redirect to airdrop instead of dashboard
+      if (unrealBalanceWei === 0n) {
+        navigate("/airdrop")
+      } else {
+        navigate("/dashboard")
+      }
     }
-  }, [isAuthenticated, apiLoading, navigate])
+  }, [isAuthenticated, apiLoading, navigate, unrealBalanceWei])
 
   // Fetch balance when walletAddress becomes available (no auto-connect here to avoid loops)
   useEffect(() => {
@@ -353,7 +358,7 @@ const SignIn = () => {
 
   // Handle onboarding complete
   const handleOnboardingComplete = () => {
-    navigate("/dashboard")
+    navigate("/airdrop")
   }
 
   return (
@@ -636,7 +641,7 @@ const SignIn = () => {
                 size="lg"
                 onClick={handleOnboardingComplete}
               >
-                Go to Dashboard
+                Claim Airdrop
               </Button>
             </div>
           </DialogContent>

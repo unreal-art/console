@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useNavigate } from "react-router-dom"
 import Layout from "@/components/Layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -13,7 +14,8 @@ const X_URL = "https://x.com/ideomind"
 const LINKEDIN_URL = "https://www.linkedin.com/company/unreal-art"
 
 const Airdrop: React.FC = () => {
-  const { isAuthenticated, connectWallet, getCurrentChainId } = useApi()
+  const navigate = useNavigate()
+  const { isAuthenticated, connectWallet, getCurrentChainId, logout } = useApi()
 
   // Follow + verification state
   const [followedX, setFollowedX] = useState(false)
@@ -115,6 +117,16 @@ const Airdrop: React.FC = () => {
             description:
               response.message || "You have already claimed your airdrop.",
           })
+          
+          // Logout user after successful airdrop (already claimed)
+          setTimeout(async () => {
+            try {
+              await logout()
+              navigate('/sign-in')
+            } catch (error) {
+              console.error("Error during logout after airdrop:", error)
+            }
+          }, 2000) // Wait 2 seconds to let user see the success message
           return
         }
         // Wait for confirmation
@@ -144,6 +156,16 @@ const Airdrop: React.FC = () => {
             title: "Airdrop Confirmed",
             description: "Your airdrop has been confirmed on-chain.",
           })
+          
+          // Logout user after successful airdrop
+          setTimeout(async () => {
+            try {
+              await logout()
+              navigate('/sign-in')
+            } catch (error) {
+              console.error("Error during logout after airdrop:", error)
+            }
+          }, 2000) // Wait 2 seconds to let user see the success message
         } catch (confirmationError) {
           console.error("Error waiting for confirmation:", confirmationError)
           setIsConfirming(false)
