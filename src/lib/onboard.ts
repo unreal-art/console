@@ -33,7 +33,7 @@ export type OnboardChain = {
 
 export const DEFAULT_CHAINS: OnboardChain[] = [
   {
-  id: toHex(somniaTestnet.id), // 8192
+  id: toHex(somniaTestnet.id), // 50312
   token: somniaTestnet.nativeCurrency.symbol,
   label: somniaTestnet.name,
   rpcUrl: somniaTestnet.rpcUrls.default.http[0],
