@@ -1,7 +1,7 @@
 import React from "react"
 import Layout from "@/components/Layout"
 import { Button } from "@/components/ui/button"
-import { useNavigate, useSearchParams } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router"
 import MarketingContent from "@/components/MarketingContent"
 import OnboardingIntroModal from "@/components/OnboardingIntroModal"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"

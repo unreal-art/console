@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate } from "react-router"
 import { apiClient } from "@/lib/api"
 import { getUnrealBalance } from "@utils/web3/unreal"
 import { formatEther, type Address } from "viem"
