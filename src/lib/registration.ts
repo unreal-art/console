@@ -1,5 +1,6 @@
-import { apiClient, walletService, type PermitMessage } from "./api"
+import { apiClient, walletService, type PermitMessage, type RegisterPayload } from "./api"
 import { Chain, parseEther, type Address } from "viem"
+import { getUnrealTokenAddress } from "@utils/web3/chains"
 
 /**
  * Resolves the appropriate payment token address for the current chain.
@@ -8,14 +9,15 @@ import { Chain, parseEther, type Address } from "viem"
  * 1. First tries to find the token from matching chain in systemInfo.chains array
  * 2. Then checks the paymentTokens map using chainId as the key
  * 3. Falls back to the default paymentToken if available
+ * 4. Finally, tries to get the Unreal token from chain configuration (same as UI)
  *
  * This ensures that each blockchain network uses its appropriate token address.
  */
 async function getPaymentTokenForCurrentChain(): Promise<Address | null> {
   try {
+    const chainId = await walletService.getChainId()
     const systemInfo = await apiClient.getSystemInfo()
     console.log("systemInfo", systemInfo)
-    const chainId = await walletService.getChainId()
 
     // First try to get the token from chains array by matching chainId
     if (systemInfo?.chains && Array.isArray(systemInfo.chains)) {
@@ -27,7 +29,7 @@ async function getPaymentTokenForCurrentChain(): Promise<Address | null> {
 
       // If we found a matching chain, use its token address
       if (matchingChain && matchingChain.token) {
-        console.debug(`[Registration] Found token ${matchingChain.token} for chain ${chainIdStr}`)
+        console.debug(`[Registration] Found token ${matchingChain.token} for chain ${chainIdStr} from systemInfo.chains`)
         return matchingChain.token as Address
       }
     }
@@ -41,17 +43,35 @@ async function getPaymentTokenForCurrentChain(): Promise<Address | null> {
       }
     }
 
-    // Last resort: use the default paymentToken if available
+    // Third: use the default paymentToken if available
     if (systemInfo?.paymentToken) {
       console.debug(`[Registration] Using default paymentToken ${systemInfo.paymentToken}`)
       return systemInfo.paymentToken as Address
+    }
+
+    // Last resort: get the Unreal token from chain configuration (same logic as UI)
+    try {
+      const tokenAddress = getUnrealTokenAddress(chainId)
+      console.debug(`[Registration] Using Unreal token from chain configuration: ${tokenAddress} for chain ${chainId}`)
+      return tokenAddress
+    } catch (chainErr) {
+      console.warn(`[Registration] Failed to get token from chain configuration for chain ${chainId}:`, chainErr)
     }
 
     console.warn(`[Registration] No payment token found for chain ${chainId}`)
     return null
   } catch (e) {
     console.error("Failed to resolve payment token:", e)
-    return null
+    // Final fallback: try to get from chain configuration even if systemInfo fails
+    try {
+      const chainId = await walletService.getChainId()
+      const tokenAddress = getUnrealTokenAddress(chainId)
+      console.debug(`[Registration] Using Unreal token from chain configuration (fallback): ${tokenAddress}`)
+      return tokenAddress
+    } catch (finalErr) {
+      console.error("Failed to get token from chain configuration:", finalErr)
+      return null
+    }
   }
 }
 
@@ -76,18 +96,28 @@ export async function performRegistration(
   const EXPIRY_SECONDS = 3600 // 1 hour
 
   const paymentToken = await getPaymentTokenForCurrentChain()
+  const chainId = await walletService.getChainId()
 
   console.log("Payment Token", paymentToken)
+  console.log("Chain ID", chainId)
 
   const currentTime = Math.floor(Date.now() / 1000)
-  const payload = {
+  const payload: RegisterPayload = {
     iss: walletAddr,
     iat: currentTime,
     sub: openaiAddr,
     exp: currentTime + EXPIRY_SECONDS,
     calls,
-    // Include the token if available; backend can tolerate undefined/missing if not
-    ...(paymentToken ? { paymentToken } : {}),
+  }
+
+  // Always include paymentToken if available
+  if (paymentToken) {
+    payload.paymentToken = paymentToken
+  }
+
+  // Always include chain_id
+  if (chainId) {
+    payload.chain_id = chainId
   }
 
   // Sign the payload with the connected wallet

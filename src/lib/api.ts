@@ -34,6 +34,7 @@ export interface RegisterPayload {
   exp: number // expiry timestamp
   calls: number // number of API calls
   paymentToken?: string // token address (optional)
+  chain_id?: number // chain ID (optional)
 }
 
 export interface PermitMessage {
