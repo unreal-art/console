@@ -1,7 +1,7 @@
 import React from "react"
 import Layout from "@/components/Layout"
 import ChatPlayground from "@/components/ChatPlayground"
-import { useNavigate, useSearchParams } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router"
 import { ArrowLeft } from "lucide-react"
 
 const Playground: React.FC = () => {

@@ -10,7 +10,7 @@ import { useApi } from "@/lib/ApiContext"
 import { CODING_MODEL } from "@/config/models"
 import { OPENAI_URL } from "@/config/unreal"
 import OpenAI from "openai"
-import { useNavigate } from "react-router-dom"
+import { useNavigate } from "react-router"
 
 interface OpenAIStreamingPlaygroundProps {
   initialPrompt?: string

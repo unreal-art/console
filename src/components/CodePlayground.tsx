@@ -9,7 +9,7 @@ import { DEFAULT_MODEL } from "@/config/models"
 import { useApi } from "@/lib/ApiContext"
 import OpenAI from "openai"
 import { OPENAI_URL } from "@/config/unreal"
-import { useNavigate } from "react-router-dom"
+import { useNavigate } from "react-router"
 
 const CodePlayground = () => {
   const { apiKey } = useApi()

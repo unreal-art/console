@@ -30,7 +30,7 @@ import FAQ from "@/components/FAQ"
 import { useOpenWidget } from "@/hooks/useOpenWidget"
 import { useApi } from "@/lib/ApiContext"
 import { OPENAI_DOCS_URL } from "@/config/unreal"
-import { useNavigate } from "react-router-dom"
+import { useNavigate } from "react-router"
 
 const Index = () => {
   const [copied, setCopied] = useState(false)

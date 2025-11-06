@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { Toaster as Sonner } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { BrowserRouter, Routes, Route } from "react-router-dom"
+import { createBrowserRouter, RouterProvider } from "react-router"
 import { ApiProvider } from "./lib/ApiContext"
 import { useEffect } from "react"
 import { useAppStore } from "@/store/appStore"
@@ -20,6 +20,45 @@ import Airdrop from "./pages/Airdrop"
 
 const queryClient = new QueryClient()
 
+const router = createBrowserRouter([
+  {
+    path: "/",
+    element: <Home />,
+  },
+  {
+    path: "/dashboard",
+    element: <Dashboard />,
+  },
+  {
+    path: "/playground",
+    element: <Playground />,
+  },
+  {
+    path: "/playground-live",
+    element: <PlaygroundLive />,
+  },
+  {
+    path: "/airdrop",
+    element: <Airdrop />,
+  },
+  {
+    path: "/settings",
+    element: <Settings />,
+  },
+  {
+    path: "/login",
+    element: <Login />,
+  },
+  {
+    path: "/sign-in",
+    element: <SignIn />,
+  },
+  {
+    path: "*",
+    element: <NotFound />,
+  },
+])
+
 const App = () => {
   // Hydrate the app store once on startup
   useEffect(() => {
@@ -36,19 +75,7 @@ const App = () => {
         <TooltipProvider>
           <Toaster />
           <Sonner />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/playground" element={<Playground />} />
-              <Route path="/playground-live" element={<PlaygroundLive />} />
-              <Route path="/airdrop" element={<Airdrop />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/sign-in" element={<SignIn />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
+          <RouterProvider router={router} />
         </TooltipProvider>
       </ApiProvider>
     </QueryClientProvider>
