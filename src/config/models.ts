@@ -27,6 +27,49 @@ const extractModelId = (m: ApiModelLike): string | undefined => {
   return undefined
 }
 
+const isExcludedById = (id: string): boolean => {
+  const lower = id.toLowerCase()
+  if (lower.includes("embedding")) return true
+  if (lower.includes("reel")) return true
+  if (lower.includes("image") || lower.includes("img")) return true
+  if (
+    lower.includes("audio") ||
+    lower.includes("speech") ||
+    lower.includes("tts") ||
+    lower.includes("whisper")
+  )
+    return true
+  if (lower.includes("playground")) return true
+  return false
+}
+
+const hasTextCapability = (m: ApiModelLike): boolean => {
+  if (m && typeof m === "object") {
+    const obj = m as Record<string, unknown>
+    const modalities = obj.modalities as unknown
+    if (
+      Array.isArray(modalities) &&
+      modalities.some((x) => String(x).toLowerCase() === "text")
+    ) {
+      return true
+    }
+    const caps = obj.capabilities as Record<string, unknown> | undefined
+    if (caps && typeof caps === "object") {
+      const chat = caps["chat"] === true
+      const responses = caps["responses"] === true
+      const text = (caps as Record<string, unknown>)["text"] === true
+      if (chat || responses || text) return true
+    }
+    const id = extractModelId(m)
+    if (id) return !isExcludedById(id)
+    return false
+  }
+  if (typeof m === "string") {
+    return !isExcludedById(m)
+  }
+  return false
+}
+
 async function fetchModelsFromApi(auth?: string): Promise<UnrealModelId[]> {
   const headers: Record<string, string> = auth
     ? { Authorization: `Bearer ${auth}` }
@@ -42,30 +85,28 @@ async function fetchModelsFromApi(auth?: string): Promise<UnrealModelId[]> {
   }
   const data: unknown = await resp.json()
 
-  let ids: string[] = []
+  let items: unknown[] = []
   if (
     data &&
     typeof data === "object" &&
     Array.isArray((data as Record<string, unknown>).data)
   ) {
-    ids = ((data as Record<string, unknown>).data as unknown[])
-      .map((m) => extractModelId(m as ApiModelLike))
-      .filter((v): v is string => Boolean(v))
+    items = (data as Record<string, unknown>).data as unknown[]
   } else if (
     data &&
     typeof data === "object" &&
     Array.isArray((data as Record<string, unknown>).models)
   ) {
-    ids = ((data as Record<string, unknown>).models as unknown[])
-      .map((m) => extractModelId(m as ApiModelLike))
-      .filter((v): v is string => Boolean(v))
+    items = (data as Record<string, unknown>).models as unknown[]
   } else if (Array.isArray(data)) {
-    ids = (data as unknown[])
-      .map((m) => extractModelId(m as ApiModelLike))
-      .filter((v): v is string => Boolean(v))
+    items = data as unknown[]
   }
 
-  // De-duplicate
+  const ids = items
+    .filter((m) => hasTextCapability(m as ApiModelLike))
+    .map((m) => extractModelId(m as ApiModelLike))
+    .filter((v): v is string => Boolean(v))
+
   const unique = Array.from(new Set(ids)) as UnrealModelId[]
   return unique
 }
@@ -100,5 +141,5 @@ export function invalidateModelsCache(): void {
   _modelsCache = null
 }
 
-export const DEFAULT_MODEL: UnrealModelId ="glm-4p5"
-export const CODING_MODEL: UnrealModelId = "qwen3-coder-480b-a35b-instruct"
+export const DEFAULT_MODEL: UnrealModelId = "gpt-4o-mini"
+export const CODING_MODEL: UnrealModelId = "gpt-4o-mini"
