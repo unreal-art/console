@@ -141,5 +141,5 @@ export function invalidateModelsCache(): void {
   _modelsCache = null
 }
 
-export const DEFAULT_MODEL: UnrealModelId = "glm-4p5"
-export const CODING_MODEL: UnrealModelId = "qwen3-coder-480b-a35b-instruct"
+export const DEFAULT_MODEL: UnrealModelId = "gpt-4o-mini"
+export const CODING_MODEL: UnrealModelId = "gpt-4o-mini"
