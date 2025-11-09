@@ -2,11 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router"
 
 import { useApi } from "@/lib/ApiContext"
-import { OPENAI_URL } from "@/config/unreal"
-import {
-  DEFAULT_MODEL,
-  getAvailableModels,
-} from "@/config/models"
+import { DEFAULT_MODEL, getAvailableModels } from "@/config/models"
 import type { UnrealModelId } from "@/config/models"
 import { getChainById } from "@utils/web3/chains"
 
@@ -55,8 +51,8 @@ import {
   FileDown,
   List,
 } from "lucide-react"
-import OpenAI from "openai"
 import type { UIMessage } from "ai"
+import { openaiClient, OPENAI_URL } from "@config/unreal"
 import { Switch } from "@/components/ui/switch"
 
 interface ChatPlaygroundProps {
@@ -117,19 +113,22 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
   const [showDetails, setShowDetails] = useState(false)
   const [receiptOpen, setReceiptOpen] = useState(false)
   const [expandedHash, setExpandedHash] = useState<{
-    type: 'price' | 'cost' | 'refund'
+    type: "price" | "cost" | "refund"
     hash: string
   } | null>(null)
-  
+
   // Toggle hash expansion
-  const toggleHashExpansion = (type: 'price' | 'cost' | 'refund', hash: string) => {
+  const toggleHashExpansion = (
+    type: "price" | "cost" | "refund",
+    hash: string
+  ) => {
     if (expandedHash?.type === type && expandedHash.hash === hash) {
       setExpandedHash(null)
     } else {
       setExpandedHash({ type, hash })
     }
   }
-  
+
   // Component for expandable hash display
   const ExpandableHash = ({
     hash,
@@ -138,7 +137,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
   }: {
     hash: string
     url?: string
-    type: 'price' | 'cost' | 'refund'
+    type: "price" | "cost" | "refund"
   }) => (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -170,8 +169,8 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
       </TooltipTrigger>
       <TooltipContent>
         {expandedHash?.type === type && expandedHash.hash === hash
-          ? 'Click to collapse'
-          : 'Click to expand'}
+          ? "Click to collapse"
+          : "Click to expand"}
       </TooltipContent>
     </Tooltip>
   )
@@ -561,7 +560,9 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
       const safe = needsFormulaEscape ? `'${s}` : s
       return `"${safe.replace(/"/g, '""')}"`
     }
-    const values = headers.map((k) => csvEsc((flat as Record<string, unknown>)[k]))
+    const values = headers.map((k) =>
+      csvEsc((flat as Record<string, unknown>)[k])
+    )
     const csv = `${headers.join(",")}\n${values.join(",")}`
     const fname = `receipt_${receipt.model || "model"}_${receipt.timestamp}.csv`
     downloadFile(fname, csv, "text/csv")
@@ -577,13 +578,84 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
       .join("")
   }, [])
 
+  const extractOutputText = useCallback((data: unknown): string => {
+    try {
+      const d = data as Record<string, unknown> | null | undefined
+      if (!d || typeof d !== "object") return ""
+
+      // OpenAI Responses API convenience field
+      const outputText = (d as { output_text?: unknown }).output_text
+      if (typeof outputText === "string" && outputText.length > 0)
+        return outputText
+
+      // OpenAI Responses API structured output
+      const output = (d as { output?: unknown }).output
+      if (Array.isArray(output) && output.length > 0) {
+        const first = output[0] as { content?: unknown }
+        const content = first?.content
+        if (Array.isArray(content)) {
+          const text = content
+            .map((c) => {
+              const item = c as {
+                type?: unknown
+                text?: unknown
+                content?: unknown
+              }
+              if (item && item.type === "output_text") {
+                const t = (item.text as { value?: unknown } | undefined)?.value
+                return typeof t === "string" ? t : ""
+              }
+              if (typeof item?.text === "string") return item.text as string
+              if (typeof item?.content === "string")
+                return item.content as string
+              return ""
+            })
+            .join("")
+          if (text) return text
+        }
+      }
+
+      // Chat Completions style (e.g., GitHub Models)
+      const choices = (d as { choices?: unknown }).choices
+      if (Array.isArray(choices) && choices.length > 0) {
+        const c0 = choices[0] as {
+          message?: { content?: unknown }
+          text?: unknown
+        }
+        const msg = c0?.message?.content
+        if (typeof msg === "string") return msg
+        if (Array.isArray(msg)) {
+          const txt = msg
+            .map((p) => {
+              const part = p as { text?: unknown }
+              if (typeof part?.text === "string") return part.text
+              if (typeof (p as unknown as string) === "string")
+                return p as unknown as string
+              return ""
+            })
+            .join("")
+          if (txt) return txt
+        }
+        if (typeof c0?.text === "string") return c0.text
+      }
+
+      // Fallback fields
+      const content = (d as { content?: unknown }).content
+      if (typeof content === "string") return content
+
+      return ""
+    } catch {
+      return ""
+    }
+  }, [])
+
   // Stream assistant response for the given history (messages already include last user)
   const generateAssistantResponse = useCallback(
     async (history: UIMessage[]) => {
       setError(null)
       setIsStreaming(true)
 
-      // Streaming mode (beta) using native fetch + SSE
+      // Streaming mode (beta) using axios XHR + SSE parsing
       if (enableStreaming) {
         // Track whether we've received any streamed content
         let hasStreamed = false
@@ -595,7 +667,8 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
             const next = [...prev]
             const current = next[assistantIndex]
             if (!current || current.role !== "assistant") return prev
-            const existing = (current as unknown as { parts?: TextPart[] }).parts || []
+            const existing =
+              (current as unknown as { parts?: TextPart[] }).parts || []
             const existingText = existing
               .filter((p): p is TextPart => Boolean(p) && p.type === "text")
               .map((p) => p.text ?? "")
@@ -645,44 +718,14 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
           const assistantIndex = history.length
           setMessages((prev) => [
             ...history,
-            { id: makeId(), role: "assistant", parts: [{ type: "text", text: "" }] },
+            {
+              id: makeId(),
+              role: "assistant",
+              parts: [{ type: "text", text: "" }],
+            },
           ])
 
-          const resp = await fetch(`${OPENAI_URL}/responses`, {
-            method: "POST",
-            headers,
-            credentials: "include",
-            signal: controller.signal,
-            body: JSON.stringify({
-              model,
-              instructions: openaiMessages.find(m => m.role === "system")?.content || "You are a helpful assistant.",
-              input: openaiMessages.filter(m => m.role !== "system").map(m => `${m.role}: ${m.content}`).join("\n"),
-              stream: true,
-            }),
-          })
-
-          if (!resp.ok || !resp.body) {
-            let msg = `Streaming request failed (${resp.status})`
-            try {
-              const t = await resp.text()
-              if (t) msg = `${msg}: ${t}`
-            } catch (_e) {
-              // ignore body read error
-              void _e
-            }
-            throw new Error(msg)
-          }
-
-          // Collect headers for transparency
-          const headersObj: Record<string, string> = {}
-          try {
-            resp.headers.forEach((v, k) => {
-              headersObj[String(k).toLowerCase()] = String(v)
-            })
-          } catch (_e) {
-            // ignore header iteration errors
-            void _e
-          }
+          let responseHeaders: Record<string, string> = {}
 
           // Parse explicit headers for price/cost and transactions
           const num = (s?: string) => {
@@ -690,33 +733,31 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
             const n = Number(s)
             return Number.isFinite(n) ? n : undefined
           }
-          const headerInputCost = num(headersObj["openai-input-cost"]) // UNREAL
-          const headerOutputCost = num(headersObj["openai-output-cost"]) // UNREAL
-          const headerTotalCost = num(headersObj["openai-total-cost"]) // UNREAL
-          const priceTxHash = headersObj["openai-price-tx"]
-          const priceTxUrl = headersObj["openai-price-tx-url"]
-          const costTxHash = headersObj["openai-cost-tx"]
-          const costTxUrl = headersObj["openai-cost-tx-url"]
-          const refundAmount = num(headersObj["openai-refund-amount"]) // UNREAL
-          const refundTxHash = headersObj["openai-refund-tx"]
-          const refundTxUrl = headersObj["openai-refund-tx-url"]
-          const paymentTokenUrl = headersObj["openai-payment-token"]
-          const chainName = headersObj["openai-chain"]
-          const chainIdHeader = headersObj["openai-chain-id"]
+          let headerInputCost: number | undefined
+          let headerOutputCost: number | undefined
+          let headerTotalCost: number | undefined
+          let priceTxHash: string | undefined
+          let priceTxUrl: string | undefined
+          let costTxHash: string | undefined
+          let costTxUrl: string | undefined
+          let refundAmount: number | undefined
+          let refundTxHash: string | undefined
+          let refundTxUrl: string | undefined
+          let paymentTokenUrl: string | undefined
+          let chainName: string | undefined
+          let chainIdHeader: string | undefined
           const chainIdParsed = chainIdHeader
             ? Number.isFinite(Number(chainIdHeader))
               ? Number(chainIdHeader)
               : undefined
             : undefined
-          const callsRemaining = num(headersObj["openai-calls-remaining"]) ?? undefined
-          const requestIdHeader =
-            headersObj["x-request-id"] || headersObj["openai-request-id"] || null
+          let callsRemaining: number | undefined
+          let requestIdHeader: string | null = null
 
-          // Stream parse (SSE)
-          const reader = resp.body.getReader()
-          const decoder = new TextDecoder("utf-8")
+          // Stream parse (SSE) using axios onDownloadProgress
           let buffer = ""
           let modelSeen: string | undefined
+          let processedLength = 0
           const flushEvents = (block: string) => {
             const lines = block.split("\n")
             for (const line of lines) {
@@ -730,10 +771,27 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                   type?: string
                   delta?: string
                   model?: string
+                  choices?: Array<{
+                    delta?: { content?: string }
+                    text?: string
+                    message?: { content?: string }
+                  }>
                 }
                 if (json?.model && !modelSeen) modelSeen = json.model
-                // OpenAI Responses API: event.delta for response.output_text.delta
-                const plain = json?.type === 'response.output_text.delta' && typeof json.delta === "string" ? json.delta : ""
+                let plain = ""
+                if (
+                  json?.type === "response.output_text.delta" &&
+                  typeof json.delta === "string"
+                ) {
+                  plain = json.delta
+                } else if (
+                  Array.isArray(json?.choices) &&
+                  json.choices.length > 0
+                ) {
+                  const ch = json.choices[0]
+                  plain =
+                    ch?.delta?.content || ch?.text || ch?.message?.content || ""
+                }
                 if (plain) appendChunk(assistantIndex, plain)
               } catch (_e) {
                 // ignore malformed chunks
@@ -742,42 +800,85 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
             return undefined
           }
 
-          let finished = false
-
-          while (true) {
-            const { done, value } = await reader.read()
-            if (done) break
-            buffer += decoder.decode(value, { stream: true })
-            // Process complete SSE events separated by blank lines
-            let idx
-            // Loop to handle multiple events per chunk
-            while ((idx = buffer.indexOf("\n\n")) !== -1) {
-              const block = buffer.slice(0, idx)
-              buffer = buffer.slice(idx + 2)
-              const status = flushEvents(block)
-              if (status === "DONE") {
-                // Drain remaining
-                buffer = ""
-                finished = true
-                break
-              }
+          // Start axios streaming request and parse incrementally
+          const streamResp = await openaiClient.post(
+            `${OPENAI_URL}/responses`,
+            {
+              model,
+              instructions:
+                openaiMessages.find((m) => m.role === "system")?.content ||
+                "You are a helpful assistant.",
+              input: openaiMessages
+                .filter((m) => m.role !== "system")
+                .map((m) => `${m.role}: ${m.content}`)
+                .join("\n"),
+              stream: true,
+            },
+            {
+              headers,
+              withCredentials: true,
+              signal: controller.signal as any,
+              responseType: "text",
+              onDownloadProgress: (e) => {
+                try {
+                  const xhr = e.event?.target as XMLHttpRequest | undefined
+                  const respText = (xhr?.responseText ?? "") as string
+                  if (!respText) return
+                  const delta = respText.slice(processedLength)
+                  if (!delta) return
+                  processedLength = respText.length
+                  buffer += delta
+                  let idx
+                  while ((idx = buffer.indexOf("\n\n")) !== -1) {
+                    const block = buffer.slice(0, idx)
+                    buffer = buffer.slice(idx + 2)
+                    const r = flushEvents(block)
+                    if (r === "DONE") {
+                      buffer = ""
+                      break
+                    }
+                  }
+                } catch (_e) {
+                  // ignore progress parse errors
+                }
+              },
             }
-            if (finished) break
-          }
+          )
 
-          // Flush any remaining decoded bytes (in case the final chunk wasn't newline-terminated)
-          const tail = decoder.decode()
-          if (tail) {
-            buffer += tail
-            if (buffer) void flushEvents(buffer)
+          // Collect response headers after completion
+          try {
+            responseHeaders = Object.fromEntries(
+              Object.entries(streamResp.headers || {}).map(([k, v]) => [
+                String(k).toLowerCase(),
+                String(v as string),
+              ])
+            )
+          } catch (_e) {
+            // ignore header iteration errors
           }
+          headerInputCost = num(responseHeaders["openai-input-cost"]) // UNREAL
+          headerOutputCost = num(responseHeaders["openai-output-cost"]) // UNREAL
+          headerTotalCost = num(responseHeaders["openai-total-cost"]) // UNREAL
+          priceTxHash = responseHeaders["openai-price-tx"]
+          priceTxUrl = responseHeaders["openai-price-tx-url"]
+          costTxHash = responseHeaders["openai-cost-tx"]
+          costTxUrl = responseHeaders["openai-cost-tx-url"]
+          refundAmount = num(responseHeaders["openai-refund-amount"]) // UNREAL
+          refundTxHash = responseHeaders["openai-refund-tx"]
+          refundTxUrl = responseHeaders["openai-refund-tx-url"]
+          paymentTokenUrl = responseHeaders["openai-payment-token"]
+          chainName = responseHeaders["openai-chain"]
+          chainIdHeader = responseHeaders["openai-chain-id"]
+          callsRemaining = num(responseHeaders["openai-calls-remaining"]) ?? undefined
+          requestIdHeader =
+            responseHeaders["x-request-id"] || responseHeaders["openai-request-id"] || null
           // Finalize receipt from headers and observed model
           setLastRun({
             price: undefined,
             currency: "UNREAL",
             txHash: costTxHash || priceTxHash || undefined,
             requestId: requestIdHeader,
-            headers: headersObj,
+            headers: responseHeaders,
             usage: undefined,
             model: modelSeen || model,
             timestamp: Date.now(),
@@ -802,11 +903,9 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
         } catch (e) {
           const err = e as { name?: string; message?: string }
           const name = err?.name ?? ""
-          const msgText = err?.message ?? (e instanceof Error ? e.message : String(e ?? ""))
-          if (
-            name === "AbortError" ||
-            /abort(ed)?/i.test(msgText)
-          ) {
+          const msgText =
+            err?.message ?? (e instanceof Error ? e.message : String(e ?? ""))
+          if (name === "AbortError" || /abort(ed)?/i.test(msgText)) {
             // User-initiated stop
             setIsStreaming(false)
             return
@@ -818,7 +917,8 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
               const next = [...prev]
               const last = next[next.length - 1] as UIMessage | undefined
               const isEmptyAssistant =
-                last && last.role === "assistant" &&
+                last &&
+                last.role === "assistant" &&
                 !getTextFromMessage(last as UIMessage)
               if (isEmptyAssistant) next.pop()
               return next
@@ -831,7 +931,6 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
       }
 
       try {
-        // Helper functions for retry logic
         const isTransient = (err: unknown) => {
           const msg = err instanceof Error ? err.message : String(err)
           return /unavailable|route to host|network|fetch failed|timeout|ECONNRESET|502|503|504/i.test(
@@ -842,15 +941,14 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
 
         const maxAttempts = 3
         let attempt = 0
-        let completion: OpenAI.Chat.ChatCompletion | null = null
+        let completion: unknown | null = null
         let headersCollected: Record<string, string> | null = null
         let requestId: string | null = null
-        let parsedTxHash: string | undefined = undefined
+        let parsedTxHash: string | undefined
         let parsedPrice: string | undefined
-        let parsedCurrency: string | undefined = undefined
+        let parsedCurrency: string | undefined
         let activeChainId: number | null = null
 
-        // Header-derived metadata (declared in outer scope for later use)
         let headerInputCost: number | undefined
         let headerOutputCost: number | undefined
         let headerTotalCost: number | undefined
@@ -866,7 +964,6 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
         let chainIdParsed: number | undefined
         let callsRemaining: number | undefined
 
-        // Capture current chain id for explorer linking
         try {
           activeChainId = await getCurrentChainId()
           setChainId(activeChainId)
@@ -876,9 +973,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
 
         for (; attempt < maxAttempts; attempt++) {
           try {
-            // Set up abort controller for this attempt
             const controller = new AbortController()
-            // Abort any ongoing request first
             try {
               abortRef.current?.abort()
             } catch (_e) {
@@ -887,61 +982,48 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
             abortRef.current = controller
 
             const auth = apiKey || token || ""
-            const client = new OpenAI({
-              apiKey: auth,
-              baseURL: OPENAI_URL,
-              // We intentionally allow browser usage here because the user provides their own key
-              dangerouslyAllowBrowser: true,
-              fetch: (input, init) => {
-                return fetch(input as RequestInfo, {
-                  ...(init || {}),
-                  credentials: "include",
-                })
-              },
-            })
-
-            // Convert UI messages to OpenAI messages (text-only)
             const openaiMessages = history.map((m) => ({
               role: m.role as "system" | "user" | "assistant",
               content: getTextFromMessage(m),
             }))
-
-            // Use non-streamed responses API
-            const systemMessage = openaiMessages.find(m => m.role === "system")
-            const userMessages = openaiMessages.filter(m => m.role !== "system")
-            const result = await client.responses
-              .create(
-                {
-                  model,
-                  instructions: systemMessage?.content || "You are a helpful assistant.",
-                  input: userMessages.map(m => `${m.role}: ${m.content}`).join("\n"),
-                  stream: false,
-                },
-                { signal: controller.signal }
-              )
-              .withResponse()
-
-            completion = result.data
-
-            // Collect headers for transparency panel
+            const systemMessage = openaiMessages.find(
+              (m) => m.role === "system"
+            )
+            const resp = await openaiClient.post(
+              `${OPENAI_URL}/responses`,
+              {
+                model,
+                instructions:
+                  systemMessage?.content || "You are a helpful assistant.",
+                input: openaiMessages
+                  .filter((m) => m.role !== "system")
+                  .map((m) => `${m.role}: ${m.content}`)
+                  .join("\n"),
+                stream: false,
+              },
+              {
+                headers: auth ? { Authorization: `Bearer ${auth}` } : undefined,
+                withCredentials: true,
+                signal: controller.signal as any,
+              }
+            )
+            completion = resp.data
             const headersObj: Record<string, string> = {}
             try {
-              result.response.headers.forEach((v, k) => {
-                headersObj[String(k).toLowerCase()] = String(v)
+              Object.entries(resp.headers || {}).forEach(([k, v]) => {
+                headersObj[String(k).toLowerCase()] = String(v as string)
               })
             } catch (_e) {
-              // ignore header parsing errors
+              // ignore header iteration errors
             }
             headersCollected = headersObj
-            requestId = result.request_id
+            requestId =
+              headersObj["x-request-id"] ||
+              headersObj["openai-request-id"] ||
+              (completion && (completion as any).id) ||
+              null
 
-            // Parse explicit headers for price/cost and transactions
             const h = headersObj
-
-            if (!h) {
-              return
-            }
-
             const num = (s?: string) => {
               if (s == null) return undefined
               const n = Number(s)
@@ -967,22 +1049,16 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                 : undefined
               : undefined
 
-            // Use costTx hash as primary txHash if present
             parsedTxHash = costTxHash || priceTxHash || undefined
-            // Do not set parsedPrice from arbitrary headers; rely on headerTotalCost/computed costs
             parsedPrice = h["openai-price"]
             parsedCurrency = "UNREAL"
 
-            // Success - break out of retry loop
             break
           } catch (e) {
             const err = e as { name?: string; message?: string }
             const name = err?.name ?? ""
             const msgText =
               err?.message ?? (e instanceof Error ? e.message : String(e ?? ""))
-
-            // Treat user-initiated or replacement aborts as non-errors.
-            // OpenAI SDK throws APIUserAbortError; browsers may throw AbortError/DOMException.
             if (
               name === "AbortError" ||
               name === "APIUserAbortError" ||
@@ -998,25 +1074,23 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
           }
         }
 
-        // Process the response
-        if (completion && completion.output_text) {
+        const outputTextFinal = extractOutputText(completion)
+        if (outputTextFinal) {
           const newMessage: UIMessage = {
             id: makeId(),
             role: "assistant",
-            parts: [{ type: "text", text: completion.output_text }],
+            parts: [{ type: "text", text: outputTextFinal }],
           }
           setMessages((prev) => [...prev, newMessage])
 
-          // console.log("parsedPrice", parsedPrice)
-          // Record transparent billing metadata for this run
           setLastRun({
             price: parsedPrice ? Number(parsedPrice) : undefined,
             currency: parsedCurrency || "UNREAL",
             txHash: parsedTxHash,
             requestId,
             headers: headersCollected || undefined,
-            usage: completion.usage,
-            model: completion.model,
+            usage: (completion as any)?.usage,
+            model: (completion as any)?.model,
             timestamp: Date.now(),
             headerCosts: {
               input: headerInputCost,
@@ -1061,7 +1135,15 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
         setIsStreaming(false)
       }
     },
-    [apiKey, token, model, getTextFromMessage, getCurrentChainId, enableStreaming]
+    [
+      apiKey,
+      token,
+      model,
+      getTextFromMessage,
+      getCurrentChainId,
+      enableStreaming,
+      extractOutputText,
+    ]
   )
 
   const sendMessage = useCallback(
@@ -1546,8 +1628,8 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                 {lastRun?.priceTx?.hash && (
                   <div className="flex items-center gap-1">
                     <span className="text-muted-foreground">-</span>
-                    <ExpandableHash 
-                      hash={lastRun.priceTx.hash} 
+                    <ExpandableHash
+                      hash={lastRun.priceTx.hash}
                       url={lastRun.priceTx.url}
                       type="price"
                     />
@@ -1564,8 +1646,8 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                 {lastRun?.costTx?.hash && (
                   <div className="flex items-center gap-1">
                     <span className="text-muted-foreground">-</span>
-                    <ExpandableHash 
-                      hash={lastRun.costTx.hash} 
+                    <ExpandableHash
+                      hash={lastRun.costTx.hash}
                       url={lastRun.costTx.url}
                       type="cost"
                     />
@@ -1597,8 +1679,8 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                     {lastRun.refund.tx?.hash && (
                       <div className="flex items-center gap-1">
                         <span className="text-muted-foreground">-</span>
-                        <ExpandableHash 
-                          hash={lastRun.refund.tx.hash} 
+                        <ExpandableHash
+                          hash={lastRun.refund.tx.hash}
                           url={lastRun.refund.tx.url}
                           type="refund"
                         />
