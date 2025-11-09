@@ -577,6 +577,70 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
       .join("")
   }, [])
 
+  const extractOutputText = useCallback((data: unknown): string => {
+    try {
+      const d = data as Record<string, unknown> | null | undefined
+      if (!d || typeof d !== "object") return ""
+
+      // OpenAI Responses API convenience field
+      const outputText = (d as { output_text?: unknown }).output_text
+      if (typeof outputText === "string" && outputText.length > 0) return outputText
+
+      // OpenAI Responses API structured output
+      const output = (d as { output?: unknown }).output
+      if (Array.isArray(output) && output.length > 0) {
+        const first = output[0] as { content?: unknown }
+        const content = first?.content
+        if (Array.isArray(content)) {
+          const text = content
+            .map((c) => {
+              const item = c as { type?: unknown; text?: unknown; content?: unknown }
+              if (item && item.type === "output_text") {
+                const t = (item.text as { value?: unknown } | undefined)?.value
+                return typeof t === "string" ? t : ""
+              }
+              if (typeof item?.text === "string") return item.text as string
+              if (typeof item?.content === "string") return item.content as string
+              return ""
+            })
+            .join("")
+          if (text) return text
+        }
+      }
+
+      // Chat Completions style (e.g., GitHub Models)
+      const choices = (d as { choices?: unknown }).choices
+      if (Array.isArray(choices) && choices.length > 0) {
+        const c0 = choices[0] as {
+          message?: { content?: unknown }
+          text?: unknown
+        }
+        const msg = c0?.message?.content
+        if (typeof msg === "string") return msg
+        if (Array.isArray(msg)) {
+          const txt = msg
+            .map((p) => {
+              const part = p as { text?: unknown }
+              if (typeof part?.text === "string") return part.text
+              if (typeof (p as unknown as string) === "string") return p as unknown as string
+              return ""
+            })
+            .join("")
+          if (txt) return txt
+        }
+        if (typeof c0?.text === "string") return c0.text
+      }
+
+      // Fallback fields
+      const content = (d as { content?: unknown }).content
+      if (typeof content === "string") return content
+
+      return ""
+    } catch {
+      return ""
+    }
+  }, [])
+
   // Stream assistant response for the given history (messages already include last user)
   const generateAssistantResponse = useCallback(
     async (history: UIMessage[]) => {
@@ -730,10 +794,20 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
                   type?: string
                   delta?: string
                   model?: string
+                  choices?: Array<{
+                    delta?: { content?: string }
+                    text?: string
+                    message?: { content?: string }
+                  }>
                 }
                 if (json?.model && !modelSeen) modelSeen = json.model
-                // OpenAI Responses API: event.delta for response.output_text.delta
-                const plain = json?.type === 'response.output_text.delta' && typeof json.delta === "string" ? json.delta : ""
+                let plain = ""
+                if (json?.type === "response.output_text.delta" && typeof json.delta === "string") {
+                  plain = json.delta
+                } else if (Array.isArray(json?.choices) && json.choices.length > 0) {
+                  const ch = json.choices[0]
+                  plain = ch?.delta?.content || ch?.text || ch?.message?.content || ""
+                }
                 if (plain) appendChunk(assistantIndex, plain)
               } catch (_e) {
                 // ignore malformed chunks
@@ -842,7 +916,7 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
 
         const maxAttempts = 3
         let attempt = 0
-        let completion: OpenAI.Chat.ChatCompletion | null = null
+        let completion: unknown | null = null
         let headersCollected: Record<string, string> | null = null
         let requestId: string | null = null
         let parsedTxHash: string | undefined = undefined
@@ -998,25 +1072,29 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
           }
         }
 
-        // Process the response
-        if (completion && completion.output_text) {
+        const outputTextFinal = extractOutputText(completion)
+        if (outputTextFinal) {
           const newMessage: UIMessage = {
             id: makeId(),
             role: "assistant",
-            parts: [{ type: "text", text: completion.output_text }],
+            parts: [{ type: "text", text: outputTextFinal }],
           }
           setMessages((prev) => [...prev, newMessage])
 
-          // console.log("parsedPrice", parsedPrice)
-          // Record transparent billing metadata for this run
           setLastRun({
             price: parsedPrice ? Number(parsedPrice) : undefined,
             currency: parsedCurrency || "UNREAL",
             txHash: parsedTxHash,
             requestId,
             headers: headersCollected || undefined,
-            usage: completion.usage,
-            model: completion.model,
+            usage: (completion as { usage?: unknown }).usage as
+              | {
+                  prompt_tokens?: number
+                  completion_tokens?: number
+                  total_tokens?: number
+                }
+              | undefined,
+            model: (completion as { model?: string }).model,
             timestamp: Date.now(),
             headerCosts: {
               input: headerInputCost,
@@ -1061,7 +1139,15 @@ const ChatPlayground: React.FC<ChatPlaygroundProps> = ({
         setIsStreaming(false)
       }
     },
-    [apiKey, token, model, getTextFromMessage, getCurrentChainId, enableStreaming]
+    [
+      apiKey,
+      token,
+      model,
+      getTextFromMessage,
+      getCurrentChainId,
+      enableStreaming,
+      extractOutputText,
+    ]
   )
 
   const sendMessage = useCallback(
